@@ -63,6 +63,14 @@ static int32_t GetForumTopicId(const td::td_api::message& p_Message)
   return 0;
 }
 
+static int64_t GetLastMessageTime(const td::td_api::message* p_Message)
+{
+  if (p_Message == nullptr) return 0;
+
+  const int64_t hash = std::hash<std::string>{ } (StrUtil::NumToHex(p_Message->id_)) % 256;
+  return (((int64_t)p_Message->date_) * 1000) + hash;
+}
+
 namespace detail
 {
   template<class... Fs>
@@ -219,6 +227,13 @@ private:
                       bool p_Sequence);
   void GetForumMessage(int64_t p_ChatId, int64_t p_MsgId);
   void UpdateTopicLastReadInbox(int64_t p_ChatId, int32_t p_TopicId, int64_t p_LastReadMsgId);
+  void EmitChatInfo(const ChatInfo& p_ChatInfo, int64_t p_ChatId, int64_t p_LastReadOutbox,
+                    int64_t p_LastReadInbox);
+  void LoadForumChat(const ChatInfo& p_ChatInfo, int64_t p_ChatId, const std::string& p_Title,
+                     int64_t p_LastReadOutbox, int64_t p_LastReadInbox);
+  void LoadForumTopics(int64_t p_ChatId, const std::string& p_Title, int32_t p_OffsetDate,
+                       int64_t p_OffsetMessageId, int32_t p_OffsetTopicId);
+  void EmitTopicChat(int64_t p_ChatId, const std::string& p_Title, const td::td_api::forumTopic& p_Topic);
   bool IsForumChat(int64_t p_ChatId);
   int32_t GetEffectiveTopicId(const ChatRef& p_Ref);
   td::td_api::object_ptr<td::td_api::formattedText> GetFormattedText(const std::string& p_Text);
@@ -707,6 +722,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
 
             if (!tchat) return;
 
+            int64_t supergroupId = 0;
             if (tchat->type_->get_id() == td::td_api::chatTypePrivate::ID)
             {
               m_ChatTypes[tchat->id_] = ChatPrivate;
@@ -715,6 +731,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             {
               auto typeSupergroup =
                 td::move_tl_object_as<td::td_api::chatTypeSupergroup>(tchat->type_);
+              supergroupId = typeSupergroup->supergroup_id_;
               if (typeSupergroup->is_channel_)
               {
                 m_ChatTypes[tchat->id_] = ChatSuperGroupChannel;
@@ -773,17 +790,31 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             chatInfo.isArchived = isArchived;
             chatInfo.lastMessageTime = lastMessageTime;
 
-            std::vector<ChatInfo> chatInfos;
-            chatInfos.push_back(chatInfo);
+            const int64_t chatIdNum = tchat->id_;
+            const std::string title = tchat->title_;
+            const int64_t lastReadOutbox = tchat->last_read_outbox_message_id_;
+            const int64_t lastReadInbox = tchat->last_read_inbox_message_id_;
 
-            std::shared_ptr<NewChatsNotify> newChatsNotify =
-              std::make_shared<NewChatsNotify>(m_ProfileId);
-            newChatsNotify->success = true;
-            newChatsNotify->chatInfos = chatInfos;
-            CallMessageHandler(newChatsNotify);
+            if (m_ChatTypes[chatIdNum] != ChatSuperGroup)
+            {
+              EmitChatInfo(chatInfo, chatIdNum, lastReadOutbox, lastReadInbox);
+              return;
+            }
 
-            UpdateLastReadOutboxMessage(tchat->id_, tchat->last_read_outbox_message_id_);
-            UpdateLastReadInboxMessage(tchat->id_, tchat->last_read_inbox_message_id_);
+            SendQuery(td::td_api::make_object<td::td_api::getSupergroup>(supergroupId),
+                      [this, chatInfo, chatIdNum, title, lastReadOutbox, lastReadInbox](Object supergroupObject)
+            {
+              const bool isForum = (supergroupObject->get_id() == td::td_api::supergroup::ID) &&
+                static_cast<td::td_api::supergroup&>(*supergroupObject).is_forum_;
+              if (isForum)
+              {
+                LoadForumChat(chatInfo, chatIdNum, title, lastReadOutbox, lastReadInbox);
+              }
+              else
+              {
+                EmitChatInfo(chatInfo, chatIdNum, lastReadOutbox, lastReadInbox);
+              }
+            });
           });
         }
       }
@@ -4396,6 +4427,133 @@ void TgChat::Impl::UpdateTopicLastReadInbox(int64_t p_ChatId, int32_t p_TopicId,
     newMessageStatusNotify->isRead = true;
     CallMessageHandler(newMessageStatusNotify);
   }
+}
+
+void TgChat::Impl::EmitChatInfo(const ChatInfo& p_ChatInfo, int64_t p_ChatId, int64_t p_LastReadOutbox,
+                                int64_t p_LastReadInbox)
+{
+  std::shared_ptr<NewChatsNotify> newChatsNotify = std::make_shared<NewChatsNotify>(m_ProfileId);
+  newChatsNotify->success = true;
+  newChatsNotify->chatInfos = std::vector<ChatInfo>({ p_ChatInfo });
+  CallMessageHandler(newChatsNotify);
+
+  UpdateLastReadOutboxMessage(p_ChatId, p_LastReadOutbox);
+  UpdateLastReadInboxMessage(p_ChatId, p_LastReadInbox);
+}
+
+void TgChat::Impl::LoadForumChat(const ChatInfo& p_ChatInfo, int64_t p_ChatId, const std::string& p_Title,
+                                 int64_t p_LastReadOutbox, int64_t p_LastReadInbox)
+{
+  {
+    std::unique_lock<std::mutex> lock(m_ForumMutex);
+    m_ForumChats.insert(p_ChatId);
+    if (p_ChatInfo.isArchived)
+    {
+      m_ForumArchived.insert(p_ChatId);
+    }
+    else
+    {
+      m_ForumArchived.erase(p_ChatId);
+    }
+  }
+
+  // the parent row represents the General topic
+  SendQuery(td::td_api::make_object<td::td_api::getForumTopic>(p_ChatId, 1),
+            [this, p_ChatInfo, p_ChatId, p_Title, p_LastReadOutbox, p_LastReadInbox](Object object)
+  {
+    ChatInfo chatInfo = p_ChatInfo;
+    int64_t lastReadOutbox = p_LastReadOutbox;
+    int64_t lastReadInbox = p_LastReadInbox;
+
+    if (object->get_id() == td::td_api::forumTopic::ID)
+    {
+      const auto& general = static_cast<const td::td_api::forumTopic&>(*object);
+      chatInfo.isUnread = (general.unread_count_ > 0);
+      chatInfo.isUnreadMention = (general.unread_mention_count_ > 0);
+      chatInfo.isMuted = general.notification_settings_ && (general.notification_settings_->mute_for_ > 0);
+      if (!chatInfo.isPinned && general.last_message_)
+      {
+        chatInfo.lastMessageTime = GetLastMessageTime(general.last_message_.get());
+      }
+
+      lastReadOutbox = general.last_read_outbox_message_id_;
+      lastReadInbox = general.last_read_inbox_message_id_;
+    }
+    else
+    {
+      LOG_WARNING("get general topic failed %lld", (long long)p_ChatId);
+    }
+
+    EmitChatInfo(chatInfo, p_ChatId, lastReadOutbox, lastReadInbox);
+    LoadForumTopics(p_ChatId, p_Title, 0, 0, 0);
+  });
+}
+
+void TgChat::Impl::LoadForumTopics(int64_t p_ChatId, const std::string& p_Title, int32_t p_OffsetDate,
+                                   int64_t p_OffsetMessageId, int32_t p_OffsetTopicId)
+{
+  const int32_t limit = 100;
+  SendQuery(td::td_api::make_object<td::td_api::getForumTopics>(p_ChatId, "" /*query_*/, p_OffsetDate,
+                                                                p_OffsetMessageId, p_OffsetTopicId, limit),
+            [this, p_ChatId, p_Title](Object object)
+  {
+    if (object->get_id() == td::td_api::error::ID)
+    {
+      LOG_WARNING("get forum topics failed %lld", (long long)p_ChatId);
+      return;
+    }
+
+    auto topics = td::move_tl_object_as<td::td_api::forumTopics>(object);
+    for (const auto& topic : topics->topics_)
+    {
+      if (!topic || !topic->info_ || topic->info_->is_general_ || (topic->info_->forum_topic_id_ <= 1)) continue;
+      EmitTopicChat(p_ChatId, p_Title, *topic);
+    }
+
+    if (!topics->topics_.empty() && (topics->next_offset_forum_topic_id_ != 0))
+    {
+      LoadForumTopics(p_ChatId, p_Title, topics->next_offset_date_, topics->next_offset_message_id_,
+                      topics->next_offset_forum_topic_id_);
+    }
+  });
+}
+
+void TgChat::Impl::EmitTopicChat(int64_t p_ChatId, const std::string& p_Title,
+                                 const td::td_api::forumTopic& p_Topic)
+{
+  const int32_t topicId = p_Topic.info_->forum_topic_id_;
+  const std::string chatId = MakeChatId(p_ChatId, topicId);
+
+  bool isArchived = false;
+  {
+    std::unique_lock<std::mutex> lock(m_ForumMutex);
+    m_ForumTopics[p_ChatId].insert(topicId);
+    isArchived = (m_ForumArchived.count(p_ChatId) > 0);
+  }
+
+  ContactInfo contactInfo;
+  contactInfo.id = chatId;
+  contactInfo.name = p_Title + " \xE2\x80\xBA " + p_Topic.info_->name_;
+  contactInfo.isSelf = false;
+  std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(m_ProfileId);
+  newContactsNotify->contactInfos = std::vector<ContactInfo>({ contactInfo });
+  CallMessageHandler(newContactsNotify);
+
+  ChatInfo chatInfo;
+  chatInfo.id = chatId;
+  chatInfo.isUnread = (p_Topic.unread_count_ > 0);
+  chatInfo.isUnreadMention = (p_Topic.unread_mention_count_ > 0);
+  chatInfo.isMuted = p_Topic.notification_settings_ && (p_Topic.notification_settings_->mute_for_ > 0);
+  chatInfo.isPinned = false;
+  chatInfo.isArchived = isArchived;
+  chatInfo.lastMessageTime = GetLastMessageTime(p_Topic.last_message_.get());
+
+  std::shared_ptr<NewChatsNotify> newChatsNotify = std::make_shared<NewChatsNotify>(m_ProfileId);
+  newChatsNotify->success = true;
+  newChatsNotify->chatInfos = std::vector<ChatInfo>({ chatInfo });
+  CallMessageHandler(newChatsNotify);
+
+  UpdateTopicLastReadInbox(p_ChatId, topicId, p_Topic.last_read_inbox_message_id_);
 }
 
 void TgChat::Impl::UpdateLastReadInboxMessage(int64_t p_ChatId, int64_t p_LastReadMsgId)
