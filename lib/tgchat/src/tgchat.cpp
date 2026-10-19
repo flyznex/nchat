@@ -31,6 +31,7 @@
 #include "apputil.h"
 #include "setuputil.h"
 #include "cacheutil.h"
+#include "chatid.h"
 #include "config.h"
 #include "fileutil.h"
 #include "log.h"
@@ -205,6 +206,8 @@ private:
   bool IsSelf(int64_t p_UserId);
   std::string GetContactName(int64_t p_UserId);
   void GetChatHistory(int64_t p_ChatId, int64_t p_FromMsgId, int32_t p_Offset, int32_t p_Limit, bool p_Sequence);
+  bool IsForumChat(int64_t p_ChatId);
+  int32_t GetEffectiveTopicId(const ChatRef& p_Ref);
   td::td_api::object_ptr<td::td_api::formattedText> GetFormattedText(const std::string& p_Text);
   td::td_api::object_ptr<td::td_api::inputMessageText> GetMessageText(const std::string& p_Text);
   std::string ConvertMarkdownV2ToV1(const std::string& p_Str);
@@ -241,6 +244,14 @@ private:
   std::map<int64_t, std::set<int64_t>> m_UnreadOutboxMessages;
   std::map<int64_t, ContactInfo> m_ContactInfos;
   std::map<int64_t, ChatType> m_ChatTypes;
+  typedef std::pair<int64_t, int32_t> TopicKey;
+  std::mutex m_ForumMutex;
+  std::set<int64_t> m_ForumChats;
+  std::set<int64_t> m_ForumArchived;
+  std::map<int64_t, std::set<int32_t>> m_ForumTopics;
+  std::map<TopicKey, int64_t> m_TopicLastReadInbox;
+  std::map<TopicKey, std::set<int64_t>> m_TopicUnreadInbox;
+  std::map<std::pair<int64_t, int64_t>, int32_t> m_MessageTopics;
   int64_t m_CurrentChat = 0;
   const char m_SponsoredMessageMsgIdPrefix = '+';
   std::map<std::string, std::set<std::string>> m_SponsoredMessageIds;
@@ -284,8 +295,7 @@ bool TgChat::HasFeature(ProtocolFeature p_ProtocolFeature) const
 
 bool TgChat::IsGroupChat(const std::string& p_ChatId) const
 {
-  int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
-  return (chatId < 0);
+  return (ParseChatId(p_ChatId).chatId < 0);
 }
 
 std::string TgChat::GetSelfId() const
@@ -665,7 +675,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         for (auto& chatId : chatIds)
         {
           Status::Set(m_ProfileId, Status::FlagFetching);
-          std::int64_t chatIdNum = StrUtil::NumFromHex<int64_t>(chatId);
+          std::int64_t chatIdNum = ParseChatId(chatId).chatId;
 
           auto get_chat = td::td_api::make_object<td::td_api::getChat>();
           get_chat->chat_id_ = chatIdNum;
@@ -856,7 +866,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           }
         }
 
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(getMessageRequest->chatId);
+        int64_t chatId = ParseChatId(getMessageRequest->chatId).chatId;
         int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessageRequest->msgId);
         int32_t offset = -1; // to get fromMsgId itself
         int32_t limit = 1;
@@ -882,7 +892,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           }
         }
 
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->chatId);
+        int64_t chatId = ParseChatId(getMessagesRequest->chatId).chatId;
         int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->fromMsgId);
         int32_t offset = 0;
         int32_t limit = getMessagesRequest->limit;
@@ -900,7 +910,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           p_RequestMessage);
 
         auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
-        send_message->chat_id_ = StrUtil::NumFromHex<int64_t>(sendMessageRequest->chatId);
+        send_message->chat_id_ = ParseChatId(sendMessageRequest->chatId).chatId;
 
         if (!sendMessageRequest->chatMessage.quotedId.empty())
         {
@@ -1043,7 +1053,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         if (editMessageRequest->chatMessage.fileInfo.empty())
         {
           auto edit_message = td::td_api::make_object<td::td_api::editMessageText>();
-          edit_message->chat_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->chatId);
+          edit_message->chat_id_ = ParseChatId(editMessageRequest->chatId).chatId;
           edit_message->message_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->msgId);
 
           auto message_content = GetMessageText(editProcessedText);
@@ -1068,7 +1078,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         else
         {
           auto edit_message = td::td_api::make_object<td::td_api::editMessageCaption>();
-          edit_message->chat_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->chatId);
+          edit_message->chat_id_ = ParseChatId(editMessageRequest->chatId).chatId;
           edit_message->message_id_ = StrUtil::NumFromHex<int64_t>(editMessageRequest->msgId);
 
           auto message_content = GetFormattedText(editProcessedText);
@@ -1106,7 +1116,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         LOG_DEBUG("Mark message read");
         std::shared_ptr<MarkMessageReadRequest> markMessageReadRequest =
           std::static_pointer_cast<MarkMessageReadRequest>(p_RequestMessage);
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(markMessageReadRequest->chatId);
+        int64_t chatId = ParseChatId(markMessageReadRequest->chatId).chatId;
 
         if (IsSponsoredMessageId(markMessageReadRequest->msgId))
         {
@@ -1160,7 +1170,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<DeleteMessageRequest> deleteMessageRequest =
           std::static_pointer_cast<DeleteMessageRequest>(
           p_RequestMessage);
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(deleteMessageRequest->chatId);
+        int64_t chatId = ParseChatId(deleteMessageRequest->chatId).chatId;
         std::vector<std::int64_t> msgIds =
           { StrUtil::NumFromHex<int64_t>(deleteMessageRequest->msgId) };
 
@@ -1192,7 +1202,20 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<DeleteChatRequest> deleteChatRequest =
           std::static_pointer_cast<DeleteChatRequest>(
           p_RequestMessage);
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(deleteChatRequest->chatId);
+        const ChatRef chatRef = ParseChatId(deleteChatRequest->chatId);
+        if (chatRef.topicId != 0)
+        {
+          // topic rows are local only; never leave the group from a topic
+          Status::Clear(m_ProfileId, Status::FlagUpdating);
+          std::shared_ptr<DeleteChatNotify> topicDeleteChatNotify =
+            std::make_shared<DeleteChatNotify>(m_ProfileId);
+          topicDeleteChatNotify->success = true;
+          topicDeleteChatNotify->chatId = deleteChatRequest->chatId;
+          CallMessageHandler(topicDeleteChatNotify);
+          break;
+        }
+
+        int64_t chatId = chatRef.chatId;
 
         auto delete_chat = td::td_api::make_object<td::td_api::deleteChat>();
         delete_chat->chat_id_ = chatId;
@@ -1223,7 +1246,15 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<ArchiveChatRequest> archiveChatRequest =
           std::static_pointer_cast<ArchiveChatRequest>(
           p_RequestMessage);
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(archiveChatRequest->chatId);
+        const ChatRef chatRef = ParseChatId(archiveChatRequest->chatId);
+        if (chatRef.topicId != 0)
+        {
+          LOG_WARNING("Archive of forum topic ignored");
+          Status::Clear(m_ProfileId, Status::FlagUpdating);
+          break;
+        }
+
+        int64_t chatId = chatRef.chatId;
         bool isArchived = archiveChatRequest->isArchived;
 
         auto add_chat_to_list = td::td_api::make_object<td::td_api::addChatToList>();
@@ -1257,7 +1288,15 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<PinChatRequest> pinChatRequest =
           std::static_pointer_cast<PinChatRequest>(
           p_RequestMessage);
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(pinChatRequest->chatId);
+        const ChatRef chatRef = ParseChatId(pinChatRequest->chatId);
+        if (chatRef.topicId != 0)
+        {
+          LOG_WARNING("Pin of forum topic ignored");
+          Status::Clear(m_ProfileId, Status::FlagUpdating);
+          break;
+        }
+
+        int64_t chatId = chatRef.chatId;
         bool isPinned = pinChatRequest->isPinned;
 
         auto toggle_pin = td::td_api::make_object<td::td_api::toggleChatIsPinned>();
@@ -1284,7 +1323,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         Status::Set(m_ProfileId, Status::FlagUpdating);
         std::shared_ptr<PinMessageRequest> pinMessageRequest =
           std::static_pointer_cast<PinMessageRequest>(p_RequestMessage);
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(pinMessageRequest->chatId);
+        int64_t chatId = ParseChatId(pinMessageRequest->chatId).chatId;
         int64_t msgId = StrUtil::NumFromHex<int64_t>(pinMessageRequest->msgId);
 
         if (pinMessageRequest->isPinned)
@@ -1332,7 +1371,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<SendTypingRequest> sendTypingRequest =
           std::static_pointer_cast<SendTypingRequest>(
           p_RequestMessage);
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(sendTypingRequest->chatId);
+        int64_t chatId = ParseChatId(sendTypingRequest->chatId).chatId;
         bool isTyping = sendTypingRequest->isTyping;
 
         auto send_chat_action = td::td_api::make_object<td::td_api::sendChatAction>();
@@ -1490,7 +1529,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       {
         std::shared_ptr<SetCurrentChatRequest> setCurrentChatRequest =
           std::static_pointer_cast<SetCurrentChatRequest>(p_RequestMessage);
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(setCurrentChatRequest->chatId);
+        int64_t chatId = ParseChatId(setCurrentChatRequest->chatId).chatId;
         if (chatId != m_CurrentChat)
         {
           if (m_CurrentChat != 0)
@@ -1544,7 +1583,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<GetAvailableReactionsRequest> getAvailableReactionsRequest =
           std::static_pointer_cast<GetAvailableReactionsRequest>(p_RequestMessage);
 
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(getAvailableReactionsRequest->chatId);
+        int64_t chatId = ParseChatId(getAvailableReactionsRequest->chatId).chatId;
         int64_t msgId = StrUtil::NumFromHex<int64_t>(getAvailableReactionsRequest->msgId);
 
         auto get_available_reactions = td::td_api::make_object<td::td_api::getMessageAvailableReactions>(chatId, msgId, 8 /*row_size_ 5-25*/);
@@ -1576,7 +1615,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<SendReactionRequest> sendReactionRequest =
           std::static_pointer_cast<SendReactionRequest>(p_RequestMessage);
 
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(sendReactionRequest->chatId);
+        int64_t chatId = ParseChatId(sendReactionRequest->chatId).chatId;
         int64_t msgId = StrUtil::NumFromHex<int64_t>(sendReactionRequest->msgId);
         std::string emoji = sendReactionRequest->emoji;
         std::string prevEmoji = sendReactionRequest->prevEmoji;
@@ -1649,7 +1688,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<GetUnreadReactionsRequest> getUnreadReactionsRequest =
           std::static_pointer_cast<GetUnreadReactionsRequest>(p_RequestMessage);
 
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(getUnreadReactionsRequest->chatId);
+        int64_t chatId = ParseChatId(getUnreadReactionsRequest->chatId).chatId;
 
         auto search_chat_messages = td::td_api::make_object<td::td_api::searchChatMessages>();
         search_chat_messages->chat_id_ = chatId;
@@ -1709,7 +1748,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<GetGroupMembersRequest> getGroupMembersRequest =
           std::static_pointer_cast<GetGroupMembersRequest>(p_RequestMessage);
 
-        int64_t chatId = StrUtil::NumFromHex<int64_t>(getGroupMembersRequest->chatId);
+        int64_t chatId = ParseChatId(getGroupMembersRequest->chatId).chatId;
 
         auto search = td::td_api::make_object<td::td_api::searchChatMembers>(
           chatId, "" /*query*/, 200 /*limit*/, nullptr /*filter*/);
@@ -3841,7 +3880,7 @@ void TgChat::Impl::GetSponsoredMessages(const std::string& p_ChatId)
   CallMessageHandler(newMessagesNotify);
 #else
   // sponsored messages from telegram
-  const int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
+  const int64_t chatId = ParseChatId(p_ChatId).chatId;
   SendQuery(td::td_api::make_object<td::td_api::getChatSponsoredMessages>(chatId),
             [this, p_ChatId, chatId](Object object)
   {
@@ -3917,7 +3956,7 @@ void TgChat::Impl::ViewSponsoredMessage(const std::string& p_ChatId, const std::
   // fake/simulated sponsored messages for dev/testing
 #else
   // sponsored messages from telegram
-  const int64_t chatId = StrUtil::NumFromHex<int64_t>(p_ChatId);
+  const int64_t chatId = ParseChatId(p_ChatId).chatId;
   const std::vector<std::int64_t> msgIds = { msgId };
   auto view_messages = td::td_api::make_object<td::td_api::viewMessages>();
   view_messages->chat_id_ = chatId;
@@ -4179,6 +4218,18 @@ int64_t TgChat::Impl::GetDummyUserId(const std::string& p_Name)
   uint64_t id = static_cast<uint64_t>(std::hash<std::string>{ }(p_Name)) & 0x00ffffffffffffff;
   id |= (1ll << 60); // tdlib userid use int53, set bit to ensure no clash
   return id;
+}
+
+bool TgChat::Impl::IsForumChat(int64_t p_ChatId)
+{
+  std::unique_lock<std::mutex> lock(m_ForumMutex);
+  return m_ForumChats.count(p_ChatId) > 0;
+}
+
+int32_t TgChat::Impl::GetEffectiveTopicId(const ChatRef& p_Ref)
+{
+  if (p_Ref.topicId != 0) return p_Ref.topicId;
+  return IsForumChat(p_Ref.chatId) ? 1 : 0;
 }
 
 void TgChat::Impl::UpdateLastReadOutboxMessage(int64_t p_ChatId, int64_t p_LastReadMsgId)
