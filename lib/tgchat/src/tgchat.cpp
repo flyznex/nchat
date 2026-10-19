@@ -234,6 +234,7 @@ private:
   void LoadForumTopics(int64_t p_ChatId, const std::string& p_Title, int32_t p_OffsetDate,
                        int64_t p_OffsetMessageId, int32_t p_OffsetTopicId);
   void EmitTopicChat(int64_t p_ChatId, const std::string& p_Title, const td::td_api::forumTopic& p_Topic);
+  void DiscoverTopic(int64_t p_ChatId, int32_t p_TopicId);
   std::string ResolveChatId(int64_t p_ChatId, int64_t p_MsgId);
   void SetForumArchived(int64_t p_ChatId, bool p_IsArchived);
   bool IsForumChat(int64_t p_ChatId);
@@ -279,6 +280,7 @@ private:
   std::set<int64_t> m_ForumChats;
   std::set<int64_t> m_ForumArchived;
   std::map<int64_t, std::set<int32_t>> m_ForumTopics;
+  std::set<TopicKey> m_ForumTopicsPending;
   std::map<TopicKey, int64_t> m_TopicLastReadInbox;
   std::map<TopicKey, std::set<int64_t>> m_TopicUnreadInbox;
   std::map<std::pair<int64_t, int64_t>, int32_t> m_MessageTopics;
@@ -2047,6 +2049,8 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     bool isPending = (message->sending_state_ != nullptr);
     if (!isPending) // ignore pending messages as their ids change once sent
     {
+      DiscoverTopic(message->chat_id_, GetForumTopicId(*message));
+
       std::vector<ChatMessage> chatMessages;
       chatMessages.push_back(chatMessage);
 
@@ -2068,6 +2072,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
       td::move_tl_object_as<td::td_api::message>(update_message_send_succeeded.message_);
     ChatMessage chatMessage;
     TdMessageConvert(*message, chatMessage);
+    DiscoverTopic(message->chat_id_, GetForumTopicId(*message));
 
     std::vector<ChatMessage> chatMessages;
     chatMessages.push_back(chatMessage);
@@ -4662,6 +4667,46 @@ void TgChat::Impl::EmitTopicChat(int64_t p_ChatId, const std::string& p_Title,
   CallMessageHandler(newChatsNotify);
 
   UpdateTopicLastReadInbox(p_ChatId, topicId, p_Topic.last_read_inbox_message_id_);
+}
+
+void TgChat::Impl::DiscoverTopic(int64_t p_ChatId, int32_t p_TopicId)
+{
+  if (p_TopicId <= 1) return;
+
+  const TopicKey key(p_ChatId, p_TopicId);
+  {
+    std::unique_lock<std::mutex> lock(m_ForumMutex);
+    if (m_ForumChats.count(p_ChatId) == 0) return;
+
+    auto topicsIt = m_ForumTopics.find(p_ChatId);
+    if ((topicsIt != m_ForumTopics.end()) && (topicsIt->second.count(p_TopicId) > 0)) return;
+
+    if (!m_ForumTopicsPending.insert(key).second) return;
+  }
+
+  std::string title;
+  {
+    std::unique_lock<std::mutex> lock(m_Mutex);
+    title = m_ContactInfos[p_ChatId].name;
+  }
+
+  SendQuery(td::td_api::make_object<td::td_api::getForumTopic>(p_ChatId, p_TopicId),
+            [this, p_ChatId, key, title](Object object)
+  {
+    {
+      std::unique_lock<std::mutex> lock(m_ForumMutex);
+      m_ForumTopicsPending.erase(key);
+    }
+
+    if (object->get_id() == td::td_api::forumTopic::ID)
+    {
+      EmitTopicChat(p_ChatId, title, static_cast<const td::td_api::forumTopic&>(*object));
+    }
+    else
+    {
+      LOG_WARNING("get forum topic failed %lld:%d", (long long)p_ChatId, (int)key.second);
+    }
+  });
 }
 
 std::string TgChat::Impl::ResolveChatId(int64_t p_ChatId, int64_t p_MsgId)
