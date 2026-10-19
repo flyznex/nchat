@@ -296,6 +296,11 @@ Once the setup process is completed, the main UI of nchat will be loaded.
 In order to set up multiple protocols/profiles, exit nchat and perform the
 setup step again. To remove a protocol account, use `nchat --remove`.
 
+Telegram forum groups (topics) appear as one chat for the group, which is the
+General topic, plus one chat per topic named `Group › Topic`. Topic chats can
+be read and written, but creating, renaming, closing and pinning topics is not
+supported.
+
 
 Troubleshooting
 ===============
