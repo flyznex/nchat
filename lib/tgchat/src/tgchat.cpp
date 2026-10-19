@@ -929,7 +929,12 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           p_RequestMessage);
 
         auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
-        send_message->chat_id_ = ParseChatId(sendMessageRequest->chatId).chatId;
+        const ChatRef chatRef = ParseChatId(sendMessageRequest->chatId);
+        send_message->chat_id_ = chatRef.chatId;
+        if (chatRef.topicId > 1)
+        {
+          send_message->topic_id_ = td::td_api::make_object<td::td_api::messageTopicForum>(chatRef.topicId);
+        }
 
         if (!sendMessageRequest->chatMessage.quotedId.empty())
         {
@@ -1390,11 +1395,16 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<SendTypingRequest> sendTypingRequest =
           std::static_pointer_cast<SendTypingRequest>(
           p_RequestMessage);
-        int64_t chatId = ParseChatId(sendTypingRequest->chatId).chatId;
+        const ChatRef chatRef = ParseChatId(sendTypingRequest->chatId);
+        int64_t chatId = chatRef.chatId;
         bool isTyping = sendTypingRequest->isTyping;
 
         auto send_chat_action = td::td_api::make_object<td::td_api::sendChatAction>();
         send_chat_action->chat_id_ = chatId;
+        if (chatRef.topicId > 1)
+        {
+          send_chat_action->topic_id_ = td::td_api::make_object<td::td_api::messageTopicForum>(chatRef.topicId);
+        }
         if (isTyping)
         {
           send_chat_action->action_ = td::td_api::make_object<td::td_api::chatActionTyping>();
