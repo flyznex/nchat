@@ -33,3 +33,4 @@ endmacro()
 # Unit tests
 add_unit_test(test001)
 add_unit_test(test002)
+add_unit_test(test003)
