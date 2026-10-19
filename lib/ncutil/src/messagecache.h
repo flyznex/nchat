@@ -277,6 +277,8 @@ public:
                               const std::string& p_MsgId, const bool p_Sync);
   static bool GetOneMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                             const std::string& p_MsgId, std::vector<ChatMessage>& p_ChatMessages);
+  static bool FindTopicChatId(const std::string& p_ProfileId, const std::string& p_ParentChatId,
+                              const std::string& p_MsgId, std::string& p_ChatId);
   static void FindMessage(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_FromMsgId,
                           const std::string& p_LastMsgId, const std::string& p_FindText,
                           const std::string& p_FindMsgId, bool p_FindPinned);
