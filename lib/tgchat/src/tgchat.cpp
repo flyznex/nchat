@@ -2284,27 +2284,54 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
           deleteChatNotify->chatId = chatId;
           CallMessageHandler(deleteChatNotify);
 
-          std::vector<std::string> topicChatIds;
+          // main-list order 0 also happens on archive, so ask TDLib whether the forum was archived or left
+          const int64_t forumChatId = update_chat_position.chat_id_;
+          if (!IsForumChat(forumChatId)) return;
+
+          auto get_chat = td::td_api::make_object<td::td_api::getChat>();
+          get_chat->chat_id_ = forumChatId;
+          SendQuery(std::move(get_chat), [this, forumChatId](Object object)
           {
-            std::unique_lock<std::mutex> lock(m_ForumMutex);
-            for (const int32_t topicId : m_ForumTopics[update_chat_position.chat_id_])
+            if (object->get_id() == td::td_api::chat::ID)
             {
-              topicChatIds.push_back(MakeChatId(update_chat_position.chat_id_, topicId));
+              for (const auto& chatPosition : static_cast<td::td_api::chat&>(*object).positions_)
+              {
+                if (chatPosition->list_ && (chatPosition->list_->get_id() == td::td_api::chatListArchive::ID) &&
+                    (chatPosition->order_ > 0))
+                {
+                  SetForumArchived(forumChatId, true);
+                  return;
+                }
+              }
             }
 
-            m_ForumTopics.erase(update_chat_position.chat_id_);
-            m_ForumChats.erase(update_chat_position.chat_id_);
-            m_ForumArchived.erase(update_chat_position.chat_id_);
-          }
+            std::vector<std::string> topicChatIds;
+            {
+              std::unique_lock<std::mutex> lock(m_ForumMutex);
+              auto topicsIt = m_ForumTopics.find(forumChatId);
+              if (topicsIt != m_ForumTopics.end())
+              {
+                for (const int32_t topicId : topicsIt->second)
+                {
+                  topicChatIds.push_back(MakeChatId(forumChatId, topicId));
+                }
 
-          for (const std::string& topicChatId : topicChatIds)
-          {
-            std::shared_ptr<DeleteChatNotify> topicDeleteChatNotify =
-              std::make_shared<DeleteChatNotify>(m_ProfileId);
-            topicDeleteChatNotify->success = true;
-            topicDeleteChatNotify->chatId = topicChatId;
-            CallMessageHandler(topicDeleteChatNotify);
-          }
+                m_ForumTopics.erase(topicsIt);
+              }
+
+              m_ForumChats.erase(forumChatId);
+              m_ForumArchived.erase(forumChatId);
+            }
+
+            for (const std::string& topicChatId : topicChatIds)
+            {
+              std::shared_ptr<DeleteChatNotify> topicDeleteChatNotify =
+                std::make_shared<DeleteChatNotify>(m_ProfileId);
+              topicDeleteChatNotify->success = true;
+              topicDeleteChatNotify->chatId = topicChatId;
+              CallMessageHandler(topicDeleteChatNotify);
+            }
+          });
         }
         else
         {
@@ -4664,14 +4691,8 @@ void TgChat::Impl::SetForumArchived(int64_t p_ChatId, bool p_IsArchived)
     std::unique_lock<std::mutex> lock(m_ForumMutex);
     if (m_ForumChats.count(p_ChatId) == 0) return;
 
-    if (p_IsArchived)
-    {
-      m_ForumArchived.insert(p_ChatId);
-    }
-    else
-    {
-      m_ForumArchived.erase(p_ChatId);
-    }
+    // no state change (position updates fire on every message), nothing to notify
+    if (p_IsArchived ? !m_ForumArchived.insert(p_ChatId).second : (m_ForumArchived.erase(p_ChatId) == 0)) return;
 
     for (const int32_t topicId : m_ForumTopics[p_ChatId])
     {
