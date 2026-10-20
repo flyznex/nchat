@@ -2337,6 +2337,12 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
 
               m_ForumChats.erase(forumChatId);
               m_ForumArchived.erase(forumChatId);
+
+              for (auto pendingIt = m_ForumTopicsPending.begin(); pendingIt != m_ForumTopicsPending.end();)
+              {
+                pendingIt = (pendingIt->first == forumChatId) ? m_ForumTopicsPending.erase(pendingIt)
+                                                              : std::next(pendingIt);
+              }
             }
 
             for (const std::string& topicChatId : topicChatIds)
@@ -2429,7 +2435,9 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
     std::string title;
     {
       std::unique_lock<std::mutex> lock(m_Mutex);
-      title = m_ContactInfos[chatId].name; // set from updateNewChat
+      auto contactIt = m_ContactInfos.find(chatId); // set from updateNewChat
+      if (contactIt == m_ContactInfos.end()) return;
+      title = contactIt->second.name;
     }
 
     SendQuery(td::td_api::make_object<td::td_api::getForumTopic>(chatId, topicId),
@@ -4648,20 +4656,20 @@ void TgChat::Impl::EmitTopicChat(int64_t p_ChatId, const std::string& p_Title,
   const int32_t topicId = p_Topic.info_->forum_topic_id_;
   const std::string chatId = MakeChatId(p_ChatId, topicId);
 
-  bool isArchived = false;
-  {
-    std::unique_lock<std::mutex> lock(m_ForumMutex);
-    m_ForumTopics[p_ChatId].insert(topicId);
-    isArchived = (m_ForumArchived.count(p_ChatId) > 0);
-  }
-
   ContactInfo contactInfo;
   contactInfo.id = chatId;
   contactInfo.name = p_Title + " \xE2\x80\xBA " + p_Topic.info_->name_;
   contactInfo.isSelf = false;
+
+  bool isArchived = false;
   {
     std::unique_lock<std::mutex> lock(m_ForumMutex);
+    // a late reply must not resurrect topics of a forum that was left meanwhile
+    if (m_ForumChats.count(p_ChatId) == 0) return;
+
+    m_ForumTopics[p_ChatId].insert(topicId);
     m_TopicContactInfos[chatId] = contactInfo;
+    isArchived = (m_ForumArchived.count(p_ChatId) > 0);
   }
 
   std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(m_ProfileId);
@@ -4689,6 +4697,14 @@ void TgChat::Impl::DiscoverTopic(int64_t p_ChatId, int32_t p_TopicId)
 {
   if (p_TopicId <= 1) return;
 
+  std::string title;
+  {
+    std::unique_lock<std::mutex> lock(m_Mutex);
+    auto contactIt = m_ContactInfos.find(p_ChatId);
+    if (contactIt == m_ContactInfos.end()) return;
+    title = contactIt->second.name;
+  }
+
   const TopicKey key(p_ChatId, p_TopicId);
   {
     std::unique_lock<std::mutex> lock(m_ForumMutex);
@@ -4698,12 +4714,6 @@ void TgChat::Impl::DiscoverTopic(int64_t p_ChatId, int32_t p_TopicId)
     if ((topicsIt != m_ForumTopics.end()) && (topicsIt->second.count(p_TopicId) > 0)) return;
 
     if (!m_ForumTopicsPending.insert(key).second) return;
-  }
-
-  std::string title;
-  {
-    std::unique_lock<std::mutex> lock(m_Mutex);
-    title = m_ContactInfos[p_ChatId].name;
   }
 
   SendQuery(td::td_api::make_object<td::td_api::getForumTopic>(p_ChatId, p_TopicId),
