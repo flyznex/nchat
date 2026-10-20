@@ -281,6 +281,7 @@ private:
   std::set<int64_t> m_ForumArchived;
   std::map<int64_t, std::set<int32_t>> m_ForumTopics;
   std::set<TopicKey> m_ForumTopicsPending;
+  std::map<std::string, ContactInfo> m_TopicContactInfos;
   std::map<TopicKey, int64_t> m_TopicLastReadInbox;
   std::map<TopicKey, std::set<int64_t>> m_TopicUnreadInbox;
   std::map<std::pair<int64_t, int64_t>, int32_t> m_MessageTopics;
@@ -888,6 +889,15 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
 
             if (!contactInfos.empty())
             {
+              // a full sync replaces the ui contacts, so topic rows (not in m_ContactInfos) must be resent
+              {
+                std::unique_lock<std::mutex> forumLock(m_ForumMutex);
+                for (const auto& topicContactInfo : m_TopicContactInfos)
+                {
+                  contactInfos.push_back(topicContactInfo.second);
+                }
+              }
+
               std::shared_ptr<NewContactsNotify> newContactsNotify =
                 std::make_shared<NewContactsNotify>(m_ProfileId);
               newContactsNotify->fullSync = true;
@@ -2319,6 +2329,7 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
                 for (const int32_t topicId : topicsIt->second)
                 {
                   topicChatIds.push_back(MakeChatId(forumChatId, topicId));
+                  m_TopicContactInfos.erase(topicChatIds.back());
                 }
 
                 m_ForumTopics.erase(topicsIt);
@@ -4648,6 +4659,11 @@ void TgChat::Impl::EmitTopicChat(int64_t p_ChatId, const std::string& p_Title,
   contactInfo.id = chatId;
   contactInfo.name = p_Title + " \xE2\x80\xBA " + p_Topic.info_->name_;
   contactInfo.isSelf = false;
+  {
+    std::unique_lock<std::mutex> lock(m_ForumMutex);
+    m_TopicContactInfos[chatId] = contactInfo;
+  }
+
   std::shared_ptr<NewContactsNotify> newContactsNotify = std::make_shared<NewContactsNotify>(m_ProfileId);
   newContactsNotify->contactInfos = std::vector<ContactInfo>({ contactInfo });
   CallMessageHandler(newContactsNotify);
