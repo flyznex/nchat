@@ -3111,6 +3111,21 @@ void UiModel::Impl::UpdateHelp()
 void UiModel::Impl::UpdateEntry()
 {
   m_View->SetEntryDirty(true);
+  AutoSizeEntry();
+}
+
+void UiModel::Impl::AutoSizeEntry()
+{
+  const std::wstring& entryStr = GetEntryStr();
+  const int entryPos = GetEntryPos();
+  int cx = 0;
+  int cy = 0;
+  const int lines = static_cast<int>(
+    StrUtil::WordWrap(entryStr, m_View->GetEntryWidth(), false, false, false, 2, entryPos, cy, cx).size());
+  if (m_View->SetEntryLines(std::max(1, std::max(lines, cy + 1))))
+  {
+    ReinitView(); // same path as terminal resize (new UiScreen invalidates ImageCache); only when height crosses a step
+  }
 }
 
 std::wstring& UiModel::Impl::GetEntryStr()

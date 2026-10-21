@@ -48,22 +48,24 @@ void UiEntryView::Draw()
   wbkgd(m_Win, attribute | colorPair | ' ');
   wattron(m_Win, attribute | colorPair);
 
-  int yoffs = (cy < (m_H - 1)) ? 0 : (cy - (m_H - 1));
+  // row 0 is reserved for the title (Task 8), text starts on row 1
+  const int contentH = m_H - 1;
+  int yoffs = (cy < (contentH - 1)) ? 0 : (cy - (contentH - 1));
 
-  for (int i = 0; i < m_H; ++i)
+  for (int i = 0; i < contentH; ++i)
   {
     if ((i + yoffs) < (int)lines.size())
     {
       line = lines.at(i + yoffs).c_str();
       line.erase(std::remove(line.begin(), line.end(), EMOJI_PAD), line.end());
-      mvwaddwstr(m_Win, i, 0, line.c_str());
+      mvwaddwstr(m_Win, i + 1, 0, line.c_str());
     }
   }
 
   wattroff(m_Win, attribute | colorPair);
 
   m_CursX = cx;
-  m_CursY = (cy - yoffs);
+  m_CursY = (cy - yoffs) + 1;
 
   wmove(m_Win, m_CursY, m_CursX);
   wrefresh(m_Win);

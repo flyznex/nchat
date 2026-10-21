@@ -9,6 +9,8 @@
 
 #include <memory>
 
+#include "layout.h"
+
 class UiEntryView;
 class UiHelpView;
 class UiHistoryView;
@@ -47,6 +49,7 @@ public:
   int GetScreenHeight();
   void DecreaseListWidth();
   void IncreaseListWidth();
+  bool SetEntryLines(int p_Lines);
 
 protected:
   void Init();
@@ -74,6 +77,7 @@ private:
   const bool m_HistoryEnabled = true;
   int m_ListWidth = 14;
   int m_EntryHeight = 4;
+  int m_EntryLines = 1;
 
   friend class UiModel;
 };

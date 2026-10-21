@@ -230,6 +230,7 @@ private:
     void UpdateHelp();
     void UpdateHistory();
     void UpdateEntry();
+    void AutoSizeEntry();
     void ResetMessageOffset();
     bool IsCurrentChatSet();
     bool SetCurrentChatIndexIfNotSet();

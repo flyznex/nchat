@@ -45,71 +45,36 @@ void UiView::Init()
 {
   m_UiScreen = std::make_shared<UiScreen>();
 
-  {
-    int w = m_UiScreen->W();
-    int h = 1;
-    int x = 0;
-    int y = 0;
-    UiViewParams params(x, y, w, h, m_TopEnabled, m_UiModel);
-    m_UiTopView = std::make_shared<UiTopView>(params);
-  }
+  LayoutIn in;
+  in.termW = m_UiScreen->W();
+  in.termH = m_UiScreen->H();
+  in.top = m_TopEnabled;
+  in.help = m_HelpEnabled;
+  in.status = m_StatusEnabled;
+  in.list = m_ListEnabled;
+  in.history = m_HistoryEnabled;
+  in.entry = m_EntryEnabled;
+  in.listWidth = m_ListWidth;
+  in.entryMin = m_EntryHeight;
+  in.entryLines = m_EntryLines;
+  const LayoutOut lo = ComputeLayout(in);
 
-  {
-    int w = m_UiScreen->W();
-    int h = 1;
-    int x = 0;
-    int y = m_UiScreen->H() - h;
-    UiViewParams params(x, y, w, h, m_HelpEnabled, m_UiModel);
-    m_UiHelpView = std::make_shared<UiHelpView>(params);
-  }
+  auto params = [this](const LayoutRect& r, bool enabled) { return UiViewParams(r.x, r.y, r.w, r.h, enabled, m_UiModel); };
+  m_UiTopView = std::make_shared<UiTopView>(params(lo.top, m_TopEnabled));
+  m_UiHelpView = std::make_shared<UiHelpView>(params(lo.help, m_HelpEnabled));
+  m_UiEntryView = std::make_shared<UiEntryView>(params(lo.entry, m_EntryEnabled));
+  m_UiStatusView = std::make_shared<UiStatusView>(params(lo.status, m_StatusEnabled));
+  m_UiListView = std::make_shared<UiListView>(params(lo.list, m_ListEnabled));
+  m_UiListBorderView = std::make_shared<UiListBorderView>(params(lo.border, m_ListEnabled && (m_ListWidth > 0)));
+  m_UiHistoryView = std::make_shared<UiHistoryView>(params(lo.history, m_HistoryEnabled));
+}
 
-  {
-    int w = m_UiScreen->W();
-    int h = m_EntryHeight;
-    int x = 0;
-    int y = m_UiScreen->H() - m_UiHelpView->H() - h;
-    UiViewParams params(x, y, w, h, m_EntryEnabled, m_UiModel);
-    m_UiEntryView = std::make_shared<UiEntryView>(params);
-  }
-
-  {
-    int w = m_UiScreen->W();
-    int h = 1;
-    int x = 0;
-    int y = m_UiScreen->H() - m_UiHelpView->H() - m_UiEntryView->H() - h;
-    UiViewParams params(x, y, w, h, m_StatusEnabled, m_UiModel);
-    m_UiStatusView = std::make_shared<UiStatusView>(params);
-  }
-
-  {
-    int w = m_ListWidth;
-    int h = m_UiScreen->H() - m_UiTopView->H() - m_UiHelpView->H() -
-      m_UiEntryView->H() - m_UiStatusView->H();
-    int x = 0;
-    int y = m_UiTopView->H();
-    UiViewParams params(x, y, w, h, m_ListEnabled, m_UiModel);
-    m_UiListView = std::make_shared<UiListView>(params);
-  }
-
-  {
-    int w = 1;
-    int h = m_UiScreen->H() - m_UiTopView->H() - m_UiHelpView->H() -
-      m_UiEntryView->H() - m_UiStatusView->H();
-    int x = m_UiListView->X() + m_UiListView->W();
-    int y = m_UiTopView->H();
-    UiViewParams params(x, y, w, h, m_ListEnabled && (m_ListWidth > 0), m_UiModel);
-    m_UiListBorderView = std::make_shared<UiListBorderView>(params);
-  }
-
-  {
-    int x = m_UiListBorderView->X() + m_UiListBorderView->W();
-    int w = m_UiScreen->W() - x;
-    int h = m_UiScreen->H() - m_UiTopView->H() - m_UiHelpView->H() -
-      m_UiEntryView->H() - m_UiStatusView->H();
-    int y = m_UiTopView->H();
-    UiViewParams params(x, y, w, h, m_HistoryEnabled, m_UiModel);
-    m_UiHistoryView = std::make_shared<UiHistoryView>(params);
-  }
+bool UiView::SetEntryLines(int p_Lines)
+{
+  const int termH = m_UiScreen ? m_UiScreen->H() : 24;
+  const int before = EntryContentHeight(m_EntryHeight, m_EntryLines, termH);
+  m_EntryLines = p_Lines;
+  return EntryContentHeight(m_EntryHeight, m_EntryLines, termH) != before;
 }
 
 void UiView::Draw()
