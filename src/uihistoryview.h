@@ -22,6 +22,7 @@ public:
 
 private:
   std::string GetTimeString(int64_t p_TimeSent);
+  void DrawImageRow(int p_Y, int p_Row, int p_Id, int p_Cols);
 
 private:
   WINDOW* m_PaddedWin = nullptr;

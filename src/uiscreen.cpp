@@ -11,8 +11,11 @@
 
 #include <ncurses.h>
 
+#include "imagecache.h"
+
 UiScreen::UiScreen()
 {
+  ImageCache::InvalidateAll();
   wclear(stdscr);
   wrefresh(stdscr);
   getmaxyx(stdscr, m_H, m_W);

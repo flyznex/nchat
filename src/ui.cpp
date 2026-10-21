@@ -15,8 +15,10 @@
 
 #include "apputil.h"
 #include "emojilist.h"
+#include "imagecache.h"
 #include "log.h"
 #include "messagecache.h"
+#include "termgfx.h"
 #include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
@@ -62,6 +64,7 @@ void Ui::Init()
   EmojiList::Init();
   UiKeyConfig::Init(true);
   UiColorConfig::Init();
+  TermGfx::Init();
   m_Model->Init();
   m_Controller->Init();
 }
@@ -70,6 +73,7 @@ void Ui::Cleanup()
 {
   m_Controller->Cleanup();
   m_Model->Cleanup();
+  ImageCache::Shutdown();
   UiColorConfig::Cleanup();
   UiKeyConfig::Cleanup();
   EmojiList::Cleanup();

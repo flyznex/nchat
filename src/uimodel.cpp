@@ -19,6 +19,7 @@
 #include "clipboard.h"
 #include "composescript.h"
 #include "fileutil.h"
+#include "imagecache.h"
 #include "log.h"
 #include "numutil.h"
 #include "protocolutil.h"
@@ -98,6 +99,8 @@ void UiModel::Impl::TerminalControlPause()
 void UiModel::Impl::TerminalControlResume()
 {
   refresh();
+  ImageCache::InvalidateAll();
+  UpdateHistory();
   printf("\033[?1004h"); // enable terminal focus in/out event
   fflush(stdout);
   wint_t key = 0;
@@ -2434,6 +2437,11 @@ bool UiModel::Impl::Process()
 
   ProcessTimers();
 
+  if (ImageCache::TakeCompleted())
+  {
+    UpdateHistory();
+  }
+
   SetTyping("", "", false);
   m_View->Draw();
   return m_Running;
@@ -4062,6 +4070,8 @@ void UiModel::Impl::HandleProtocolUiControlEnd()
 {
   LOG_TRACE("handle protocol ui control end");
   refresh();
+  ImageCache::InvalidateAll();
+  UpdateHistory();
 
   wint_t key = 0;
   while (UiKeyInput::GetWch(&key) != ERR)

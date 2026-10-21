@@ -7,12 +7,19 @@
 
 #include "uihistoryview.h"
 
+#include <algorithm>
+#include <vector>
+
 #include "appconfig.h"
 #include "apputil.h"
 #include "fileutil.h"
+#include "imagecache.h"
+#include "imagegeom.h"
+#include "kittyencoder.h"
 #include "log.h"
 #include "protocolutil.h"
 #include "strutil.h"
+#include "termgfx.h"
 #include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
@@ -54,6 +61,7 @@ void UiHistoryView::Draw()
   m_Dirty = false;
 
   curs_set(0);
+  ImageCache::BeginDrawPass();
 
   static int colorPairTextSent = UiColorConfig::GetColorPair("history_text_sent_color");
   static int colorPairTextRecv = UiColorConfig::GetColorPair("history_text_recv_color");
@@ -71,6 +79,11 @@ void UiHistoryView::Draw()
   static std::wstring attachmentIndicator =
     StrUtil::ToWString(UiConfig::GetStr("attachment_indicator") + " ");
   static std::wstring quoteIndicator = L"> ";
+  static const wchar_t imageRowMark = L'\x01';
+  static const int maxPhotoRows =
+    std::max(1, std::min(UiConfig::GetNum("inline_image_max_rows"), KittyEncoder::GetDiacriticCount()));
+  static const int maxStickerRows =
+    std::max(1, std::min(UiConfig::GetNum("inline_sticker_max_rows"), KittyEncoder::GetDiacriticCount()));
 
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChatLocked();
   const bool emojiEnabled = m_Model->GetEmojiEnabledLocked();
@@ -172,6 +185,8 @@ void UiHistoryView::Draw()
     }
 
     // File attachment
+    int imageId = 0;
+    CellGrid imageGrid;
     if (!msg.fileInfo.empty())
     {
       FileInfo fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
@@ -188,6 +203,36 @@ void UiHistoryView::Draw()
           m_Model->DownloadAttachmentLocked(currentChat.first, currentChat.second, *it,
                                             fileInfo.fileId, DownloadFileActionNone);
           fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
+        }
+      }
+
+      const ImageKind imageKind =
+        TermGfx::IsEnabled() ? ImageGeom::DetectKind(fileInfo.fileType, fileInfo.filePath) : ImageKind::None;
+      if (imageKind != ImageKind::None)
+      {
+        if (!UiModel::IsAttachmentDownloaded(fileInfo) && UiModel::IsAttachmentDownloadable(fileInfo))
+        {
+          m_Model->DownloadAttachmentLocked(currentChat.first, currentChat.second, *it,
+                                            fileInfo.fileId, DownloadFileActionNone);
+          fileInfo = ProtocolUtil::FileInfoFromHex(msg.fileInfo);
+        }
+
+        ImageInfo imageInfo;
+        if (UiModel::IsAttachmentDownloaded(fileInfo) &&
+            (ImageCache::Request(fileInfo.filePath, &imageInfo) == ImageCache::State::Ready))
+        {
+          int cellW = 0;
+          int cellH = 0;
+          TermGfx::GetCellPixelSize(cellW, cellH);
+          const int maxRows = std::min((imageKind == ImageKind::Sticker) ? maxStickerRows : maxPhotoRows,
+                                       std::max(1, m_PaddedH / 2));
+          const int maxCols = std::min(m_PaddedW, KittyEncoder::GetDiacriticCount());
+          imageGrid = ImageGeom::FitToCells(imageInfo.pxWidth, imageInfo.pxHeight, cellW, cellH,
+                                            maxCols, maxRows);
+          if (imageGrid.cols > 0)
+          {
+            imageId = ImageCache::Acquire(fileInfo.filePath, imageInfo, imageGrid.cols, imageGrid.rows);
+          }
         }
       }
 
@@ -220,8 +265,18 @@ void UiHistoryView::Draw()
         fileStatus = statusDownloadFailed;
       }
 
-      std::wstring fileStr = attachmentIndicator + StrUtil::ToWString(fileName + fileStatus);
-      wlines.insert(wlines.begin(), fileStr);
+      if (imageId != 0)
+      {
+        for (int row = imageGrid.rows - 1; row >= 0; --row)
+        {
+          wlines.insert(wlines.begin(), std::wstring{ imageRowMark, static_cast<wchar_t>(row) });
+        }
+      }
+      else
+      {
+        std::wstring fileStr = attachmentIndicator + StrUtil::ToWString(fileName + fileStatus);
+        wlines.insert(wlines.begin(), fileStr);
+      }
     }
 
     // Reactions
@@ -316,6 +371,13 @@ void UiHistoryView::Draw()
 
     for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
     {
+      if ((imageId != 0) && (wline->size() == 2) && ((*wline)[0] == imageRowMark))
+      {
+        DrawImageRow(y, static_cast<int>((*wline)[1]), imageId, imageGrid.cols);
+        if (--y < 0) break;
+        continue;
+      }
+
       bool isAttachment = (wline->rfind(attachmentIndicator, 0) == 0);
       bool isQuote = (wline->rfind(quoteIndicator, 0) == 0);
       bool isReaction = (reactionLines == 1) && (std::distance(wline, wlines.rbegin()) == 0);
@@ -434,6 +496,20 @@ void UiHistoryView::Draw()
   }
 
   wrefresh(m_PaddedWin);
+}
+
+void UiHistoryView::DrawImageRow(int p_Y, int p_Row, int p_Id, int p_Cols)
+{
+  const int pair = UiColorConfig::GetImageIdPair(p_Id);
+  std::vector<cchar_t> cells(p_Cols);
+  for (int col = 0; col < p_Cols; ++col)
+  {
+    wchar_t chars[4];
+    KittyEncoder::CellChars(p_Row, col, chars);
+    setcchar(&cells[col], chars, A_NORMAL, static_cast<short>(pair), nullptr);
+  }
+
+  mvwadd_wchnstr(m_PaddedWin, p_Y, 0, cells.data(), p_Cols);
 }
 
 int UiHistoryView::GetHistoryShowCount()
