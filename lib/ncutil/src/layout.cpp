@@ -21,19 +21,19 @@ LayoutOut ComputeLayout(const LayoutIn& p_In)
   const int statusH = p_In.status ? 1 : 0;
   // row 0 of the entry window is the title line
   const int entryH = p_In.entry ? (1 + EntryContentHeight(p_In.entryMin, p_In.entryLines, p_In.termH)) : 0;
-  const int midH = p_In.termH - topH - helpH - entryH - statusH;
+  const int midH = std::max(0, p_In.termH - topH - helpH - entryH - statusH);  // ponytail: tiny terminals collapse to zero-size regions
 
   LayoutOut out;
   out.top = { 0, 0, p_In.top ? p_In.termW : 0, topH };
-  out.help = { 0, p_In.termH - helpH, p_In.help ? p_In.termW : 0, helpH };
-  out.entry = { 0, p_In.termH - helpH - entryH, p_In.entry ? p_In.termW : 0, entryH };
-  out.status = { 0, p_In.termH - helpH - entryH - statusH, p_In.status ? p_In.termW : 0, statusH };
+  out.help = { 0, std::max(0, p_In.termH - helpH), p_In.help ? p_In.termW : 0, helpH };
+  out.entry = { 0, std::max(0, p_In.termH - helpH - entryH), p_In.entry ? p_In.termW : 0, entryH };
+  out.status = { 0, std::max(0, p_In.termH - helpH - entryH - statusH), p_In.status ? p_In.termW : 0, statusH };
 
   const int listW = p_In.list ? p_In.listWidth : 0;
   const int borderW = (p_In.list && (p_In.listWidth > 0)) ? 1 : 0;
   out.list = { 0, topH, listW, midH };
   out.border = { listW, topH, borderW, midH };
   const int histX = listW + borderW;
-  out.history = { histX, topH, p_In.termW - histX, midH };
+  out.history = { histX, topH, std::max(0, p_In.termW - histX), midH };
   return out;
 }

@@ -36,6 +36,11 @@ static void ExpectRect(const LayoutRect& p_Rect, int p_X, int p_Y, int p_W, int 
   unittest::ExpectEqual(int, p_Rect.h, p_H);
 }
 
+static bool HasNegativeValues(const LayoutRect& p_Rect)
+{
+  return p_Rect.x < 0 || p_Rect.y < 0 || p_Rect.w < 0 || p_Rect.h < 0;
+}
+
 static void TestDefault()
 {
   const LayoutOut out = ComputeLayout(Base());
@@ -92,6 +97,27 @@ static void TestDisabled()
   ExpectRect(out.status, 0, 22, 80, 1);
 }
 
+static void TestTinyTerminal()
+{
+  LayoutIn in = Base();
+  in.termW = 20;
+  in.termH = 6;
+  in.listWidth = 30;
+  const LayoutOut out = ComputeLayout(in);
+
+  // All rects must have non-negative dimensions
+  unittest::ExpectEqual(bool, HasNegativeValues(out.top), false);
+  unittest::ExpectEqual(bool, HasNegativeValues(out.help), false);
+  unittest::ExpectEqual(bool, HasNegativeValues(out.entry), false);
+  unittest::ExpectEqual(bool, HasNegativeValues(out.status), false);
+  unittest::ExpectEqual(bool, HasNegativeValues(out.list), false);
+  unittest::ExpectEqual(bool, HasNegativeValues(out.border), false);
+  unittest::ExpectEqual(bool, HasNegativeValues(out.history), false);
+
+  // History width should be 0 when terminal is narrower than list+border
+  unittest::ExpectEqual(int, out.history.w, 0);
+}
+
 int main()
 {
   int rv = 0;
@@ -100,6 +126,7 @@ int main()
     TestDefault();
     TestEntryGrow();
     TestDisabled();
+    TestTinyTerminal();
   }
   catch (const std::exception& ex)
   {
