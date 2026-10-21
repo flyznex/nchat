@@ -2447,6 +2447,11 @@ bool UiModel::Impl::Process()
 
   ProcessTimers();
 
+  if (m_RelayoutPending)
+  {
+    ReinitView();
+  }
+
   if (ImageCache::TakeCompleted())
   {
     UpdateHistory();
@@ -3120,6 +3125,7 @@ void UiModel::Impl::SetRunning(bool p_Running)
 
 void UiModel::Impl::ReinitView()
 {
+  m_RelayoutPending = false;
   m_View->Init();
 }
 
@@ -3163,7 +3169,7 @@ void UiModel::Impl::AutoSizeEntry()
     StrUtil::WordWrap(entryStr, m_View->GetEntryWidth(), false, false, false, 2, entryPos, cy, cx).size());
   if (m_View->SetEntryLines(std::max(1, std::max(lines, cy + 1))))
   {
-    ReinitView(); // same path as terminal resize (new UiScreen invalidates ImageCache); only when height crosses a step
+    m_RelayoutPending = true; // ponytail: UpdateEntry runs on worker threads too; Process() re-inits on the UI thread
   }
 }
 

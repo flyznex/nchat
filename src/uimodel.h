@@ -324,6 +324,7 @@ private:
     bool m_FindMessageActive = false;
 
     bool m_TriggerTerminalBell = false;
+    bool m_RelayoutPending = false;
     bool m_HomeFetchAll = false;
     bool m_TerminalActive = true;
     bool m_HistoryInteraction = false;
