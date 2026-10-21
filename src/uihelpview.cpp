@@ -381,6 +381,10 @@ std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)
   {
     return "\xe2\x8c\xab";
   }
+  else if (keyName == "KEY_CTRL[")
+  {
+    return "Esc";
+  }
 
   return "";
 }
