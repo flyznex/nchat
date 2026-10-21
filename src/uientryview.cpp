@@ -35,7 +35,6 @@ void UiEntryView::Draw()
 
   std::wstring input = m_Model->GetEntryStrLocked();
   const int inputPos = m_Model->GetEntryPosLocked();
-  std::wstring line;
   std::vector<std::wstring> lines;
   int cx = 0;
   int cy = 0;
@@ -43,12 +42,22 @@ void UiEntryView::Draw()
 
   static int colorPair = UiColorConfig::GetColorPair("entry_color");
   static int attribute = UiColorConfig::GetAttribute("entry_attr");
+  static int focusColorPair = UiColorConfig::GetColorPair("focus_color");
+  static int focusAttr = UiColorConfig::GetAttribute("focus_attr");
+  static int dimAttr = UiColorConfig::GetAttribute("dim_attr");
 
   werase(m_Win);
   wbkgd(m_Win, attribute | colorPair | ' ');
-  wattron(m_Win, attribute | colorPair);
 
-  // row 0 is reserved for the title (Task 8), text starts on row 1
+  // row 0 is the title line, content starts at row 1
+  const bool focused = (m_Model->GetFocusLocked() == NavFocus::Entry);
+  const std::wstring title = m_Model->GetEntryTitleLocked(m_W);
+  const int titleAttr = focused ? (focusAttr | focusColorPair) : (attribute | colorPair | dimAttr);
+  wattron(m_Win, titleAttr);
+  mvwaddwstr(m_Win, 0, 0, title.c_str());
+  wattroff(m_Win, titleAttr);
+
+  wattron(m_Win, attribute | colorPair);
   const int contentH = m_H - 1;
   int yoffs = (cy < (contentH - 1)) ? 0 : (cy - (contentH - 1));
 
@@ -56,7 +65,7 @@ void UiEntryView::Draw()
   {
     if ((i + yoffs) < (int)lines.size())
     {
-      line = lines.at(i + yoffs).c_str();
+      std::wstring line = lines.at(i + yoffs);
       line.erase(std::remove(line.begin(), line.end(), EMOJI_PAD), line.end());
       mvwaddwstr(m_Win, i + 1, 0, line.c_str());
     }

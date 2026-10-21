@@ -18,6 +18,7 @@
 #include "apputil.h"
 #include "clipboard.h"
 #include "composescript.h"
+#include "entrytitle.h"
 #include "fileutil.h"
 #include "imagecache.h"
 #include "log.h"
@@ -36,6 +37,7 @@
 #include "uicontroller.h"
 #include "uiemojilistdialog.h"
 #include "uifilelistdialog.h"
+#include "uihelpview.h"
 #include "uikeyconfig.h"
 #include "uikeyinput.h"
 #include "uimessagedialog.h"
@@ -4829,6 +4831,54 @@ void UiModel::Impl::AddQuoteFromSelectedMessage(ChatMessage& p_ChatMessage)
   p_ChatMessage.quotedSender = msg->second.senderId;
 }
 
+const ChatMessage* UiModel::Impl::GetSelectedMessage()
+{
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  const std::vector<std::string>& messageVec = m_MessageVec[profileId][chatId];
+  const int messageOffset = m_MessageOffset[profileId][chatId];
+  const std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
+  if ((messageOffset < 0) || (messageOffset >= (int)messageVec.size())) return nullptr;
+
+  auto msg = messages.find(messageVec[messageOffset]);
+  return (msg == messages.end()) ? nullptr : &msg->second;
+}
+
+std::wstring UiModel::Impl::GetEntryTitle(int p_MaxW)
+{
+  // ponytail: key names fall back to the default bindings' literal text when GetKeyDisplay has no short form
+  // (alt-enter has none); send_enter is shown as "Enter" since the help glyph is cryptic in a sentence
+  static const bool enterSends = UiConfig::GetBool("enter_sends");
+  std::string sendKey = UiHelpView::GetKeyDisplay("send_msg");
+  if (sendKey.empty()) sendKey = "Ctrl-X";
+  std::string newlineKey = UiHelpView::GetKeyDisplay("newline");
+  if (newlineKey.empty()) newlineKey = "Alt-Enter";
+  std::string cancelKey = UiHelpView::GetKeyDisplay("focus_entry");
+  if (cancelKey.empty()) cancelKey = "Esc";
+  const std::string hint = enterSends ? ("Enter send | " + newlineKey + " newline") : (sendKey + " send");
+
+  if (GetEditMessageActive())
+  {
+    return BuildEntryTitle(EntryMode::Edit, "", hint, cancelKey, p_MaxW);
+  }
+
+  // select stays on while a reply is pending with focus in the entry; History focus is just browsing
+  if (GetSelectMessageActive() && (m_Focus == NavFocus::Entry))
+  {
+    std::string who;
+    const ChatMessage* msg = GetSelectedMessage();
+    if (msg != nullptr)
+    {
+      who = msg->isOutgoing ? "yourself"
+        : GetContactListName(m_CurrentChat.first, msg->senderId, true /*p_AllowId*/, true /*p_AllowAlias*/);
+    }
+
+    return BuildEntryTitle(EntryMode::Reply, who, hint, cancelKey, p_MaxW);
+  }
+
+  return BuildEntryTitle(EntryMode::Compose, "", hint, cancelKey, p_MaxW);
+}
+
 void UiModel::Impl::Draw()
 {
   m_View->Draw();
@@ -5560,6 +5610,12 @@ bool UiModel::GetEmojiEnabledLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetEmojiEnabled();
+}
+
+std::wstring UiModel::GetEntryTitleLocked(int p_MaxW)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetEntryTitle(p_MaxW);
 }
 
 int UiModel::GetEntryPosLocked()

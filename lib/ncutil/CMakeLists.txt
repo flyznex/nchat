@@ -55,6 +55,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/emojiutil.h
   src/emojiutil_map.h
   src/emojiutil_view.h
+  src/entrytitle.cpp
+  src/entrytitle.h
   src/fileutil.cpp
   src/fileutil.h
   src/imagegeom.cpp

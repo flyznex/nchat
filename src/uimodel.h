@@ -111,6 +111,7 @@ private:
     std::string GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId);
 
     std::wstring& GetEntryStr();
+    std::wstring GetEntryTitle(int p_MaxW);
     int& GetEntryPos();
 
     std::vector<std::pair<std::string, std::string>>& GetChatVec();
@@ -254,6 +255,7 @@ private:
     bool IsChatForceHidden(const std::string& p_ChatId);
     bool IsChatForceMuted(const std::string& p_ChatId);
     void AddQuoteFromSelectedMessage(ChatMessage& p_ChatMessage);
+    const ChatMessage* GetSelectedMessage();
     void RefreshFocus();
     void SelectChatIndex(int p_Index);
     void SnapSelectionToRows();
@@ -388,6 +390,7 @@ public:
   bool GetEmojiEnabledLocked();
   int GetEntryPosLocked();
   std::wstring GetEntryStrLocked();
+  std::wstring GetEntryTitleLocked(int p_MaxW);
   int GetHelpOffsetLocked();
   int64_t GetLastMessageTimeLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   bool GetListDialogActiveLocked();

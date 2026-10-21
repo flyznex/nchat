@@ -18,6 +18,7 @@ public:
   UiHelpView(const UiViewParams& p_Params);
 
   virtual void Draw();
+  static std::string GetKeyDisplay(const std::string& p_Func);
 
 private:
   static std::vector<std::wstring> GetHelpViews(const int p_MaxW, const std::vector<std::wstring>& p_HelpItems,
@@ -26,5 +27,4 @@ private:
                              std::vector<std::wstring>& p_HelpItems);
   static void AppendLiteralHelpItem(const std::string& p_Key, const std::string& p_Desc,
                                     std::vector<std::wstring>& p_HelpItems);
-  static std::string GetKeyDisplay(const std::string& p_Func);
 };
