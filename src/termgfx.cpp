@@ -85,15 +85,22 @@ void TermGfx::GetCellPixelSize(int& p_Width, int& p_Height)
   }
 }
 
-void TermGfx::Upload(int p_Id, int p_Cols, int p_Rows, const std::string& p_PngPath)
+bool TermGfx::Upload(int p_Id, int p_Cols, int p_Rows, const std::string& p_PngPath)
 {
-  if (!m_Enabled) return;
+  if (!m_Enabled) return false;
 
   const std::string png = FileUtil::ReadFile(p_PngPath);
+  if (png.empty())
+  {
+    LOG_WARNING("inline image upload failed: cannot read %s", p_PngPath.c_str());
+    return false;
+  }
+
   for (const std::string& seq : KittyEncoder::EncodeUpload(p_Id, p_Cols, p_Rows, png))
   {
     Write(seq);
   }
+  return true;
 }
 
 void TermGfx::Delete(int p_Id)

@@ -15,7 +15,7 @@ public:
   static void Init();
   static bool IsEnabled();
   static void GetCellPixelSize(int& p_Width, int& p_Height);
-  static void Upload(int p_Id, int p_Cols, int p_Rows, const std::string& p_PngPath);
+  static bool Upload(int p_Id, int p_Cols, int p_Rows, const std::string& p_PngPath);
   static void Delete(int p_Id);
 
 private:

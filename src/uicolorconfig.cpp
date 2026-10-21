@@ -132,6 +132,8 @@ int UiColorConfig::GetImageIdPair(int p_Id)
 {
   if (!has_colors()) return 0;
 
+  // resolved once: a hex colour allocates a new palette slot per GetColorId call
+  static const int bg = GetColorId(m_Config.Get("history_text_recv_color_bg"));
   static std::map<int, int> imagePairs;
 
   auto it = imagePairs.find(p_Id);
@@ -139,7 +141,6 @@ int UiColorConfig::GetImageIdPair(int p_Id)
 
   ++colorPairId;
   const int id = colorPairId;
-  const int bg = GetColorId(m_Config.Get("history_text_recv_color_bg"));
   init_pair(id, p_Id, bg);
 
   imagePairs[p_Id] = id;
