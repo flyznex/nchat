@@ -57,6 +57,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/fileutil.h
   src/imagegeom.cpp
   src/imagegeom.h
+  src/kittyencoder.cpp
+  src/kittyencoder.h
   src/setuputil.cpp
   src/setuputil.h
   src/log.cpp
