@@ -404,6 +404,10 @@ add_executable(nchat
   src/main.cpp
   src/termgfx.cpp
   src/termgfx.h
+  src/imagecache.cpp
+  src/imagecache.h
+  src/imageconverter.cpp
+  src/imageconverter.h
   src/ui.cpp
   src/ui.h
   src/uichatlistdialog.cpp
