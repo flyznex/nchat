@@ -3666,6 +3666,7 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
       FileInfo fileInfo;
       std::string id = photoFile->remote_->id_;
       fileInfo.fileId = id;
+      fileInfo.fileType = "image/jpeg";
       if (!localPath.empty())
       {
         fileInfo.filePath = localPath;
@@ -3696,6 +3697,20 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
     FileInfo fileInfo;
     std::string id = stickerFile->remote_->id_;
     fileInfo.fileId = id;
+    const auto stickerFormatId = sticker->format_->get_id();
+    if (stickerFormatId == td::td_api::stickerFormatWebp::ID)
+    {
+      fileInfo.fileType = "image/webp";
+    }
+    else if (stickerFormatId == td::td_api::stickerFormatWebm::ID)
+    {
+      fileInfo.fileType = "video/webm";
+    }
+    else
+    {
+      fileInfo.fileType = "application/x-tgsticker";
+    }
+
     if (!localPath.empty())
     {
       fileInfo.filePath = localPath;
