@@ -36,5 +36,6 @@ public:
   static std::vector<ListRow> BuildRows(const std::vector<ListChat>& p_Chats, const ListFilter& p_Filter,
                                         const std::set<std::string>& p_Collapsed);
   static int Move(const std::vector<ListRow>& p_Rows, int p_CurChat, int p_Delta);
+  static int Nearest(const std::vector<ListRow>& p_Rows, int p_Chat); // p_Chat if visible, else next, else previous, else -1
   static int Edge(const std::vector<ListRow>& p_Rows, bool p_Last);
 };

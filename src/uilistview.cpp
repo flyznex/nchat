@@ -192,9 +192,11 @@ void UiListView::Draw()
       std::string preview = m_Model->GetChatPreviewLocked(profileId, chatId);
       if (!emojiEnabled) preview = StrUtil::Textize(preview);
       std::wstring wpreview = FitWidth(StrUtil::ToWString(" " + preview), m_PaddedW);
-      if (!selected) wattron(m_PaddedWin, dimAttr);
+      // unfocused lists are already dim via base; toggling it off here would leak bright rows
+      const bool dimPreview = !selected && focused;
+      if (dimPreview) wattron(m_PaddedWin, dimAttr);
       mvwaddnwstr(m_PaddedWin, y + 1, 0, wpreview.c_str(), wpreview.size());
-      if (!selected) wattroff(m_PaddedWin, dimAttr);
+      if (dimPreview) wattroff(m_PaddedWin, dimAttr);
     }
 
     if (selected)

@@ -86,6 +86,19 @@ int ChatList::Move(const std::vector<ListRow>& p_Rows, int p_CurChat, int p_Delt
   return cur;
 }
 
+int ChatList::Nearest(const std::vector<ListRow>& p_Rows, int p_Chat)
+{
+  int prev = -1;
+  for (const ListRow& row : p_Rows)
+  {
+    if (row.chat < 0) continue;
+    if (row.chat >= p_Chat) return row.chat;
+    prev = row.chat;
+  }
+
+  return prev;
+}
+
 int ChatList::Edge(const std::vector<ListRow>& p_Rows, bool p_Last)
 {
   int edge = -1;

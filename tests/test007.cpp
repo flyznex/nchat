@@ -105,6 +105,18 @@ static void TestMove()
   unittest::ExpectEqual(int, ChatList::Edge(std::vector<ListRow>(), true), -1);
 }
 
+static void TestNearest()
+{
+  std::set<std::string> collapsed;
+  collapsed.insert("Pinned");
+  ListFilter f;
+  std::vector<ListRow> rows = ChatList::BuildRows(Chats(), f, collapsed); // visible chats: 2, 3
+  unittest::ExpectEqual(int, ChatList::Nearest(rows, 1), 2);  // hidden, next one
+  unittest::ExpectEqual(int, ChatList::Nearest(rows, 3), 3);  // visible stays
+  unittest::ExpectEqual(int, ChatList::Nearest(rows, 9), 3);  // none after, previous one
+  unittest::ExpectEqual(int, ChatList::Nearest(std::vector<ListRow>(), 1), -1);
+}
+
 int main()
 {
   int rv = 0;
@@ -114,6 +126,7 @@ int main()
     TestFilters();
     TestCollapse();
     TestMove();
+    TestNearest();
   }
   catch (const std::exception& ex)
   {

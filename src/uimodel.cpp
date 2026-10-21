@@ -243,12 +243,6 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   static wint_t keyNewline = UiKeyConfig::GetKey("newline");
   static wint_t keyTab = UiKeyConfig::GetKey("tab");
 
-  if (m_ListFilterEditing)
-  {
-    FilterTextKey(p_Key);
-    return;
-  }
-
   if (m_Focus != NavFocus::Entry)
   {
     // typing in list/history focus moves to the entry; other keys do nothing there
@@ -3412,13 +3406,8 @@ bool UiModel::Impl::FilterTextKey(wint_t p_Key)
 
 void UiModel::Impl::SnapSelectionToRows()
 {
-  const std::vector<ListRow> rows = BuildListRows();
-  for (const ListRow& row : rows)
-  {
-    if (row.chat == m_CurrentChatIndex) return;
-  }
-
-  SelectChatIndex(ChatList::Edge(rows, false));
+  const int chat = ChatList::Nearest(BuildListRows(), m_CurrentChatIndex);
+  if ((chat >= 0) && (chat != m_CurrentChatIndex)) SelectChatIndex(chat);
 }
 
 bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
