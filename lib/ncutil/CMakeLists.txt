@@ -65,6 +65,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/log.h
   src/messagecache.cpp
   src/messagecache.h
+  src/navkeys.cpp
+  src/navkeys.h
   src/numutil.cpp
   src/numutil.h
   src/owned_mutex.cpp
