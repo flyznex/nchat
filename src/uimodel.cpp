@@ -2755,6 +2755,49 @@ bool UiModel::Impl::GetChatIsUnread(const std::string& p_ProfileId, const std::s
   return indicateUnread; // @todo: handle isUnreadMention
 }
 
+bool UiModel::Impl::GetChatIsPinned(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  return m_ChatInfos[p_ProfileId][p_ChatId].isPinned;
+}
+
+bool UiModel::Impl::GetChatIsMuted(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  return m_ChatInfos[p_ProfileId][p_ChatId].isMuted;
+}
+
+std::string UiModel::Impl::GetChatPreview(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  // find() instead of operator[] so drawing the list never creates cache entries for unopened chats
+  auto vecIt = m_MessageVec.find(p_ProfileId);
+  if (vecIt == m_MessageVec.end()) return "";
+  auto chatVecIt = vecIt->second.find(p_ChatId);
+  if ((chatVecIt == vecIt->second.end()) || chatVecIt->second.empty()) return "";
+
+  auto msgsIt = m_Messages.find(p_ProfileId);
+  if (msgsIt == m_Messages.end()) return "";
+  auto chatMsgsIt = msgsIt->second.find(p_ChatId);
+  if (chatMsgsIt == msgsIt->second.end()) return "";
+  auto it = chatMsgsIt->second.find(chatVecIt->second.front()); // offset 0 is the newest message
+  if (it == chatMsgsIt->second.end()) return "";
+
+  const ChatMessage& msg = it->second;
+  std::string text = msg.text;
+  if (text.empty() && !msg.fileInfo.empty())
+  {
+    // ponytail: no photo/sticker distinction, the file name (or a generic tag) stands in for the text
+    const std::string fileName = FileUtil::BaseName(ProtocolUtil::FileInfoFromHex(msg.fileInfo).filePath);
+    text = "[" + (fileName.empty() ? std::string("attachment") : fileName) + "]";
+  }
+
+  for (char& c : text)
+  {
+    if ((c == '\n') || (c == '\r') || (c == '\t')) c = ' ';
+  }
+
+  if (text.empty()) return "";
+  return (msg.isOutgoing ? "You: " : "") + text;
+}
+
 std::string UiModel::Impl::GetChatStatus(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   std::string chatStatus;
@@ -3401,7 +3444,6 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
 
   if (m_ListFilterEditing)
   {
-    // text keys fall through to EntryKeyHandler -> FilterTextKey; only control keys are taken here
     if ((p_Key == navKeys.ok) || (p_Key == navKeys.focusEntry) || (p_Key == keyCancel))
     {
       if (p_Key != navKeys.ok)
@@ -3424,7 +3466,15 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
       return FilterTextKey(p_Key);
     }
 
-    return false;
+    // terminal events still go down the chain; every other non-text key (send, quit, chat switch, ...)
+    // is swallowed so it cannot act while typing a filter
+    static wint_t keyResize = UiKeyConfig::GetKey("terminal_resize");
+    static wint_t keyFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
+    static wint_t keyFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
+    static const wint_t functionKeyOffset = UiKeyConfig::GetOffsettedKeyCode(0, true);
+    if ((p_Key == keyResize) || (p_Key == keyFocusIn) || (p_Key == keyFocusOut)) return false;
+    if (StrUtil::IsValidTextKey(p_Key) && (p_Key < functionKeyOffset)) return FilterTextKey(p_Key);
+    return true;
   }
 
   const NavAction action = m_NavResolver.Resolve(m_Focus, p_Key, navKeys, vim);
@@ -3513,11 +3563,20 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
       break;
     case NavAction::ToggleGroup:
     {
-      const std::vector<ListChat> chats = BuildListChats();
-      if ((m_CurrentChatIndex >= 0) && (m_CurrentChatIndex < (int)chats.size()))
+      // ponytail: once collapsed, the selection snaps to another group and headers are not selectable,
+      // so z with anything collapsed expands all; otherwise it collapses the selected chat's group
+      if (!m_CollapsedGroups.empty())
       {
-        const std::string& group = chats[m_CurrentChatIndex].group;
-        if (m_CollapsedGroups.erase(group) == 0) m_CollapsedGroups.insert(group);
+        m_CollapsedGroups.clear();
+      }
+      else
+      {
+        const std::vector<ListChat> chats = BuildListChats();
+        if ((m_CurrentChatIndex >= 0) && (m_CurrentChatIndex < (int)chats.size()))
+        {
+          m_CollapsedGroups.insert(chats[m_CurrentChatIndex].group);
+          SnapSelectionToRows();
+        }
       }
 
       UpdateList();
@@ -5439,6 +5498,24 @@ bool UiModel::GetChatIsUnreadLocked(const std::string& p_ProfileId, const std::s
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetChatIsUnread(p_ProfileId, p_ChatId);
+}
+
+bool UiModel::GetChatIsPinnedLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetChatIsPinned(p_ProfileId, p_ChatId);
+}
+
+bool UiModel::GetChatIsMutedLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetChatIsMuted(p_ProfileId, p_ChatId);
+}
+
+std::string UiModel::GetChatPreviewLocked(const std::string& p_ProfileId, const std::string& p_ChatId)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetChatPreview(p_ProfileId, p_ChatId);
 }
 
 std::string UiModel::GetChatStatusLocked(const std::string& p_ProfileId, const std::string& p_ChatId)

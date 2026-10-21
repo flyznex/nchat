@@ -23,4 +23,5 @@ private:
   WINDOW* m_PaddedWin = nullptr;
   int m_PaddedH = 0;
   int m_PaddedW = 0;
+  int m_First = 0; // first visible row, kept between draws so the list scrolls only when the selection leaves it
 };
