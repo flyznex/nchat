@@ -128,6 +128,24 @@ int UiColorConfig::GetColorPair(const std::string& p_Param)
   return colorPairs[p_Param];
 }
 
+int UiColorConfig::GetImageIdPair(int p_Id)
+{
+  if (!has_colors()) return 0;
+
+  static std::map<int, int> imagePairs;
+
+  auto it = imagePairs.find(p_Id);
+  if (it != imagePairs.end()) return it->second;
+
+  ++colorPairId;
+  const int id = colorPairId;
+  const int bg = GetColorId(m_Config.Get("history_text_recv_color_bg"));
+  init_pair(id, p_Id, bg);
+
+  imagePairs[p_Id] = id;
+  return id;
+}
+
 int UiColorConfig::GetUserColorPair(const std::string& p_Param, const std::string& p_UserId)
 {
   if (!has_colors()) return 0;
