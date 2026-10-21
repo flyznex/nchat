@@ -35,6 +35,7 @@ public:
   void SetListEnabled(bool p_Enabled);
   bool GetListEnabled();
   void SetListDirty(bool p_Dirty);
+  void SetListBorderDirty(bool p_Dirty);
   void SetStatusDirty(bool p_Dirty);
   void SetHistoryDirty(bool p_Dirty);
   void SetHelpDirty(bool p_Dirty);

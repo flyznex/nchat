@@ -103,6 +103,9 @@ void Ui::Run()
 
   LOG_INFO("ui loop start");
 
+#ifdef NCURSES_VERSION // ponytail: system curses without set_escdelay keeps the 1 s default
+  set_escdelay(25); // bare Esc must not wait the 1 s default
+#endif
   raw();
   curs_set(1);
   while (m_Model->Process() && !AppUtil::IsTerminateRequested())

@@ -15,6 +15,8 @@
 #include <unordered_set>
 
 #include "apputil.h"
+#include "chatlist.h"
+#include "navkeys.h"
 #include "owned_mutex.h"
 #include "protocol.h"
 
@@ -131,6 +133,21 @@ private:
     void SetSelectMessageActive(bool p_SelectMessageActive);
     bool GetSelectMessageActive();
 
+    // p_Deferred: action that needs the model mutex released (dialogs), the caller runs it after unlocking
+    bool HandleFocusKey(wint_t p_Key, NavAction& p_Deferred);
+    void SetFocus(NavFocus p_Focus);
+    NavFocus GetFocus();
+    void FocusEntryIfEditing();
+    const ListFilter& GetListFilter();
+    bool GetListFilterEditing();
+    std::vector<ListChat> BuildListChats();
+    std::vector<ListRow> BuildListRows();
+    void ListMove(int p_Delta);
+    void ListEdge(bool p_Last);
+    void HistoryMove(int p_Delta);
+    void HistoryJump(bool p_Oldest);
+    bool FilterTextKey(wint_t p_Key);
+
     bool GetListDialogActive();
     void SetListDialogActive(bool p_ListDialogActive);
 
@@ -233,6 +250,9 @@ private:
     bool IsChatForceHidden(const std::string& p_ChatId);
     bool IsChatForceMuted(const std::string& p_ChatId);
     void AddQuoteFromSelectedMessage(ChatMessage& p_ChatMessage);
+    void RefreshFocus();
+    void SelectChatIndex(int p_Index);
+    void SnapSelectionToRows();
 
   private:
     bool m_Running = true;
@@ -286,6 +306,11 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_AvailableReactionsPending;
 
     bool m_SelectMessageActive = false;
+    NavFocus m_Focus = NavFocus::Entry; // History focus == m_SelectMessageActive (see SetSelectMessageActive)
+    NavKeyResolver m_NavResolver;
+    ListFilter m_ListFilter;
+    bool m_ListFilterEditing = false;
+    std::set<std::string> m_CollapsedGroups;
     bool m_ListDialogActive = false;
     bool m_FileListDialogActive = false;
     bool m_MessageDialogActive = false;
@@ -368,6 +393,10 @@ public:
   std::string GetProfileDisplayNameLocked(const std::string& p_ProfileId);
   std::string GetProfileSuffixLocked(const std::string& p_ProfileId);
   bool GetSelectMessageActiveLocked();
+  NavFocus GetFocusLocked();
+  std::vector<ListRow> GetListRowsLocked();
+  const ListFilter& GetListFilterLocked();
+  bool GetListFilterEditingLocked();
 
   void DownloadAttachmentLocked(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
                                 const std::string& p_FileId, DownloadFileAction p_DownloadFileAction);

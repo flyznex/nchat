@@ -175,6 +175,11 @@ void UiView::SetListDirty(bool p_Dirty)
   m_UiListView->SetDirty(p_Dirty);
 }
 
+void UiView::SetListBorderDirty(bool p_Dirty)
+{
+  m_UiListBorderView->SetDirty(p_Dirty);
+}
+
 void UiView::SetStatusDirty(bool p_Dirty)
 {
   m_UiStatusView->SetDirty(p_Dirty);

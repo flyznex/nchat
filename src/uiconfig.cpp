@@ -39,6 +39,7 @@ void UiConfig::Init()
     { "downloadable_indicator", "+" },
     { "edited_indicator", "\xe2\x9c\x8e" },
     { "emoji_enabled", "1" },
+    { "enter_sends", "1" },
     { "entry_height", "4" },
     { "failed_indicator", "\xe2\x9c\x97" },
     { "file_picker_command", "" },
@@ -53,7 +54,7 @@ void UiConfig::Init()
     { "linefeed_on_enter", "1" },
     { "link_open_command", "" },
     { "list_enabled", "1" },
-    { "list_width", "14" },
+    { "list_width", "30" },
     { "listdialog_show_filter", "1" },
     { "mark_read_any_chat", "0" },
     { "mark_read_on_view", "1" },
@@ -85,6 +86,7 @@ void UiConfig::Init()
     { "typing_status_share", "1" },
     { "undo_clear_input", "1" },
     { "unread_indicator", "*" },
+    { "vim_keys", "1" },
   };
 
   const std::string configPath(FileUtil::GetApplicationDir() + std::string("/ui.conf"));

@@ -233,8 +233,14 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "toggle_help", "KEY_CTRLG" },
     { "toggle_list", "KEY_CTRLL" },
     { "toggle_top", "KEY_NONE" },
-    { "next_chat", "KEY_TAB" },
-    { "prev_chat", "KEY_BTAB" },
+    { "next_chat", "\\33\\152" }, // alt/opt-j (alt/opt-n and -p are select_contact and pin)
+    { "prev_chat", "\\33\\153" }, // alt/opt-k
+    { "focus_next", "KEY_TAB" },
+    { "focus_prev", "KEY_BTAB" },
+    { "focus_entry", "KEY_CTRL[" },
+    { "send_enter", "KEY_RETURN" },
+    // alt/opt-enter arrives as ESC LF with linefeed_on_enter=1, a user with linefeed_on_enter=0 needs \33\15
+    { "newline", "\\33\\12" },
     { "unread_chat", "KEY_CTRLF" },
     { "send_msg", "KEY_CTRLX" },
     { "delete_msg", "KEY_CTRLD" },
@@ -401,7 +407,7 @@ int UiKeyConfig::GetFunctionKeyOffset()
 
 void UiKeyConfig::DetectConflicts()
 {
-  std::set<std::string> ignoreKeyFunctions = { "ok", "cancel" };
+  std::set<std::string> ignoreKeyFunctions = { "ok", "cancel", "send_enter" };
   std::set<std::string> dupeMappings;
   std::map<std::string, std::vector<std::string>> keyMappings;
   std::map<std::string, std::string> keyMap = m_Config.GetMap();

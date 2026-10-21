@@ -240,7 +240,21 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
   static wint_t keyKillWord = UiKeyConfig::GetKey("kill_word");
   static wint_t keyClear = UiKeyConfig::GetKey("clear");
   static wint_t keyLinebreak = UiKeyConfig::GetKey("linebreak");
+  static wint_t keyNewline = UiKeyConfig::GetKey("newline");
   static wint_t keyTab = UiKeyConfig::GetKey("tab");
+
+  if (m_ListFilterEditing)
+  {
+    FilterTextKey(p_Key);
+    return;
+  }
+
+  if (m_Focus != NavFocus::Entry)
+  {
+    // typing in list/history focus moves to the entry; other keys do nothing there
+    if (!StrUtil::IsValidTextKey(p_Key)) return;
+    SetFocus(NavFocus::Entry);
+  }
 
   std::string profileId = m_CurrentChat.first;
   std::string chatId = m_CurrentChat.second;
@@ -430,7 +444,7 @@ void UiModel::Impl::EntryKeyHandler(wint_t p_Key)
     Clear(true /*p_AllowUndo*/);
     SetTyping(profileId, chatId, true);
   }
-  else if (p_Key == keyLinebreak)
+  else if ((p_Key == keyLinebreak) || (p_Key == keyNewline))
   {
     wint_t keyLF = 0xA;
     entryStr.insert(entryPos++, 1, keyLF);
@@ -3173,8 +3187,330 @@ bool UiModel::Impl::GetSelectMessageActive()
 void UiModel::Impl::SetSelectMessageActive(bool p_SelectMessageActive)
 {
   m_SelectMessageActive = p_SelectMessageActive;
+  // History focus is select mode: the up-key entry point and jump-to-quoted both land here
+  if (p_SelectMessageActive && (m_Focus != NavFocus::History)) m_Focus = NavFocus::History;
+  else if (!p_SelectMessageActive && (m_Focus == NavFocus::History)) m_Focus = NavFocus::Entry;
   SetHelpOffset(0);
   UpdateHelp();
+}
+
+NavFocus UiModel::Impl::GetFocus()
+{
+  return m_Focus;
+}
+
+const ListFilter& UiModel::Impl::GetListFilter()
+{
+  return m_ListFilter;
+}
+
+bool UiModel::Impl::GetListFilterEditing()
+{
+  return m_ListFilterEditing;
+}
+
+void UiModel::Impl::RefreshFocus()
+{
+  SetHelpOffset(0);
+  UpdateList();
+  UpdateHistory();
+  UpdateStatus();
+  UpdateHelp();
+  m_View->SetListBorderDirty(true);
+}
+
+void UiModel::Impl::SetFocus(NavFocus p_Focus)
+{
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  if ((p_Focus == NavFocus::History) && m_MessageVec[profileId][chatId].empty())
+  {
+    p_Focus = NavFocus::Entry;
+  }
+
+  if (p_Focus == m_Focus) return;
+
+  if (p_Focus == NavFocus::History)
+  {
+    // a pending reply (select on, focus Entry) keeps its message selected
+    if (!m_SelectMessageActive) m_MessageOffset[profileId][chatId] = 0;
+    m_SelectMessageActive = true;
+    m_Focus = NavFocus::History;
+  }
+  else
+  {
+    SetSelectMessageActive(false); // moves History -> Entry
+    m_Focus = p_Focus;
+  }
+
+  RefreshFocus();
+}
+
+void UiModel::Impl::FocusEntryIfEditing()
+{
+  // edit mode keeps select on (the edited message), so only the focus moves
+  if (!GetEditMessageActive() || (m_Focus == NavFocus::Entry)) return;
+  m_Focus = NavFocus::Entry;
+  RefreshFocus();
+}
+
+std::vector<ListChat> UiModel::Impl::BuildListChats()
+{
+  std::vector<ListChat> chats;
+  for (const auto& chatPair : m_ChatVec)
+  {
+    ListChat chat;
+    chat.name = GetContactListName(chatPair.first, chatPair.second, true /*p_AllowId*/, true /*p_AllowAlias*/);
+    const ChatInfo& info = m_ChatInfos[chatPair.first][chatPair.second];
+    chat.group = info.isPinned ? "Pinned" : chatPair.first;
+    chat.unread = info.isUnread;
+    chats.push_back(chat);
+  }
+
+  return chats;
+}
+
+std::vector<ListRow> UiModel::Impl::BuildListRows()
+{
+  // ponytail: rebuilt on every list draw, fine for a few thousand chats
+  return ChatList::BuildRows(BuildListChats(), m_ListFilter, m_CollapsedGroups);
+}
+
+void UiModel::Impl::SelectChatIndex(int p_Index)
+{
+  if ((p_Index < 0) || (p_Index >= (int)m_ChatVec.size()) || (p_Index == m_CurrentChatIndex)) return;
+  m_CurrentChatIndex = p_Index;
+  m_CurrentChat = m_ChatVec.at(m_CurrentChatIndex);
+  OnCurrentChatChanged();
+}
+
+void UiModel::Impl::ListMove(int p_Delta)
+{
+  SelectChatIndex(ChatList::Move(BuildListRows(), m_CurrentChatIndex, p_Delta));
+  UpdateList();
+}
+
+void UiModel::Impl::ListEdge(bool p_Last)
+{
+  SelectChatIndex(ChatList::Edge(BuildListRows(), p_Last));
+  UpdateList();
+}
+
+void UiModel::Impl::HistoryMove(int p_Delta)
+{
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  const int messageCount = m_Messages[profileId][chatId].size();
+  int& messageOffset = m_MessageOffset[profileId][chatId];
+  if ((p_Delta < 0) && (messageOffset == 0))
+  {
+    SetSelectMessageActive(false); // down past the newest message returns to the entry
+  }
+  else
+  {
+    messageOffset = NumUtil::Bound(0, messageOffset + p_Delta, std::max(0, messageCount - 1));
+    if (p_Delta > 0) RequestMessagesCurrentChat();
+  }
+
+  UpdateHistory();
+}
+
+void UiModel::Impl::HistoryJump(bool p_Oldest)
+{
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  const int messageCount = m_Messages[profileId][chatId].size();
+  m_MessageOffset[profileId][chatId] = p_Oldest ? std::max(0, messageCount - 1) : 0;
+  if (p_Oldest) RequestMessagesCurrentChat();
+  UpdateHistory();
+}
+
+bool UiModel::Impl::FilterTextKey(wint_t p_Key)
+{
+  static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
+  static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
+  if ((p_Key == keyBackspace) || (p_Key == keyBackspaceAlt))
+  {
+    std::wstring wtext = StrUtil::ToWString(m_ListFilter.text);
+    if (!wtext.empty()) wtext.pop_back();
+    m_ListFilter.text = StrUtil::ToString(wtext);
+  }
+  else if (StrUtil::IsValidTextKey(p_Key))
+  {
+    m_ListFilter.text += StrUtil::ToString(std::wstring(1, (wchar_t)p_Key));
+  }
+  else
+  {
+    return false;
+  }
+
+  SnapSelectionToRows();
+  UpdateList();
+  return true;
+}
+
+void UiModel::Impl::SnapSelectionToRows()
+{
+  const std::vector<ListRow> rows = BuildListRows();
+  for (const ListRow& row : rows)
+  {
+    if (row.chat == m_CurrentChatIndex) return;
+  }
+
+  SelectChatIndex(ChatList::Edge(rows, false));
+}
+
+bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
+{
+  static const NavKeys navKeys = []()
+  {
+    NavKeys keys;
+    keys.up = UiKeyConfig::GetKey("up");
+    keys.down = UiKeyConfig::GetKey("down");
+    keys.home = UiKeyConfig::GetKey("home");
+    keys.end = UiKeyConfig::GetKey("end");
+    keys.ok = UiKeyConfig::GetKey("ok");
+    keys.focusNext = UiKeyConfig::GetKey("focus_next");
+    keys.focusPrev = UiKeyConfig::GetKey("focus_prev");
+    keys.focusEntry = UiKeyConfig::GetKey("focus_entry");
+    return keys;
+  }();
+  static const bool vim = UiConfig::GetBool("vim_keys");
+  static const int kHalfPage = 5; // ponytail: fixed step, view height not wired in
+  static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
+  static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
+  static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
+
+  if (m_ListFilterEditing)
+  {
+    // text keys fall through to EntryKeyHandler -> FilterTextKey; only control keys are taken here
+    if ((p_Key == navKeys.ok) || (p_Key == navKeys.focusEntry) || (p_Key == keyCancel))
+    {
+      if (p_Key != navKeys.ok)
+      {
+        m_ListFilter.text.clear();
+        SnapSelectionToRows();
+      }
+
+      m_ListFilterEditing = false;
+      UpdateList();
+      return true;
+    }
+    else if ((p_Key == navKeys.up) || (p_Key == navKeys.down))
+    {
+      ListMove((p_Key == navKeys.down) ? 1 : -1);
+      return true;
+    }
+    else if ((p_Key == keyBackspace) || (p_Key == keyBackspaceAlt))
+    {
+      return FilterTextKey(p_Key);
+    }
+
+    return false;
+  }
+
+  const NavAction action = m_NavResolver.Resolve(m_Focus, p_Key, navKeys, vim);
+  if (action == NavAction::None) return false;
+
+  AnyUserKeyInput();
+
+  if (GetEditMessageActive() && ((action == NavAction::FocusNext) || (action == NavAction::FocusPrev)))
+  {
+    return true; // finish or cancel the edit first
+  }
+
+  const bool list = (m_Focus == NavFocus::List);
+  switch (action)
+  {
+    case NavAction::Pending:
+      break;
+    case NavAction::FocusNext:
+      SetFocus((m_Focus == NavFocus::List) ? NavFocus::History
+               : (m_Focus == NavFocus::History) ? NavFocus::Entry : NavFocus::List);
+      break;
+    case NavAction::FocusPrev:
+      SetFocus((m_Focus == NavFocus::List) ? NavFocus::Entry
+               : (m_Focus == NavFocus::History) ? NavFocus::List : NavFocus::History);
+      break;
+    case NavAction::FocusEntry:
+      if (m_Focus == NavFocus::Entry)
+      {
+        if (GetEditMessageActive() || GetSelectMessageActive()) OnKeyCancel(); // drop the edit or reply
+      }
+      else
+      {
+        SetFocus(NavFocus::Entry); // leaving history drops select, so nothing is quoted by accident
+      }
+      break;
+    case NavAction::FocusList:
+      SetFocus(NavFocus::List);
+      break;
+    case NavAction::Up:
+      if (list) ListMove(-1); else HistoryMove(1);
+      break;
+    case NavAction::Down:
+      if (list) ListMove(1); else HistoryMove(-1);
+      break;
+    case NavAction::HalfUp:
+      if (list) ListMove(-kHalfPage); else HistoryMove(kHalfPage);
+      break;
+    case NavAction::HalfDown:
+      if (list) ListMove(kHalfPage); else HistoryMove(-kHalfPage);
+      break;
+    case NavAction::First:
+      if (list) ListEdge(false); else HistoryJump(true);
+      break;
+    case NavAction::Last:
+      if (list) ListEdge(true); else HistoryJump(false);
+      break;
+    case NavAction::Open:
+      SetFocus(NavFocus::Entry); // moving in the list already opened the chat
+      break;
+    case NavAction::Reply:
+      m_Focus = NavFocus::Entry; // select stays on: the entry title shows the reply target
+      RefreshFocus();
+      break;
+    case NavAction::Search:
+      if (list)
+      {
+        m_ListFilter.text.clear();
+        m_ListFilterEditing = true;
+        UpdateList();
+      }
+      else
+      {
+        p_Deferred = action; // find dialog, run by KeyHandler without the mutex
+      }
+      break;
+    case NavAction::FindNext:
+    case NavAction::Edit:
+    case NavAction::Copy:
+    case NavAction::Delete:
+      p_Deferred = action; // dialogs or self-locking handlers, run by KeyHandler without the mutex
+      break;
+    case NavAction::UnreadOnly:
+      m_ListFilter.unreadOnly = !m_ListFilter.unreadOnly;
+      SnapSelectionToRows();
+      UpdateList();
+      break;
+    case NavAction::ToggleGroup:
+    {
+      const std::vector<ListChat> chats = BuildListChats();
+      if ((m_CurrentChatIndex >= 0) && (m_CurrentChatIndex < (int)chats.size()))
+      {
+        const std::string& group = chats[m_CurrentChatIndex].group;
+        if (m_CollapsedGroups.erase(group) == 0) m_CollapsedGroups.insert(group);
+      }
+
+      UpdateList();
+      break;
+    }
+    case NavAction::None:
+    default:
+      return false;
+  }
+
+  return true;
 }
 
 bool UiModel::Impl::GetListDialogActive()
@@ -3734,7 +4070,20 @@ void UiModel::Impl::SaveEditMessage()
 void UiModel::Impl::OnKeyCancel()
 {
   AnyUserKeyInput();
+  if (m_Focus != NavFocus::Entry)
+  {
+    SetFocus(NavFocus::Entry);
+    return;
+  }
+
   bool editMessageActive = GetEditMessageActive();
+  if (!editMessageActive && GetSelectMessageActive())
+  {
+    SetSelectMessageActive(false); // drop the reply, keep the draft
+    UpdateEntry();
+    return;
+  }
+
   bool allowUndo = !editMessageActive;
   if (editMessageActive)
   {
@@ -4635,6 +4984,46 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keyAutoCompose = UiKeyConfig::GetKey("auto_compose");
   static wint_t keySelectMention = UiKeyConfig::GetKey("select_mention");
 
+  static const bool enterSends = UiConfig::GetBool("enter_sends");
+  static wint_t keySendEnter = UiKeyConfig::GetKey("send_enter");
+
+  {
+    NavAction deferred = NavAction::None;
+    bool handled = false;
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      handled = GetImpl().HandleFocusKey(p_Key, deferred);
+    }
+
+    // history actions that open dialogs or take the model mutex themselves run here, unlocked
+    switch (deferred)
+    {
+      case NavAction::Search:
+        OnKeyFind();
+        break;
+      case NavAction::FindNext:
+        OnKeyFindNext();
+        break;
+      case NavAction::Copy:
+        OnKeyCopy();
+        break;
+      case NavAction::Delete:
+        OnKeyDeleteMsg();
+        break;
+      case NavAction::Edit:
+      {
+        OnKeyEditMsg();
+        std::unique_lock<owned_mutex> lock(m_ModelMutex);
+        GetImpl().FocusEntryIfEditing();
+        break;
+      }
+      default:
+        break;
+    }
+
+    if (handled) return;
+  }
+
   if (p_Key == keyTerminalResize)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
@@ -4722,7 +5111,7 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeyQuit();
   }
-  else if (p_Key == keySendMsg)
+  else if ((p_Key == keySendMsg) || (enterSends && (p_Key == keySendEnter)))
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeySendMsg();
@@ -5166,6 +5555,30 @@ bool UiModel::GetSelectMessageActiveLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetSelectMessageActive();
+}
+
+NavFocus UiModel::GetFocusLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetFocus();
+}
+
+std::vector<ListRow> UiModel::GetListRowsLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().BuildListRows();
+}
+
+const ListFilter& UiModel::GetListFilterLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetListFilter();
+}
+
+bool UiModel::GetListFilterEditingLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetListFilterEditing();
 }
 
 void UiModel::DownloadAttachmentLocked(const std::string& p_ProfileId, const std::string& p_ChatId,
