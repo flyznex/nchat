@@ -237,6 +237,7 @@ private:
   void DiscoverTopic(int64_t p_ChatId, int32_t p_TopicId);
   std::string ResolveChatId(int64_t p_ChatId, int64_t p_MsgId);
   void SetForumArchived(int64_t p_ChatId, bool p_IsArchived);
+  void LeaveForum(int64_t p_ChatId);
   bool IsForumChat(int64_t p_ChatId);
   int32_t GetEffectiveTopicId(const ChatRef& p_Ref);
   td::td_api::object_ptr<td::td_api::formattedText> GetFormattedText(const std::string& p_Text);
@@ -2307,52 +2308,37 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
           get_chat->chat_id_ = forumChatId;
           SendQuery(std::move(get_chat), [this, forumChatId](Object object)
           {
-            if (object->get_id() == td::td_api::chat::ID)
+            // chat.positions_ is empty for an archived chat until the archive list is loaded, so use membership
+            int64_t supergroupId = 0;
+            if ((object->get_id() == td::td_api::chat::ID) &&
+                (static_cast<td::td_api::chat&>(*object).type_->get_id() == td::td_api::chatTypeSupergroup::ID))
             {
-              for (const auto& chatPosition : static_cast<td::td_api::chat&>(*object).positions_)
+              supergroupId =
+                static_cast<td::td_api::chatTypeSupergroup&>(*static_cast<td::td_api::chat&>(*object).type_).supergroup_id_;
+            }
+
+            if (supergroupId == 0)
+            {
+              LeaveForum(forumChatId);
+              return;
+            }
+
+            SendQuery(td::td_api::make_object<td::td_api::getSupergroup>(supergroupId),
+                      [this, forumChatId](Object supergroupObject)
+            {
+              if (supergroupObject->get_id() == td::td_api::supergroup::ID)
               {
-                if (chatPosition->list_ && (chatPosition->list_->get_id() == td::td_api::chatListArchive::ID) &&
-                    (chatPosition->order_ > 0))
+                const auto& status = static_cast<td::td_api::supergroup&>(*supergroupObject).status_;
+                if (status && (status->get_id() != td::td_api::chatMemberStatusLeft::ID) &&
+                    (status->get_id() != td::td_api::chatMemberStatusBanned::ID))
                 {
                   SetForumArchived(forumChatId, true);
                   return;
                 }
               }
-            }
 
-            std::vector<std::string> topicChatIds;
-            {
-              std::unique_lock<std::mutex> lock(m_ForumMutex);
-              auto topicsIt = m_ForumTopics.find(forumChatId);
-              if (topicsIt != m_ForumTopics.end())
-              {
-                for (const int32_t topicId : topicsIt->second)
-                {
-                  topicChatIds.push_back(MakeChatId(forumChatId, topicId));
-                  m_TopicContactInfos.erase(topicChatIds.back());
-                }
-
-                m_ForumTopics.erase(topicsIt);
-              }
-
-              m_ForumChats.erase(forumChatId);
-              m_ForumArchived.erase(forumChatId);
-
-              for (auto pendingIt = m_ForumTopicsPending.begin(); pendingIt != m_ForumTopicsPending.end();)
-              {
-                pendingIt = (pendingIt->first == forumChatId) ? m_ForumTopicsPending.erase(pendingIt)
-                                                              : std::next(pendingIt);
-              }
-            }
-
-            for (const std::string& topicChatId : topicChatIds)
-            {
-              std::shared_ptr<DeleteChatNotify> topicDeleteChatNotify =
-                std::make_shared<DeleteChatNotify>(m_ProfileId);
-              topicDeleteChatNotify->success = true;
-              topicDeleteChatNotify->chatId = topicChatId;
-              CallMessageHandler(topicDeleteChatNotify);
-            }
+              LeaveForum(forumChatId);
+            });
           });
         }
         else
@@ -4753,6 +4739,42 @@ std::string TgChat::Impl::ResolveChatId(int64_t p_ChatId, int64_t p_MsgId)
   }
 
   return StrUtil::NumToHex(p_ChatId);
+}
+
+void TgChat::Impl::LeaveForum(int64_t p_ChatId)
+{
+  std::vector<std::string> topicChatIds;
+  {
+    std::unique_lock<std::mutex> lock(m_ForumMutex);
+    auto topicsIt = m_ForumTopics.find(p_ChatId);
+    if (topicsIt != m_ForumTopics.end())
+    {
+      for (const int32_t topicId : topicsIt->second)
+      {
+        topicChatIds.push_back(MakeChatId(p_ChatId, topicId));
+        m_TopicContactInfos.erase(topicChatIds.back());
+      }
+
+      m_ForumTopics.erase(topicsIt);
+    }
+
+    m_ForumChats.erase(p_ChatId);
+    m_ForumArchived.erase(p_ChatId);
+
+    for (auto pendingIt = m_ForumTopicsPending.begin(); pendingIt != m_ForumTopicsPending.end();)
+    {
+      pendingIt = (pendingIt->first == p_ChatId) ? m_ForumTopicsPending.erase(pendingIt) : std::next(pendingIt);
+    }
+  }
+
+  for (const std::string& topicChatId : topicChatIds)
+  {
+    std::shared_ptr<DeleteChatNotify> topicDeleteChatNotify =
+      std::make_shared<DeleteChatNotify>(m_ProfileId);
+    topicDeleteChatNotify->success = true;
+    topicDeleteChatNotify->chatId = topicChatId;
+    CallMessageHandler(topicDeleteChatNotify);
+  }
 }
 
 void TgChat::Impl::SetForumArchived(int64_t p_ChatId, bool p_IsArchived)
