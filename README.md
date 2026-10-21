@@ -301,6 +301,13 @@ General topic, plus one chat per topic named `Group › Topic`. Topic chats can
 be read and written, but creating, renaming, closing and pinning topics is not
 supported.
 
+Known limitations of forum topics:
+- Deleting a topic chat only removes it from nchat, it reappears after restart.
+- Archiving a forum hides its topic chats and un-archiving restores them, but
+  the group chat itself only reappears after restarting nchat.
+- Leaving a forum, or a group becoming a forum while nchat is running, is only
+  reflected after restarting nchat.
+
 
 Troubleshooting
 ===============
