@@ -31,8 +31,10 @@ ImageKind ImageGeom::DetectKind(const std::string& p_FileType, const std::string
   if (dot == std::string::npos) return ImageKind::None;
 
   const std::string ext = StrUtil::ToLower(name.substr(dot + 1));
-  if ((ext == "jpg") || (ext == "jpeg") || (ext == "png")) return ImageKind::Photo;
-  if (ext == "webp") return ImageKind::Sticker;
+  // only trust the extension for files TDLib stored as photo/sticker, not for arbitrary documents
+  if (((ext == "jpg") || (ext == "jpeg") || (ext == "png")) && (p_FilePath.find("/photos/") != std::string::npos))
+    return ImageKind::Photo;
+  if ((ext == "webp") && (p_FilePath.find("/stickers/") != std::string::npos)) return ImageKind::Sticker;
   return ImageKind::None;
 }
 
