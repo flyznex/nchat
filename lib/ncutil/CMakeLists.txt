@@ -41,6 +41,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/buildinfo.cpp
   src/cacheutil.cpp
   src/cacheutil.h
+  src/chatlist.cpp
+  src/chatlist.h
   src/clipboard.cpp
   src/clipboard.h
   src/config.cpp
