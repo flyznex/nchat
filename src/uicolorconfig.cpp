@@ -55,6 +55,10 @@ void UiColorConfig::Init()
     { "listborder_attr", "" },
     { "listborder_color_bg", "" },
     { "listborder_color_fg", "" },
+    { "focus_attr", "reverse" },
+    { "focus_color_bg", "" },
+    { "focus_color_fg", "" },
+    { "dim_attr", "dim" },
 
     { "history_text_attr", "" },
     { "history_text_attr_selected", "reverse" },
@@ -220,6 +224,7 @@ int UiColorConfig::GetAttribute(const std::string& p_Param)
     { "underline", A_UNDERLINE },
     { "reverse", A_REVERSE },
     { "bold", A_BOLD },
+    { "dim", A_DIM },
 #ifdef A_ITALIC
     { "italic", A_ITALIC },
 #endif

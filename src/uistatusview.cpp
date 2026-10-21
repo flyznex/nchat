@@ -92,6 +92,18 @@ void UiStatusView::Draw()
 
   mvwaddnwstr(m_Win, 0, 0, wstatus.c_str(), wstatus.size());
 
+  static int focusColorPair = UiColorConfig::GetColorPair("focus_color");
+  // ponytail: reverse on the reverse status bar is invisible, so add bold; the tag text still names the focus
+  static int focusAttribute = UiColorConfig::GetAttribute("focus_attr") | ((attribute & A_REVERSE) ? A_BOLD : 0);
+  const NavFocus focus = m_Model->GetFocusLocked();
+  const std::wstring tag = (focus == NavFocus::List) ? L" LIST " : (focus == NavFocus::History) ? L" HISTORY " : L" ENTRY ";
+  if ((int)tag.size() < m_W)
+  {
+    wattron(m_Win, focusAttribute | focusColorPair);
+    mvwaddwstr(m_Win, 0, m_W - (int)tag.size(), tag.c_str());
+    wattroff(m_Win, focusAttribute | focusColorPair);
+  }
+
   wattroff(m_Win, attribute | colorPair);
   wrefresh(m_Win);
 }

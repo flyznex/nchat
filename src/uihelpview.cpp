@@ -149,6 +149,56 @@ void UiHelpView::Draw()
     return helpItems;
   }();
 
+  static const bool vim = UiConfig::GetBool("vim_keys");
+
+  static std::vector<std::wstring> listFocusHelpItems = []()
+  {
+    std::vector<std::wstring> helpItems;
+    if (vim)
+    {
+      AppendLiteralHelpItem("j/k", "Move", helpItems);
+      AppendLiteralHelpItem("gg/G", "Ends", helpItems);
+      AppendLiteralHelpItem("/", "Filter", helpItems);
+      AppendLiteralHelpItem("u", "Unread", helpItems);
+      AppendLiteralHelpItem("z", "Fold", helpItems);
+      AppendLiteralHelpItem("l", "Open", helpItems);
+    }
+    else
+    {
+      AppendHelpItem("up", "Prev", helpItems);
+      AppendHelpItem("down", "Next", helpItems);
+      AppendHelpItem("ok", "Open", helpItems);
+    }
+
+    AppendHelpItem("focus_next", "Focus", helpItems);
+    return helpItems;
+  }();
+
+  static std::vector<std::wstring> historyFocusHelpItems = []()
+  {
+    std::vector<std::wstring> helpItems;
+    if (vim)
+    {
+      AppendLiteralHelpItem("j/k", "Move", helpItems);
+      AppendLiteralHelpItem("r", "Reply", helpItems);
+      AppendLiteralHelpItem("e", "Edit", helpItems);
+      AppendLiteralHelpItem("y", "Copy", helpItems);
+      AppendLiteralHelpItem("x", "Delete", helpItems);
+      AppendLiteralHelpItem("/", "Find", helpItems);
+    }
+    else
+    {
+      AppendHelpItem("up", "Prev", helpItems);
+      AppendHelpItem("down", "Next", helpItems);
+      AppendHelpItem("ok", "Reply", helpItems);
+    }
+
+    AppendHelpItem("focus_entry", "Entry", helpItems);
+    return helpItems;
+  }();
+
+  static std::vector<std::wstring> listFocusHelpViews;
+  static std::vector<std::wstring> historyFocusHelpViews;
   static std::vector<std::wstring> listDialogHelpViews;
   static std::vector<std::wstring> fileListDialogHelpViews;
   static std::vector<std::wstring> messageDialogHelpViews;
@@ -166,6 +216,8 @@ void UiHelpView::Draw()
     fileListDialogHelpViews = GetHelpViews(maxW, fileListDialogHelpItems, otherHelpItem);
     messageDialogHelpViews = GetHelpViews(maxW, messageDialogHelpItems, otherHelpItem);
     editMessageHelpViews = GetHelpViews(maxW, editMessageHelpItems, otherHelpItem);
+    listFocusHelpViews = GetHelpViews(maxW, listFocusHelpItems, otherHelpItem);
+    historyFocusHelpViews = GetHelpViews(maxW, historyFocusHelpItems, otherHelpItem);
     selectHelpViews = GetHelpViews(maxW, mainSelectHelpItems, otherHelpItem);
     defaultHelpViews = GetHelpViews(maxW, mainDefaultHelpItems, otherHelpItem);
   }
@@ -193,6 +245,14 @@ void UiHelpView::Draw()
   else if (m_Model->GetEditMessageActiveLocked())
   {
     wstr = editMessageHelpViews.at(m_Model->GetHelpOffsetLocked() % editMessageHelpViews.size());
+  }
+  else if (m_Model->GetFocusLocked() == NavFocus::List)
+  {
+    wstr = listFocusHelpViews.at(m_Model->GetHelpOffsetLocked() % listFocusHelpViews.size());
+  }
+  else if (m_Model->GetFocusLocked() == NavFocus::History)
+  {
+    wstr = historyFocusHelpViews.at(m_Model->GetHelpOffsetLocked() % historyFocusHelpViews.size());
   }
   else if (m_Model->GetSelectMessageActiveLocked())
   {
@@ -262,6 +322,12 @@ void UiHelpView::AppendHelpItem(const std::string& p_Func, const std::string& p_
     const std::string helpItem = keyDisplay + " " + p_Desc;
     p_HelpItems.push_back(StrUtil::ToWString(helpItem));
   }
+}
+
+void UiHelpView::AppendLiteralHelpItem(const std::string& p_Key, const std::string& p_Desc,
+                                       std::vector<std::wstring>& p_HelpItems)
+{
+  p_HelpItems.push_back(StrUtil::ToWString(p_Key + " " + p_Desc));
 }
 
 std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)

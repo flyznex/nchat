@@ -24,5 +24,7 @@ private:
                                                 const std::wstring& p_OtherHelpItem);
   static void AppendHelpItem(const std::string& p_Func, const std::string& p_Desc,
                              std::vector<std::wstring>& p_HelpItems);
+  static void AppendLiteralHelpItem(const std::string& p_Key, const std::string& p_Desc,
+                                    std::vector<std::wstring>& p_HelpItems);
   static std::string GetKeyDisplay(const std::string& p_Func);
 };

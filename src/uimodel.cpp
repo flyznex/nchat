@@ -3207,6 +3207,9 @@ void UiModel::Impl::SetSelectMessageActive(bool p_SelectMessageActive)
   else if (!p_SelectMessageActive && (m_Focus == NavFocus::History)) m_Focus = NavFocus::Entry;
   SetHelpOffset(0);
   UpdateHelp();
+  // focus may have flipped above, so keep the focus-dependent status tag and divider in sync
+  UpdateStatus();
+  m_View->SetListBorderDirty(true);
 }
 
 NavFocus UiModel::Impl::GetFocus()
