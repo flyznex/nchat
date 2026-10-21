@@ -52,8 +52,11 @@ Interactive Commands:
 
     PageDn      history next page
     PageUp      history previous page
-    Tab         next chat
-    Sh-Tab      previous chat
+    Tab         next pane (list, history, entry)
+    Sh-Tab      previous pane
+    Esc         focus text entry
+    Enter       send message (see `enter_sends`)
+    Alt-Enter   insert linebreak
     Ctrl-f      jump to unread chat
     Ctrl-g      toggle show help bar
     Ctrl-l      toggle show contact list
@@ -70,6 +73,8 @@ Interactive Commands:
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
     Alt-i       auto-compose reply
+    Alt-j       next chat
+    Alt-k       previous chat
     Alt-n       search contacts
     Alt-p       pin/unpin current chat
     Alt-t       external telephone call
@@ -81,7 +86,7 @@ Interactive Commands:
 
 Interactive Commands for Selected Message:
 
-    Ctrl-d      delete selected message
+    Ctrl-d      delete selected message (`x` in history focus if `vim_keys=1`)
     Ctrl-r      download attached file
     Ctrl-v      open/view attached file
     Ctrl-w      open link
@@ -108,6 +113,52 @@ Interactive Commands for Text Input:
     Alt-c       copy input buffer to clipboard (if no message selected)
     Alt-v       paste into input buffer from clipboard
     Alt-x       cut input buffer to clipboard
+
+Focus and Navigation:
+
+nchat has three panes: chat list, message history and text entry. Focus starts
+in the entry. Tab / Sh-Tab cycle the focus, Esc returns to the entry, and
+the focused pane is highlighted (see `focus_*` and `dim_attr` in `color.conf`).
+In list or history focus, typing a letter that is not a navigation key jumps to
+the entry. Up/Down/Home/End navigate in both panes, Enter opens the selected
+chat (list) or replies to the selected message (history).
+
+With `vim_keys=1` (default in `ui.conf`) the following keys are also available
+in list and history focus:
+
+    j / k       down / up
+    gg / G      first / last
+    Ctrl-d/u    half page down / up
+    /           search (filter in list, find in history)
+    i           focus text entry
+    l           list: open chat
+    h           history: focus list
+    u           list: toggle unread-only
+    z           list: expand all groups if any collapsed, otherwise
+                collapse the group of the selected chat
+    n           history: find next
+    r           history: reply to selected message
+    e           history: edit selected message
+    y           history: copy selected message
+    x           history: delete selected message
+
+With `vim_keys=1` Ctrl-d / Ctrl-u are half-page keys in list and history focus,
+so use `x` to delete a message there. With `vim_keys=0` these letters type into
+the entry and Ctrl-d deletes the selected message again.
+
+The chat list shows two lines per chat (name and last message preview) with
+chats grouped under a "Pinned" header and one header per account (shown when
+there are two or more groups). Groups can be collapsed with `z`, `/` filters
+chats by name (case-insensitive) and `u` shows only chats with unread messages. The text entry shows a title line while
+composing, replying or editing, and grows with its content up to half the
+screen height.
+
+Alt-Enter inserts a linebreak. With the default `linefeed_on_enter=1` ncurses
+turns the CR sent by Alt-Enter into LF, so the `newline` key defaults to
+`\33\12` (ESC LF). If `linefeed_on_enter=0`, set `newline=\33\15` (ESC CR) in
+`key.conf` instead. Most terminals, including Ghostty, send Alt-Enter as ESC CR.
+Use `nchat -k` to verify the codes your terminal sends. nchat sets the
+escape delay to 25 ms, so Esc responds quickly and Alt-combinations still work.
 
 
 Supported Platforms
@@ -499,6 +550,7 @@ This configuration file holds general user interface settings. Default content:
     downloadable_indicator=+
     edited_indicator=✎
     emoji_enabled=1
+    enter_sends=1
     entry_height=4
     failed_indicator=✗
     file_picker_command=
@@ -513,7 +565,7 @@ This configuration file holds general user interface settings. Default content:
     linefeed_on_enter=1
     link_open_command=
     list_enabled=1
-    list_width=14
+    list_width=30
     listdialog_show_filter=1
     mark_read_any_chat=0
     mark_read_on_view=1
@@ -545,6 +597,7 @@ This configuration file holds general user interface settings. Default content:
     typing_status_share=1
     undo_clear_input=1
     unread_indicator=*
+    vim_keys=1
 
 ### attachment_indicator
 
@@ -684,9 +737,16 @@ been edited.
 
 Specifies whether to display emojis. Controlled by Ctrl-y in run-time.
 
+### enter_sends
+
+Specifies whether the Enter key (`send_enter` in `key.conf`) sends the message.
+Alt-Enter (`newline`) then inserts a linebreak. If disabled, Enter inserts a
+linebreak and messages are sent using `send_msg` (Ctrl-x).
+
 ### entry_height
 
-Specifies height of text entry area.
+Specifies minimum height of text entry area. The entry grows with its content
+up to half of the screen height.
 
 ### failed_indicator
 
@@ -762,7 +822,9 @@ inline in the message history. See `inline_images`.
 Specifies if enter key press should be read as linefeed (LF `\12`).
 Otherwise read as carriage return (CR `\15`). This setting is only
 relevant if `key.conf` uses numerical key value for enter (LF `\12`,
-CR `\15`). The key name `KEY_RETURN` always maps to the one in use.
+CR `\15`). The key name `KEY_RETURN` always maps to the one in use. The
+`newline` key (Alt-Enter) default `\33\12` assumes this is enabled, use
+`\33\15` if disabled.
 
 ### link_open_command
 
@@ -938,6 +1000,13 @@ is enabled.
 
 Specifies the character to suffix chats with unread messages in the chat list.
 
+### vim_keys
+
+Specifies whether vim-style navigation keys (`j k gg G Ctrl-d Ctrl-u / i l h u z
+n r e y x`) are enabled in chat list and message history focus. See
+"Focus and Navigation" above. When disabled, letters type into the text entry
+from any focus.
+
 ~/.config/nchat/key.conf
 ------------------------
 This configuration file holds user interface key bindings. Default content:
@@ -967,6 +1036,9 @@ This configuration file holds user interface key bindings. Default content:
     ext_edit=\33\145
     find=\33\57
     find_next=\33\77
+    focus_entry=KEY_CTRL[
+    focus_next=KEY_TAB
+    focus_prev=KEY_BTAB
     forward_msg=\33\162
     forward_word=
     goto_chat=KEY_CTRLN
@@ -977,7 +1049,8 @@ This configuration file holds user interface key bindings. Default content:
     kill_word=
     left=KEY_LEFT
     linebreak=KEY_RETURN
-    next_chat=KEY_TAB
+    newline=\33\12
+    next_chat=\33\152
     next_page=KEY_NPAGE
     ok=KEY_RETURN
     open=KEY_CTRLV
@@ -986,7 +1059,7 @@ This configuration file holds user interface key bindings. Default content:
     other_commands_help=KEY_CTRLO
     paste=\33\166
     pin=\33\160
-    prev_chat=KEY_BTAB
+    prev_chat=\33\153
     prev_page=KEY_PPAGE
     quit=KEY_CTRLQ
     react=\33\163
@@ -995,6 +1068,7 @@ This configuration file holds user interface key bindings. Default content:
     select_contact=\33\156
     select_emoji=KEY_CTRLS
     select_mention=\33\62
+    send_enter=KEY_RETURN
     send_msg=KEY_CTRLX
     spell=\33\44
     tab=\33\11
@@ -1030,9 +1104,13 @@ This configuration file holds user interface color settings. Default content:
     dialog_attr_selected=reverse
     dialog_color_bg=
     dialog_color_fg=
+    dim_attr=dim
     entry_attr=
     entry_color_bg=
     entry_color_fg=
+    focus_attr=reverse
+    focus_color_bg=
+    focus_color_fg=
     help_attr=reverse
     help_color_bg=black
     help_color_fg=white
@@ -1245,12 +1323,12 @@ determine the key codes and modify `~/.config/nchat/key.conf` accordingly.
 
 ### 2. Send messages with Enter key?
 
-To simply send on Enter key press and skip message compose with linebreaks,
-one can just set `send_msg=KEY_RETURN` in `~/.config/nchat/key.conf`.
-
-To also be able to compose messages with linebreaks using Alt/Opt-Enter, edit
-`~/.config/nchat/ui.conf` and set `linefeed_on_enter=0`. And in
-`~/.config/nchat/key.conf` set `linebreak=\33\15`.
+By default Enter sends (`enter_sends=1` in `~/.config/nchat/ui.conf`) and
+Alt/Opt-Enter inserts a linebreak (`newline` in `~/.config/nchat/key.conf`,
+default `\33\12`). If Alt/Opt-Enter does not insert a linebreak, use
+`nchat -k` to check the codes sent by the terminal. A terminal sending ESC CR
+needs `linefeed_on_enter=0` in `ui.conf` and `newline=\33\15` in `key.conf`.
+Set `enter_sends=0` to have Enter insert a linebreak and send with Ctrl-x.
 
 ### 3. Custom colors are not shown when running nchat in tmux?
 
