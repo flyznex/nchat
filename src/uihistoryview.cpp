@@ -364,7 +364,7 @@ void UiHistoryView::Draw()
     const int maxMessageLines = (m_PaddedH - 1);
     if (firstMessage && ((int)wlines.size() > maxMessageLines))
     {
-      wlines.resize(maxMessageLines - 1);
+      wlines.resize(std::max(0, maxMessageLines - 1)); // tiny terminals: pane height can be <= 1
       wlines.push_back(L"[...]");
       reactionLines = 0;
     }

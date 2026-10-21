@@ -4162,6 +4162,7 @@ void UiModel::Impl::OnKeyCancel()
   if (editMessageActive)
   {
     SetEditMessageActive(false);
+    SetSelectMessageActive(false); // edit started from history select; don't leave a reply pending
   }
 
   Clear(allowUndo);
