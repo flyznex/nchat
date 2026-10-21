@@ -44,7 +44,7 @@ static void TestDetectKindByFileType()
   unittest::ExpectEqual(int, Kind("image/png", "/x/a.png"), kPhoto);
   unittest::ExpectEqual(int, Kind("image/webp", "/x/a.webp"), kSticker);
   unittest::ExpectEqual(int, Kind("application/x-tgsticker", "/x/a.tgs"), kNone);
-  unittest::ExpectEqual(int, Kind("video/webm", "[Sticker]"), kNone);
+  unittest::ExpectEqual(int, Kind("video/webm", "[Sticker]"), kSticker);
   unittest::ExpectEqual(int, Kind("application/pdf", "/x/a.jpg"), kNone);
 }
 
@@ -55,7 +55,8 @@ static void TestDetectKindFallback()
   unittest::ExpectEqual(int, Kind("", "/x/photos/a.png"), kPhoto);
   unittest::ExpectEqual(int, Kind("", "/x/stickers/a.webp"), kSticker);
   unittest::ExpectEqual(int, Kind("", "/x/stickers/a.tgs"), kNone);
-  unittest::ExpectEqual(int, Kind("", "/x/stickers/a.webm"), kNone);
+  unittest::ExpectEqual(int, Kind("", "/x/stickers/a.webm"), kSticker);
+  unittest::ExpectEqual(int, Kind("", "/x/documents/a.webm"), kNone);
   unittest::ExpectEqual(int, Kind("", "/x/documents/a.jpg"), kNone);
   unittest::ExpectEqual(int, Kind("", "/x/documents/a.webp"), kNone);
   unittest::ExpectEqual(int, Kind("", "a.jpg"), kNone);

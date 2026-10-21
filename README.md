@@ -739,15 +739,18 @@ in the message history. See `inline_images`.
 
 ### inline_images
 
-Specifies whether photos and static stickers are shown inline in the
-message history, using the kitty graphics protocol (supported by Ghostty
-and kitty, also inside tmux with `set -g allow-passthrough on`).
+Specifies whether photos and stickers are shown inline in the message
+history, using the kitty graphics protocol (supported by Ghostty and
+kitty, also inside tmux with `set -g allow-passthrough on`). Animated
+stickers are shown as a still first frame, and Lottie (`.tgs`) stickers
+keep the text line.
 Supported values are `auto` (enabled when a supporting terminal is
 detected), `on` and `off`. Images are converted with the first available
-of `magick`, `sips` and `dwebp`, and cached in the `images` directory
-below the nchat data directory. Photos and stickers are downloaded
-automatically when they become visible. Unsupported terminals, missing
-tools and other file types keep the text line.
+of `magick`, `sips`, `dwebp` and `ffmpeg` (needed for video stickers), and
+cached in the `images` directory below the nchat data directory. Photos
+and stickers are downloaded automatically when they become visible.
+Unsupported terminals, missing tools and other file types keep the text
+line.
 
 ### inline_sticker_max_rows
 

@@ -24,6 +24,9 @@ bool ImageConverter::ToPng(const std::string& p_SrcPath, const std::string& p_Ds
     "magick '" + src + "[0]' -auto-orient -resize '800x800>' '" + tmp + "'",
     "sips -s format png -Z 800 '" + src + "' --out '" + tmp + "'",
     "dwebp '" + src + "' -o '" + tmp + "'",
+    // video stickers: first frame only; libvpx-vp9 keeps the alpha channel, the default decoder drops it
+    "ffmpeg -v error -y -c:v libvpx-vp9 -i '" + src + "' -frames:v 1 '" + tmp + "'",
+    "ffmpeg -v error -y -i '" + src + "' -frames:v 1 '" + tmp + "'",
   };
 
   for (const std::string& cmd : cmds)

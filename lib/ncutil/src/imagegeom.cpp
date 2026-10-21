@@ -18,7 +18,7 @@ ImageKind ImageGeom::DetectKind(const std::string& p_FileType, const std::string
   if (!p_FileType.empty())
   {
     if ((p_FileType == "image/jpeg") || (p_FileType == "image/png")) return ImageKind::Photo;
-    if (p_FileType == "image/webp") return ImageKind::Sticker;
+    if ((p_FileType == "image/webp") || (p_FileType == "video/webm")) return ImageKind::Sticker;
     return ImageKind::None;
   }
 
@@ -34,7 +34,8 @@ ImageKind ImageGeom::DetectKind(const std::string& p_FileType, const std::string
   // only trust the extension for files TDLib stored as photo/sticker, not for arbitrary documents
   if (((ext == "jpg") || (ext == "jpeg") || (ext == "png")) && (p_FilePath.find("/photos/") != std::string::npos))
     return ImageKind::Photo;
-  if ((ext == "webp") && (p_FilePath.find("/stickers/") != std::string::npos)) return ImageKind::Sticker;
+  if (((ext == "webp") || (ext == "webm")) && (p_FilePath.find("/stickers/") != std::string::npos))
+    return ImageKind::Sticker;
   return ImageKind::None;
 }
 
