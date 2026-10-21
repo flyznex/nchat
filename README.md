@@ -507,6 +507,9 @@ This configuration file holds general user interface settings. Default content:
     help_prefix_ctrl=^
     help_prefix_meta=M-
     home_fetch_all=0
+    inline_image_max_rows=10
+    inline_images=auto
+    inline_sticker_max_rows=6
     linefeed_on_enter=1
     link_open_command=
     list_enabled=1
@@ -728,6 +731,28 @@ configured in `key.conf`.
 ### home_fetch_all
 
 Specifies whether `home` button shall repeatedly fetch all chat history.
+
+### inline_image_max_rows
+
+Specifies the maximum height, in terminal rows, of a photo shown inline
+in the message history. See `inline_images`.
+
+### inline_images
+
+Specifies whether photos and static stickers are shown inline in the
+message history, using the kitty graphics protocol (supported by Ghostty
+and kitty, also inside tmux with `set -g allow-passthrough on`).
+Supported values are `auto` (enabled when a supporting terminal is
+detected), `on` and `off`. Images are converted with the first available
+of `magick`, `sips` and `dwebp`, and cached in the `images` directory
+below the nchat data directory. Photos and stickers are downloaded
+automatically when they become visible. Unsupported terminals, missing
+tools and other file types keep the text line.
+
+### inline_sticker_max_rows
+
+Specifies the maximum height, in terminal rows, of a sticker shown
+inline in the message history. See `inline_images`.
 
 ### linefeed_on_enter
 
