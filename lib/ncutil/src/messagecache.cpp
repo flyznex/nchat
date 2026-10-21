@@ -782,6 +782,34 @@ bool MessageCache::GetOneMessage(const std::string& p_ProfileId, const std::stri
   return !p_ChatMessages.empty();
 }
 
+bool MessageCache::FindTopicChatId(const std::string& p_ProfileId, const std::string& p_ParentChatId,
+                                   const std::string& p_MsgId, std::string& p_ChatId)
+{
+  if (!m_CacheEnabled) return false;
+
+  std::unique_lock<std::mutex> lock(m_DbMutex);
+  if (!m_Dbs[p_ProfileId]) return false;
+
+  try
+  {
+    // *INDENT-OFF*
+    *m_Dbs[p_ProfileId] <<
+      "SELECT chatId FROM " + s_TableMessages + " WHERE chatId LIKE ? AND id = ? LIMIT 1;"
+      << (p_ParentChatId + ":%") << p_MsgId >>
+      [&](const std::string& chatId)
+      {
+        p_ChatId = chatId;
+      };
+    // *INDENT-ON*
+  }
+  catch (const sqlite::sqlite_exception& ex)
+  {
+    HANDLE_SQLITE_EXCEPTION(ex);
+  }
+
+  return !p_ChatId.empty();
+}
+
 void MessageCache::FindMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                                const std::string& p_FromMsgId, const std::string& p_LastMsgId,
                                const std::string& p_FindText, const std::string& p_FindMsgId,

@@ -92,6 +92,7 @@ void UiContactListDialog::UpdateList()
     {
       const std::string& profileId = profileContactInfos.first;
       const std::string& contactId = idContactInfo.first;
+      if (contactId.find(':') != std::string::npos) continue; // forum topic rows are not contacts
       const std::string& name = m_Model->GetContactListName(profileId, contactId, false /*p_AllowId*/,
                                                             false /*p_AllowAlias*/);;
 
