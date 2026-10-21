@@ -8,6 +8,7 @@
 #include "sysutil.h"
 
 #include <cerrno>
+#include <mutex>
 #include <sstream>
 
 #include <signal.h>
@@ -46,6 +47,15 @@ namespace
 
     return result;
   }
+}
+
+namespace
+{
+  // Reference-counted signal handler management for thread-safe concurrent System() calls
+  std::mutex s_SigMutex;
+  int s_SigCount = 0;
+  struct sigaction s_SigOrigInt;
+  struct sigaction s_SigOrigQuit;
 }
 
 std::string SysUtil::GetBuildInfo()
@@ -246,15 +256,25 @@ int SysUtil::System(const std::string& p_Cmd)
   static const std::string shPath = "/bin/sh";
 #endif
 
-  // Block SIGCHLD and ignore SIGINT/SIGQUIT in parent per POSIX system() spec
+  // Reference-counted ignore/restore of SIGINT/SIGQUIT in parent per POSIX system() spec,
+  // thread-safe via mutex to handle concurrent calls.
   struct sigaction saIgnore;
   struct sigaction saOrigInt;
   struct sigaction saOrigQuit;
   saIgnore.sa_handler = SIG_IGN;
   sigemptyset(&saIgnore.sa_mask);
   saIgnore.sa_flags = 0;
-  sigaction(SIGINT, &saIgnore, &saOrigInt);
-  sigaction(SIGQUIT, &saIgnore, &saOrigQuit);
+
+  {
+    std::unique_lock<std::mutex> lock(s_SigMutex);
+    if (s_SigCount++ == 0)
+    {
+      sigaction(SIGINT, &saIgnore, &s_SigOrigInt);
+      sigaction(SIGQUIT, &saIgnore, &s_SigOrigQuit);
+    }
+    saOrigInt = s_SigOrigInt;
+    saOrigQuit = s_SigOrigQuit;
+  }
 
   sigset_t blockChld;
   sigset_t origMask;
@@ -288,10 +308,18 @@ int SysUtil::System(const std::string& p_Cmd)
     }
   }
 
-  // Restore original signal dispositions and mask
-  sigaction(SIGINT, &saOrigInt, nullptr);
-  sigaction(SIGQUIT, &saOrigQuit, nullptr);
+  // Restore original signal mask (per-thread, always safe)
   sigprocmask(SIG_SETMASK, &origMask, nullptr);
+
+  // Restore original signal dispositions (reference-counted)
+  {
+    std::unique_lock<std::mutex> lock(s_SigMutex);
+    if (--s_SigCount == 0)
+    {
+      sigaction(SIGINT, &s_SigOrigInt, nullptr);
+      sigaction(SIGQUIT, &s_SigOrigQuit, nullptr);
+    }
+  }
 
   return status;
 }

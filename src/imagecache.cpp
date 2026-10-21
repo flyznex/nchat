@@ -117,6 +117,7 @@ namespace
 ImageCache::State ImageCache::Request(const std::string& p_SrcPath, ImageInfo* p_Info)
 {
   std::unique_lock<std::mutex> lock(s_Mutex);
+  if (s_Stop) return State::Failed;
 
   auto it = s_Entries.find(p_SrcPath);
   if (it == s_Entries.end())
