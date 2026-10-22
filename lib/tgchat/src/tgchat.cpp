@@ -217,7 +217,8 @@ private:
   void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
   void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId, std::string p_DownloadId,
                     DownloadFileAction p_DownloadFileAction);
-  void RequestStickers();
+  void RequestStickers(const std::string& p_Key, int64_t p_SetId, const std::string& p_Query);
+  void RequestStickerSets();
   void RequestSponsoredMessagesIfNeeded();
   void GetSponsoredMessages(const std::string& p_ChatId);
   void ViewSponsoredMessage(const std::string& p_ChatId, const std::string& p_MsgId);
@@ -1859,7 +1860,16 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
     case GetStickersRequestType:
       {
         LOG_DEBUG("Get stickers");
-        RequestStickers();
+        std::shared_ptr<GetStickersRequest> getStickersRequest =
+          std::static_pointer_cast<GetStickersRequest>(p_RequestMessage);
+        RequestStickers(getStickersRequest->key, getStickersRequest->setId, getStickersRequest->query);
+      }
+      break;
+
+    case GetStickerSetsRequestType:
+      {
+        LOG_DEBUG("Get sticker sets");
+        RequestStickerSets();
       }
       break;
 
@@ -4037,7 +4047,7 @@ void TgChat::Impl::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::
   }
 }
 
-void TgChat::Impl::RequestStickers()
+void TgChat::Impl::RequestStickers(const std::string& p_Key, int64_t p_SetId, const std::string& p_Query)
 {
   // all handlers run on the single response thread (ProcessResponse), so State needs no locking
   struct State
@@ -4055,15 +4065,15 @@ void TgChat::Impl::RequestStickers()
     for (auto& s : list->stickers_) state->stickers.push_back(std::move(s));
   };
 
-  auto finish = [this, state]()
+  auto finish = [this, state, p_Key](size_t p_MaxStickers)
   {
-    const size_t maxStickers = 50;
     std::vector<int64_t> ids;
     for (const auto& s : state->stickers) ids.push_back(s->id_);
 
     state->notify = std::make_shared<NewStickersNotify>(m_ProfileId);
+    state->notify->key = p_Key;
     std::vector<std::pair<size_t, int32_t>> downloads; // (index in notify, thumbnail file id)
-    for (size_t i : StickerUtil::DedupeCap(ids, maxStickers))
+    for (size_t i : StickerUtil::DedupeCap(ids, p_MaxStickers))
     {
       const auto& s = state->stickers[i];
       StickerInfo info;
@@ -4117,16 +4127,65 @@ void TgChat::Impl::RequestStickers()
     }
   };
 
-  SendQuery(td::td_api::make_object<td::td_api::getFavoriteStickers>(),
-            [this, collect, finish](Object favorites)
+  if (p_SetId != 0)
   {
-    collect(std::move(favorites));
-    SendQuery(td::td_api::make_object<td::td_api::getRecentStickers>(false /*is_attached_*/),
-              [collect, finish](Object recents)
+    SendQuery(td::td_api::make_object<td::td_api::getStickerSet>(p_SetId), [state, finish](Object object)
     {
-      collect(std::move(recents));
-      finish();
+      if (object->get_id() == td::td_api::stickerSet::ID)
+      {
+        auto set = td::move_tl_object_as<td::td_api::stickerSet>(object);
+        for (auto& s : set->stickers_) state->stickers.push_back(std::move(s));
+      }
+
+      finish(200);
     });
+  }
+  else if (!p_Query.empty())
+  {
+    SendQuery(td::td_api::make_object<td::td_api::getStickers>(td::td_api::make_object<td::td_api::stickerTypeRegular>(),
+                                                               p_Query, 50, 0),
+              [collect, finish](Object object)
+    {
+      collect(std::move(object));
+      finish(50);
+    });
+  }
+  else
+  {
+    SendQuery(td::td_api::make_object<td::td_api::getFavoriteStickers>(),
+              [this, collect, finish](Object favorites)
+    {
+      collect(std::move(favorites));
+      SendQuery(td::td_api::make_object<td::td_api::getRecentStickers>(false /*is_attached_*/),
+                [collect, finish](Object recents)
+      {
+        collect(std::move(recents));
+        finish(50);
+      });
+    });
+  }
+}
+
+void TgChat::Impl::RequestStickerSets()
+{
+  SendQuery(td::td_api::make_object<td::td_api::getInstalledStickerSets>(
+              td::td_api::make_object<td::td_api::stickerTypeRegular>()),
+            [this](Object object)
+  {
+    auto notify = std::make_shared<NewStickerSetsNotify>(m_ProfileId);
+    if (object->get_id() == td::td_api::stickerSets::ID)
+    {
+      auto sets = td::move_tl_object_as<td::td_api::stickerSets>(object);
+      for (const auto& s : sets->sets_)
+      {
+        StickerSetInfo info;
+        info.id = s->id_;
+        info.title = s->title_;
+        notify->stickerSetInfos.push_back(info);
+      }
+    }
+
+    CallMessageHandler(notify);
   });
 }
 
