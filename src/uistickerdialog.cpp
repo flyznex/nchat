@@ -29,9 +29,7 @@ UiStickerDialog::UiStickerDialog(const UiDialogParams& p_Params, const std::stri
   , m_ProfileId(p_ProfileId)
 {
   m_Model->SetStickerDialogActive(true);
-  // read the timestamp before requesting, so any answer is seen as a change
-  m_StickersUpdateTime = m_Model->GetStickersUpdateTime();
-  m_Model->RequestStickers(m_ProfileId);
+  m_Model->RequestStickers(m_ProfileId, "recent", 0, "");
   UpdateLayout();
 }
 
@@ -79,12 +77,8 @@ bool UiStickerDialog::OnTimer()
   // the main loop is not running while the dialog is open, so poll finished conversions here
   bool dirty = ImageCache::TakeCompleted();
 
-  // ponytail: update time is global, a notify for another profile also counts as arrival (shows "No stickers")
-  const int64_t updateTime = m_Model->GetStickersUpdateTime();
-  if (updateTime != m_StickersUpdateTime)
+  if (!m_Loaded && m_Model->GetStickers(m_ProfileId, "recent", m_Stickers))
   {
-    m_StickersUpdateTime = updateTime;
-    m_Stickers = m_Model->GetStickers(m_ProfileId);
     m_Loaded = true;
     m_Index = 0;
     m_TopRow = 0;

@@ -1491,24 +1491,50 @@ std::vector<std::string> UiModel::Impl::GetGroupMembers(const std::string& p_Pro
   return std::vector<std::string>();
 }
 
-void UiModel::Impl::RequestStickers(const std::string& p_ProfileId)
+void UiModel::Impl::RequestStickers(const std::string& p_ProfileId, const std::string& p_Key, int64_t p_SetId,
+                                    const std::string& p_Query)
 {
+  m_Stickers[p_ProfileId].erase(p_Key);
   auto pit = m_Protocols.find(p_ProfileId);
   if (pit != m_Protocols.end())
   {
-    pit->second->SendRequest(std::make_shared<GetStickersRequest>());
+    std::shared_ptr<GetStickersRequest> request = std::make_shared<GetStickersRequest>();
+    request->key = p_Key;
+    request->setId = p_SetId;
+    request->query = p_Query;
+    pit->second->SendRequest(request);
   }
 }
 
-std::vector<StickerInfo> UiModel::Impl::GetStickers(const std::string& p_ProfileId)
+bool UiModel::Impl::GetStickers(const std::string& p_ProfileId, const std::string& p_Key,
+                                std::vector<StickerInfo>& p_Out)
 {
-  auto it = m_Stickers.find(p_ProfileId);
-  return (it != m_Stickers.end()) ? it->second : std::vector<StickerInfo>();
+  auto pit = m_Stickers.find(p_ProfileId);
+  if (pit == m_Stickers.end()) return false;
+
+  auto it = pit->second.find(p_Key);
+  if (it == pit->second.end()) return false;
+
+  p_Out = it->second;
+  return true;
 }
 
-int64_t UiModel::Impl::GetStickersUpdateTime()
+void UiModel::Impl::RequestStickerSets(const std::string& p_ProfileId)
 {
-  return m_StickersUpdateTime;
+  m_StickerSetsLoaded.erase(p_ProfileId);
+  auto pit = m_Protocols.find(p_ProfileId);
+  if (pit != m_Protocols.end())
+  {
+    pit->second->SendRequest(std::make_shared<GetStickerSetsRequest>());
+  }
+}
+
+bool UiModel::Impl::GetStickerSets(const std::string& p_ProfileId, std::vector<StickerSetInfo>& p_Out)
+{
+  if (m_StickerSetsLoaded.count(p_ProfileId) == 0) return false;
+
+  p_Out = m_StickerSets[p_ProfileId];
+  return true;
 }
 
 void UiModel::Impl::SendSticker(const std::string& p_ProfileId, const std::string& p_ChatId,
@@ -2389,8 +2415,17 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         LOG_INFO("NewStickersNotifyType received");
         std::shared_ptr<NewStickersNotify> notify =
           std::static_pointer_cast<NewStickersNotify>(p_ServiceMessage);
-        m_Stickers[profileId] = notify->stickerInfos;
-        m_StickersUpdateTime = TimeUtil::GetCurrentTimeMSec();
+        m_Stickers[profileId][notify->key] = notify->stickerInfos;
+      }
+      break;
+
+    case NewStickerSetsNotifyType:
+      {
+        LOG_INFO("NewStickerSetsNotifyType received");
+        std::shared_ptr<NewStickerSetsNotify> notify =
+          std::static_pointer_cast<NewStickerSetsNotify>(p_ServiceMessage);
+        m_StickerSets[profileId] = notify->stickerSetInfos;
+        m_StickerSetsLoaded.insert(profileId);
       }
       break;
 
@@ -5553,22 +5588,30 @@ std::vector<std::string> UiModel::GetGroupMembers(const std::string& p_ProfileId
   return GetImpl().GetGroupMembers(p_ProfileId, p_ChatId);
 }
 
-void UiModel::RequestStickers(const std::string& p_ProfileId)
+void UiModel::RequestStickers(const std::string& p_ProfileId, const std::string& p_Key, int64_t p_SetId,
+                              const std::string& p_Query)
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
-  GetImpl().RequestStickers(p_ProfileId);
+  GetImpl().RequestStickers(p_ProfileId, p_Key, p_SetId, p_Query);
 }
 
-std::vector<StickerInfo> UiModel::GetStickers(const std::string& p_ProfileId)
+bool UiModel::GetStickers(const std::string& p_ProfileId, const std::string& p_Key,
+                          std::vector<StickerInfo>& p_Out)
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
-  return GetImpl().GetStickers(p_ProfileId);
+  return GetImpl().GetStickers(p_ProfileId, p_Key, p_Out);
 }
 
-int64_t UiModel::GetStickersUpdateTime()
+void UiModel::RequestStickerSets(const std::string& p_ProfileId)
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
-  return GetImpl().GetStickersUpdateTime();
+  GetImpl().RequestStickerSets(p_ProfileId);
+}
+
+bool UiModel::GetStickerSets(const std::string& p_ProfileId, std::vector<StickerSetInfo>& p_Out)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetStickerSets(p_ProfileId, p_Out);
 }
 
 bool UiModel::GetEmojiEnabled()

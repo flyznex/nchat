@@ -32,7 +32,6 @@ private:
 
   std::string m_ProfileId;
   std::vector<StickerInfo> m_Stickers;
-  int64_t m_StickersUpdateTime = 0;
   bool m_Loaded = false;
   bool m_Running = true;
   bool m_Result = false;
