@@ -812,7 +812,10 @@ cached in the `images` directory below the nchat data directory. Photos
 and stickers are downloaded automatically when they become visible.
 Unsupported terminals, missing tools and other file types keep the text
 line. The Telegram sticker picker (Alt-g / Opt-g) shows sticker previews
-when inline images are available, otherwise emoji captions only.
+when inline images are available, otherwise emoji captions only. Tab /
+Shift-Tab switches between recent stickers and installed sticker sets,
+typing an emoji or a keyword searches the installed sets, and Backspace
+clears the search.
 
 ### inline_sticker_max_rows
 

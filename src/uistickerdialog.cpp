@@ -29,7 +29,9 @@ UiStickerDialog::UiStickerDialog(const UiDialogParams& p_Params, const std::stri
   , m_ProfileId(p_ProfileId)
 {
   m_Model->SetStickerDialogActive(true);
+  m_Model->RequestStickerSets(m_ProfileId);
   m_Model->RequestStickers(m_ProfileId, "recent", 0, "");
+  m_Key = "recent";
   UpdateLayout();
 }
 
@@ -77,7 +79,7 @@ bool UiStickerDialog::OnTimer()
   // the main loop is not running while the dialog is open, so poll finished conversions here
   bool dirty = ImageCache::TakeCompleted();
 
-  if (!m_Loaded && m_Model->GetStickers(m_ProfileId, "recent", m_Stickers))
+  if (!m_Loaded && m_Model->GetStickers(m_ProfileId, m_Key, m_Stickers))
   {
     m_Loaded = true;
     m_Index = 0;
@@ -85,7 +87,46 @@ bool UiStickerDialog::OnTimer()
     dirty = true;
   }
 
+  if (!m_SetsLoaded && m_Model->GetStickerSets(m_ProfileId, m_Sets))
+  {
+    m_SetsLoaded = true;
+    dirty = true;
+  }
+
+  if (m_QueryDirty && ((TimeUtil::GetCurrentTimeMSec() - m_QueryTime) >= 300))
+  {
+    m_QueryDirty = false;
+    SelectView();
+    dirty = true;
+  }
+
   return dirty;
+}
+
+std::string UiStickerDialog::BuildKey() const
+{
+  if (!m_Query.empty()) return "q:" + StrUtil::ToString(m_Query);
+  if (m_Tab == 0) return "recent";
+  return "set:" + std::to_string(m_Sets.at(m_Tab - 1).id);
+}
+
+void UiStickerDialog::SelectView()
+{
+  m_Key = BuildKey();
+  m_Stickers.clear();
+  m_Index = 0;
+  m_TopRow = 0;
+  m_Loaded = m_Model->GetStickers(m_ProfileId, m_Key, m_Stickers);
+  if (m_Loaded) return;
+
+  if (!m_Query.empty()) m_Model->RequestStickers(m_ProfileId, m_Key, 0, StrUtil::ToString(m_Query));
+  else if (m_Tab == 0) m_Model->RequestStickers(m_ProfileId, m_Key, 0, "");
+  else m_Model->RequestStickers(m_ProfileId, m_Key, m_Sets.at(m_Tab - 1).id, "");
+}
+
+void UiStickerDialog::UpdateFooter()
+{
+  SetFooter(m_Query.empty() ? "" : "Search: " + StrUtil::ToString(m_Query));
 }
 
 void UiStickerDialog::UpdateLayout()
@@ -103,11 +144,12 @@ void UiStickerDialog::UpdateLayout()
   }
 
   // slot = padding column + image + padding column wide, image rows + one caption row high
-  m_ImgRows = std::max(1, std::min(maxRows, (m_H - 1) / 2));
+  // row 0 is the header, the grid is m_H - 1 rows high
+  m_ImgRows = std::max(1, std::min(maxRows, (m_H - 2) / 2));
   // image placeholder columns are limited by the diacritic table, and must fit the window
   m_ImgCols = std::max(1, std::min({ (m_ImgRows * cellH) / cellW, KittyEncoder::GetDiacriticCount(), m_W - 2 }));
   m_Cols = StickerUtil::Columns(m_W, m_ImgCols + 2);
-  m_VisibleRows = std::max(1, m_H / (m_ImgRows + 1));
+  m_VisibleRows = std::max(1, (m_H - 1) / (m_ImgRows + 1));
 }
 
 void UiStickerDialog::KeyHandler(wint_t p_Key)
@@ -122,6 +164,10 @@ void UiStickerDialog::KeyHandler(wint_t p_Key)
   static wint_t keyDown = UiKeyConfig::GetKey("down");
   static wint_t keyPrevPage = UiKeyConfig::GetKey("prev_page");
   static wint_t keyNextPage = UiKeyConfig::GetKey("next_page");
+  static wint_t keyFocusNext = UiKeyConfig::GetKey("focus_next");
+  static wint_t keyFocusPrev = UiKeyConfig::GetKey("focus_prev");
+  static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
+  static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
   static wint_t keyHome = UiKeyConfig::GetKey("home");
   static wint_t keyEnd = UiKeyConfig::GetKey("end");
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
@@ -194,6 +240,35 @@ void UiStickerDialog::KeyHandler(wint_t p_Key)
   {
     m_Index = std::max(0, count - 1);
   }
+  else if ((p_Key == keyFocusNext) || (p_Key == keyFocusPrev))
+  {
+    if (!m_Query.empty())
+    {
+      m_Query.clear();
+      m_QueryDirty = false;
+      UpdateFooter();
+    }
+
+    m_Tab = StickerUtil::CycleTab(m_Tab, (p_Key == keyFocusNext) ? 1 : -1, 1 + static_cast<int>(m_Sets.size()));
+    SelectView();
+  }
+  else if ((p_Key == keyBackspace) || (p_Key == keyBackspaceAlt))
+  {
+    if (!m_Query.empty())
+    {
+      m_Query.pop_back();
+      m_QueryDirty = true;
+      m_QueryTime = TimeUtil::GetCurrentTimeMSec();
+      UpdateFooter();
+    }
+  }
+  else if (StrUtil::IsValidTextKey(p_Key)) // last, so named keys never type
+  {
+    m_Query += p_Key;
+    m_QueryDirty = true;
+    m_QueryTime = TimeUtil::GetCurrentTimeMSec();
+    UpdateFooter();
+  }
   else
   {
     isDirty = false;
@@ -216,11 +291,23 @@ void UiStickerDialog::Draw()
   wbkgd(m_Win, colorPair | ' ');
   wattron(m_Win, attribute | colorPair);
 
+  // header row: current tab title, or Search while a query is entered
+  const int tabCount = 1 + static_cast<int>(m_Sets.size());
+  std::wstring header = L"Search";
+  if (m_Query.empty())
+  {
+    const std::wstring title = (m_Tab == 0) ? L"Recent" : StrUtil::ToWString(m_Sets.at(m_Tab - 1).title);
+    header = (tabCount > 1) ? L"< " + title + L"  " + std::to_wstring(m_Tab + 1) + L"/" + std::to_wstring(tabCount) + L" >"
+                            : title;
+  }
+
+  mvwaddnwstr(m_Win, 0, 0, header.c_str(), std::min(static_cast<int>(header.size()), m_W));
+
   const int count = static_cast<int>(m_Stickers.size());
   if (count == 0)
   {
     const std::wstring msg = m_Loaded ? L"No stickers" : L"Loading...";
-    mvwaddnwstr(m_Win, 0, 0, msg.c_str(), std::min(static_cast<int>(msg.size()), m_W));
+    mvwaddnwstr(m_Win, 1, 0, msg.c_str(), std::min(static_cast<int>(msg.size()), m_W));
   }
   else
   {
@@ -234,7 +321,7 @@ void UiStickerDialog::Draw()
       {
         const int index = ((m_TopRow + row) * m_Cols) + col;
         if (index >= count) break;
-        DrawSlot(index, col * slotW, row * slotH, index == m_Index);
+        DrawSlot(index, col * slotW, (row * slotH) + 1, index == m_Index);
       }
     }
   }

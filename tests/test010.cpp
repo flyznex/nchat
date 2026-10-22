@@ -64,6 +64,16 @@ static void TestScrollRow()
   unittest::ExpectEqual(int, StickerUtil::ScrollRow(0, 5, 2, 3), 0);
 }
 
+static void TestCycleTab()
+{
+  unittest::ExpectEqual(int, StickerUtil::CycleTab(0, 1, 3), 1);
+  unittest::ExpectEqual(int, StickerUtil::CycleTab(2, 1, 3), 0);
+  unittest::ExpectEqual(int, StickerUtil::CycleTab(0, -1, 3), 2);
+  unittest::ExpectEqual(int, StickerUtil::CycleTab(0, 1, 1), 0);
+  unittest::ExpectEqual(int, StickerUtil::CycleTab(0, 1, 0), 0);
+  unittest::ExpectEqual(int, StickerUtil::CycleTab(5, -7, 3), 1);
+}
+
 int main()
 {
   int rv = 0;
@@ -74,6 +84,7 @@ int main()
     TestColumns();
     TestMove();
     TestScrollRow();
+    TestCycleTab();
   }
   catch (const std::exception& ex)
   {
