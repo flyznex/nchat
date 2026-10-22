@@ -90,6 +90,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/sqlitehelp.h
   src/status.cpp
   src/status.h
+  src/stickerutil.cpp
+  src/stickerutil.h
   src/strutil.cpp
   src/strutil.h
   src/sysutil.cpp
