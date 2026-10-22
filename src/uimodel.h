@@ -80,6 +80,10 @@ private:
     void InsertText(const std::wstring& p_Text);
     void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
+    void RequestStickers(const std::string& p_ProfileId);
+    std::vector<StickerInfo> GetStickers(const std::string& p_ProfileId);
+    int64_t GetStickersUpdateTime();
+    void SendSticker(const std::string& p_ProfileId, const std::string& p_ChatId, int32_t p_StickerFileId);
     bool GetChatInfoIsGroup(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
     std::map<std::string, std::string> ParseMentions(const std::string& p_ProfileId, const std::string& p_ChatId,
@@ -308,6 +312,9 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> m_GroupMembers;
     int64_t m_GroupMembersUpdateTime = 0;
 
+    std::unordered_map<std::string, std::vector<StickerInfo>> m_Stickers;
+    int64_t m_StickersUpdateTime = 0;
+
     std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_AvailableReactions;
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_AvailableReactionsPending;
 
@@ -365,6 +372,9 @@ public:
   int64_t GetGroupMembersUpdateTime();
   void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
+  void RequestStickers(const std::string& p_ProfileId);
+  std::vector<StickerInfo> GetStickers(const std::string& p_ProfileId);
+  int64_t GetStickersUpdateTime();
   bool GetEmojiEnabled();
   int GetHelpOffset();
   void SetHelpOffset(int p_HelpOffset);
