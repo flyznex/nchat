@@ -23,6 +23,7 @@
 #include "timeutil.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
+#include "uiimagerow.h"
 #include "uimodel.h"
 
 UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
@@ -373,7 +374,7 @@ void UiHistoryView::Draw()
     {
       if ((imageId != 0) && (wline->size() == 2) && ((*wline)[0] == imageRowMark))
       {
-        DrawImageRow(y, static_cast<int>((*wline)[1]), imageId, imageGrid.cols);
+        UiImageRow::Draw(m_PaddedWin, y, 0, static_cast<int>((*wline)[1]), imageId, imageGrid.cols);
         if (--y < 0) break;
         continue;
       }
@@ -496,20 +497,6 @@ void UiHistoryView::Draw()
   }
 
   wrefresh(m_PaddedWin);
-}
-
-void UiHistoryView::DrawImageRow(int p_Y, int p_Row, int p_Id, int p_Cols)
-{
-  const int pair = UiColorConfig::GetImageIdPair(p_Id);
-  std::vector<cchar_t> cells(p_Cols);
-  for (int col = 0; col < p_Cols; ++col)
-  {
-    wchar_t chars[4];
-    KittyEncoder::CellChars(p_Row, col, chars);
-    setcchar(&cells[col], chars, A_NORMAL, static_cast<short>(pair), nullptr);
-  }
-
-  mvwadd_wchnstr(m_PaddedWin, p_Y, 0, cells.data(), p_Cols);
 }
 
 int UiHistoryView::GetHistoryShowCount()
