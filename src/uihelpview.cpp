@@ -48,6 +48,8 @@ void UiHelpView::Draw()
   {
     std::vector<std::wstring> helpItems;
     AppendHelpItem("ok", "Select", helpItems);
+    AppendHelpItem("focus_next", "Set", helpItems);
+    AppendHelpItem("abc", "Search", helpItems);
     AppendHelpItem("cancel", "Cancel", helpItems);
     return helpItems;
   }();

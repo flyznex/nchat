@@ -29,10 +29,19 @@ private:
   void UpdateLayout();
   void Draw();
   void DrawSlot(int p_Index, int p_X, int p_Y, bool p_Selected);
+  void SelectView();
+  std::string BuildKey() const;
+  void UpdateFooter();
 
   std::string m_ProfileId;
   std::vector<StickerInfo> m_Stickers;
-  int64_t m_StickersUpdateTime = 0;
+  std::vector<StickerSetInfo> m_Sets;
+  bool m_SetsLoaded = false;
+  int m_Tab = 0;
+  std::wstring m_Query;
+  bool m_QueryDirty = false;
+  int64_t m_QueryTime = 0;
+  std::string m_Key;
   bool m_Loaded = false;
   bool m_Running = true;
   bool m_Result = false;

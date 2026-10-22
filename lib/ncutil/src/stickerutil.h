@@ -18,4 +18,5 @@ public:
   static int Columns(int p_Width, int p_SlotWidth);
   static int Move(int p_Index, int p_Dx, int p_Dy, int p_Cols, int p_Count);
   static int ScrollRow(int p_SelectedRow, int p_VisibleRows, int p_TotalRows, int p_CurrentRow);
+  static int CycleTab(int p_Index, int p_Delta, int p_Count);
 };

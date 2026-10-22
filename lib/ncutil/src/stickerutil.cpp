@@ -56,3 +56,9 @@ int StickerUtil::ScrollRow(int p_SelectedRow, int p_VisibleRows, int p_TotalRows
   else if (p_SelectedRow >= (top + visible)) top = p_SelectedRow - visible + 1;
   return NumUtil::Bound(0, top, std::max(0, p_TotalRows - visible));
 }
+
+int StickerUtil::CycleTab(int p_Index, int p_Delta, int p_Count)
+{
+  if (p_Count <= 0) return 0;
+  return (((p_Index + p_Delta) % p_Count) + p_Count) % p_Count;
+}

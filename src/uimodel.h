@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <map>
 #include <mutex>
 #include <set>
 #include <stack>
@@ -80,9 +81,11 @@ private:
     void InsertText(const std::wstring& p_Text);
     void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
-    void RequestStickers(const std::string& p_ProfileId);
-    std::vector<StickerInfo> GetStickers(const std::string& p_ProfileId);
-    int64_t GetStickersUpdateTime();
+    void RequestStickers(const std::string& p_ProfileId, const std::string& p_Key, int64_t p_SetId,
+                         const std::string& p_Query);
+    bool GetStickers(const std::string& p_ProfileId, const std::string& p_Key, std::vector<StickerInfo>& p_Out);
+    void RequestStickerSets(const std::string& p_ProfileId);
+    bool GetStickerSets(const std::string& p_ProfileId, std::vector<StickerSetInfo>& p_Out);
     void SendSticker(const std::string& p_ProfileId, const std::string& p_ChatId, int32_t p_StickerFileId);
     bool GetChatInfoIsGroup(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
@@ -314,8 +317,9 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> m_GroupMembers;
     int64_t m_GroupMembersUpdateTime = 0;
 
-    std::unordered_map<std::string, std::vector<StickerInfo>> m_Stickers;
-    int64_t m_StickersUpdateTime = 0;
+    std::unordered_map<std::string, std::map<std::string, std::vector<StickerInfo>>> m_Stickers;
+    std::unordered_map<std::string, std::vector<StickerSetInfo>> m_StickerSets;
+    std::unordered_set<std::string> m_StickerSetsLoaded;
 
     std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_AvailableReactions;
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_AvailableReactionsPending;
@@ -375,9 +379,11 @@ public:
   int64_t GetGroupMembersUpdateTime();
   void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
-  void RequestStickers(const std::string& p_ProfileId);
-  std::vector<StickerInfo> GetStickers(const std::string& p_ProfileId);
-  int64_t GetStickersUpdateTime();
+  void RequestStickers(const std::string& p_ProfileId, const std::string& p_Key, int64_t p_SetId,
+                       const std::string& p_Query);
+  bool GetStickers(const std::string& p_ProfileId, const std::string& p_Key, std::vector<StickerInfo>& p_Out);
+  void RequestStickerSets(const std::string& p_ProfileId);
+  bool GetStickerSets(const std::string& p_ProfileId, std::vector<StickerSetInfo>& p_Out);
   bool GetEmojiEnabled();
   int GetHelpOffset();
   void SetHelpOffset(int p_HelpOffset);

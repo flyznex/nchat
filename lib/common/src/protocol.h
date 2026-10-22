@@ -100,6 +100,7 @@ enum MessageType
   FindMessageRequestType,
   GetGroupMembersRequestType,
   GetStickersRequestType,
+  GetStickerSetsRequestType,
   SendStickerRequestType,
   // Service messages
   ServiceMessageType,
@@ -130,6 +131,7 @@ enum MessageType
   UpdateArchivedNotifyType,
   MoveChatNotifyType,
   NewStickersNotifyType,
+  NewStickerSetsNotifyType,
 };
 
 struct ContactInfo
@@ -471,6 +473,15 @@ class GetStickersRequest : public RequestMessage
 {
 public:
   virtual MessageType GetMessageType() const { return GetStickersRequestType; }
+  std::string key;
+  int64_t setId = 0;
+  std::string query;
+};
+
+class GetStickerSetsRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return GetStickerSetsRequestType; }
 };
 
 class SendStickerRequest : public RequestMessage
@@ -780,7 +791,23 @@ public:
   explicit NewStickersNotify(const std::string& p_ProfileId)
     : ServiceMessage(p_ProfileId) { }
   virtual MessageType GetMessageType() const { return NewStickersNotifyType; }
+  std::string key;
   std::vector<StickerInfo> stickerInfos;
+};
+
+struct StickerSetInfo
+{
+  int64_t id = 0;
+  std::string title;
+};
+
+class NewStickerSetsNotify : public ServiceMessage
+{
+public:
+  explicit NewStickerSetsNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return NewStickerSetsNotifyType; }
+  std::vector<StickerSetInfo> stickerSetInfos;
 };
 
 class UpdateArchivedNotify : public ServiceMessage
