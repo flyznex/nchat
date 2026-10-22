@@ -448,6 +448,7 @@ private:
   std::vector<std::string> SelectFile();
   void OnKeyTransfer();
   void OnKeySelectEmoji();
+  void OnKeySelectSticker();
   void OnKeySelectContact();
   void OnKeyReact();
   void OnKeyFind();

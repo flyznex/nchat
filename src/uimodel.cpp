@@ -36,6 +36,7 @@
 #include "uigroupmemberlistdialog.h"
 #include "uicontroller.h"
 #include "uiemojilistdialog.h"
+#include "uistickerdialog.h"
 #include "uifilelistdialog.h"
 #include "uihelpview.h"
 #include "uikeyconfig.h"
@@ -5102,6 +5103,7 @@ void UiModel::KeyHandler(wint_t p_Key)
 
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
   static wint_t keySelectEmoji = UiKeyConfig::GetKey("select_emoji");
+  static wint_t keySelectSticker = UiKeyConfig::GetKey("select_sticker");
   static wint_t keySelectContact = UiKeyConfig::GetKey("select_contact");
   static wint_t keyTransfer = UiKeyConfig::GetKey("transfer");
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
@@ -5324,6 +5326,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keySelectEmoji)
   {
     OnKeySelectEmoji();
+  }
+  else if (p_Key == keySelectSticker)
+  {
+    OnKeySelectSticker();
   }
   else if (p_Key == keySelectContact)
   {
@@ -5944,6 +5950,37 @@ void UiModel::OnKeySelectEmoji()
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().ReinitView();
   }
+}
+
+void UiModel::OnKeySelectSticker()
+{
+  std::string profileId;
+  std::string chatId;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+
+    profileId = GetImpl().GetCurrentChat().first;
+    chatId = GetImpl().GetCurrentChat().second;
+  }
+
+  // ponytail: Telegram only; other protocols never answer the sticker request, so the key does nothing there
+  if (profileId.empty() || chatId.empty() || (StrUtil::GetProtocolName(profileId) != "Telegram")) return;
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Send Sticker", 0.75, 0.65);
+  UiStickerDialog dialog(params, profileId);
+  const bool isPicked = dialog.Run();
+  const int32_t fileId = dialog.GetSelectedFileId();
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  if (isPicked)
+  {
+    GetImpl().SendSticker(profileId, chatId, fileId);
+  }
+
+  ImageCache::InvalidateAll();
+  GetImpl().ReinitView();
 }
 
 void UiModel::OnKeySelectContact()

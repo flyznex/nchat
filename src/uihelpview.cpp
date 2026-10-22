@@ -89,6 +89,7 @@ void UiHelpView::Draw()
   static std::vector<std::wstring> mainPostHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
+    AppendHelpItem("select_sticker", "Sticker", helpItems);
     AppendHelpItem("ext_edit", "ExtEdit", helpItems);
     AppendHelpItem("ext_call", "ExtCall", helpItems);
     AppendHelpItem("find", "Find", helpItems);

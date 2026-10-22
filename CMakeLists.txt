@@ -421,6 +421,8 @@ add_executable(nchat
   src/uicontroller.cpp
   src/uigroupmemberlistdialog.cpp
   src/uigroupmemberlistdialog.h
+  src/uistickerdialog.cpp
+  src/uistickerdialog.h
   src/uicontroller.h
   src/uidialog.cpp
   src/uidialog.h

@@ -72,6 +72,7 @@ Interactive Commands:
     Alt-a       archive current chat
     Alt-d       delete/leave current chat
     Alt-e       external editor compose
+    Alt-g       send a sticker (Telegram)
     Alt-i       auto-compose reply
     Alt-j       next chat
     Alt-k       previous chat
@@ -810,7 +811,8 @@ of `magick`, `sips`, `dwebp` and `ffmpeg` (needed for video stickers), and
 cached in the `images` directory below the nchat data directory. Photos
 and stickers are downloaded automatically when they become visible.
 Unsupported terminals, missing tools and other file types keep the text
-line.
+line. The Telegram sticker picker (Alt-g / Opt-g) shows sticker previews
+when inline images are available, otherwise emoji captions only.
 
 ### inline_sticker_max_rows
 
@@ -1068,6 +1070,7 @@ This configuration file holds user interface key bindings. Default content:
     select_contact=\33\156
     select_emoji=KEY_CTRLS
     select_mention=\33\62
+    select_sticker=\33\147
     send_enter=KEY_RETURN
     send_msg=KEY_CTRLX
     spell=\33\44
