@@ -253,6 +253,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "save", "KEY_CTRLR" },
     { "transfer", "KEY_CTRLT" },
     { "select_emoji", "KEY_CTRLS" },
+    { "select_sticker", "\\33\\147" }, // alt/opt-g
     { "select_contact", "\\33\\156" }, // alt/opt-n
     { "forward_msg", "\\33\\162" }, // alt/opt-r
     { "goto_chat", "KEY_CTRLN" },

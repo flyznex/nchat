@@ -36,6 +36,7 @@
 #include "uigroupmemberlistdialog.h"
 #include "uicontroller.h"
 #include "uiemojilistdialog.h"
+#include "uistickerdialog.h"
 #include "uifilelistdialog.h"
 #include "uihelpview.h"
 #include "uikeyconfig.h"
@@ -1490,6 +1491,39 @@ std::vector<std::string> UiModel::Impl::GetGroupMembers(const std::string& p_Pro
   return std::vector<std::string>();
 }
 
+void UiModel::Impl::RequestStickers(const std::string& p_ProfileId)
+{
+  auto pit = m_Protocols.find(p_ProfileId);
+  if (pit != m_Protocols.end())
+  {
+    pit->second->SendRequest(std::make_shared<GetStickersRequest>());
+  }
+}
+
+std::vector<StickerInfo> UiModel::Impl::GetStickers(const std::string& p_ProfileId)
+{
+  auto it = m_Stickers.find(p_ProfileId);
+  return (it != m_Stickers.end()) ? it->second : std::vector<StickerInfo>();
+}
+
+int64_t UiModel::Impl::GetStickersUpdateTime()
+{
+  return m_StickersUpdateTime;
+}
+
+void UiModel::Impl::SendSticker(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                int32_t p_StickerFileId)
+{
+  auto pit = m_Protocols.find(p_ProfileId);
+  if (pit != m_Protocols.end())
+  {
+    auto request = std::make_shared<SendStickerRequest>();
+    request->chatId = p_ChatId;
+    request->stickerFileId = p_StickerFileId;
+    pit->second->SendRequest(request);
+  }
+}
+
 bool UiModel::Impl::GetChatInfoIsGroup(const std::string& p_ProfileId, const std::string& p_ChatId)
 {
   auto it = m_Protocols.find(p_ProfileId);
@@ -2347,6 +2381,16 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
         }
         m_GroupMembers[profileId][chatId] = memberIds;
         m_GroupMembersUpdateTime = TimeUtil::GetCurrentTimeMSec();
+      }
+      break;
+
+    case NewStickersNotifyType:
+      {
+        LOG_INFO("NewStickersNotifyType received");
+        std::shared_ptr<NewStickersNotify> notify =
+          std::static_pointer_cast<NewStickersNotify>(p_ServiceMessage);
+        m_Stickers[profileId] = notify->stickerInfos;
+        m_StickersUpdateTime = TimeUtil::GetCurrentTimeMSec();
       }
       break;
 
@@ -3595,6 +3639,18 @@ bool UiModel::Impl::GetListDialogActive()
 void UiModel::Impl::SetListDialogActive(bool p_ListDialogActive)
 {
   m_ListDialogActive = p_ListDialogActive;
+  SetHelpOffset(0);
+  UpdateHelp();
+}
+
+bool UiModel::Impl::GetStickerDialogActive()
+{
+  return m_StickerDialogActive;
+}
+
+void UiModel::Impl::SetStickerDialogActive(bool p_StickerDialogActive)
+{
+  m_StickerDialogActive = p_StickerDialogActive;
   SetHelpOffset(0);
   UpdateHelp();
 }
@@ -5059,6 +5115,7 @@ void UiModel::KeyHandler(wint_t p_Key)
 
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
   static wint_t keySelectEmoji = UiKeyConfig::GetKey("select_emoji");
+  static wint_t keySelectSticker = UiKeyConfig::GetKey("select_sticker");
   static wint_t keySelectContact = UiKeyConfig::GetKey("select_contact");
   static wint_t keyTransfer = UiKeyConfig::GetKey("transfer");
   static wint_t keyDeleteMsg = UiKeyConfig::GetKey("delete_msg");
@@ -5282,6 +5339,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     OnKeySelectEmoji();
   }
+  else if (p_Key == keySelectSticker)
+  {
+    OnKeySelectSticker();
+  }
   else if (p_Key == keySelectContact)
   {
     OnKeySelectContact();
@@ -5492,6 +5553,24 @@ std::vector<std::string> UiModel::GetGroupMembers(const std::string& p_ProfileId
   return GetImpl().GetGroupMembers(p_ProfileId, p_ChatId);
 }
 
+void UiModel::RequestStickers(const std::string& p_ProfileId)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().RequestStickers(p_ProfileId);
+}
+
+std::vector<StickerInfo> UiModel::GetStickers(const std::string& p_ProfileId)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetStickers(p_ProfileId);
+}
+
+int64_t UiModel::GetStickersUpdateTime()
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  return GetImpl().GetStickersUpdateTime();
+}
+
 bool UiModel::GetEmojiEnabled()
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
@@ -5520,6 +5599,12 @@ void UiModel::SetListDialogActive(bool p_ListDialogActive)
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
   GetImpl().SetListDialogActive(p_ListDialogActive);
+}
+
+void UiModel::SetStickerDialogActive(bool p_StickerDialogActive)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().SetStickerDialogActive(p_StickerDialogActive);
 }
 
 void UiModel::SetFileListDialogActive(bool p_FileListDialogActive)
@@ -5653,6 +5738,12 @@ bool UiModel::GetListDialogActiveLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetListDialogActive();
+}
+
+bool UiModel::GetStickerDialogActiveLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetStickerDialogActive();
 }
 
 bool UiModel::GetFileListDialogActiveLocked()
@@ -5883,6 +5974,37 @@ void UiModel::OnKeySelectEmoji()
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().ReinitView();
   }
+}
+
+void UiModel::OnKeySelectSticker()
+{
+  std::string profileId;
+  std::string chatId;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    if (GetImpl().GetEditMessageActive()) return;
+
+    profileId = GetImpl().GetCurrentChat().first;
+    chatId = GetImpl().GetCurrentChat().second;
+  }
+
+  // ponytail: Telegram only; other protocols never answer the sticker request, so the key does nothing there
+  if (profileId.empty() || chatId.empty() || (StrUtil::GetProtocolName(profileId) != "Telegram")) return;
+
+  // Open modal dialog without model mutex held
+  UiDialogParams params(this, "Send Sticker", 0.75, 0.65);
+  UiStickerDialog dialog(params, profileId);
+  const bool isPicked = dialog.Run();
+  const int32_t fileId = dialog.GetSelectedFileId();
+
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  if (isPicked)
+  {
+    GetImpl().SendSticker(profileId, chatId, fileId);
+  }
+
+  ImageCache::InvalidateAll();
+  GetImpl().ReinitView();
 }
 
 void UiModel::OnKeySelectContact()

@@ -39,6 +39,7 @@
 #include "protocolutil.h"
 #include "qrutil.h"
 #include "status.h"
+#include "stickerutil.h"
 #include "strutil.h"
 #include "timeutil.h"
 
@@ -216,6 +217,7 @@ private:
   void TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessage& p_ChatMessage);
   void DownloadFile(std::string p_ChatId, std::string p_MsgId, std::string p_FileId, std::string p_DownloadId,
                     DownloadFileAction p_DownloadFileAction);
+  void RequestStickers();
   void RequestSponsoredMessagesIfNeeded();
   void GetSponsoredMessages(const std::string& p_ChatId);
   void ViewSponsoredMessage(const std::string& p_ChatId, const std::string& p_MsgId);
@@ -1851,6 +1853,37 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
           }
           CallMessageHandler(notify);
         });
+      }
+      break;
+
+    case GetStickersRequestType:
+      {
+        LOG_DEBUG("Get stickers");
+        RequestStickers();
+      }
+      break;
+
+    case SendStickerRequestType:
+      {
+        LOG_DEBUG("Send sticker");
+        std::shared_ptr<SendStickerRequest> sendStickerRequest =
+          std::static_pointer_cast<SendStickerRequest>(p_RequestMessage);
+
+        auto send_message = td::td_api::make_object<td::td_api::sendMessage>();
+        const ChatRef chatRef = ParseChatId(sendStickerRequest->chatId);
+        send_message->chat_id_ = chatRef.chatId;
+        if (chatRef.topicId > 1)
+        {
+          send_message->topic_id_ = td::td_api::make_object<td::td_api::messageTopicForum>(chatRef.topicId);
+        }
+
+        auto message_content = td::td_api::make_object<td::td_api::inputMessageSticker>();
+        message_content->sticker_ = td::td_api::make_object<td::td_api::inputSticker>();
+        message_content->sticker_->sticker_ =
+          td::td_api::make_object<td::td_api::inputFileId>(sendStickerRequest->stickerFileId);
+        send_message->input_message_content_ = std::move(message_content);
+
+        SendQuery(std::move(send_message), nullptr);
       }
       break;
 
@@ -4002,6 +4035,99 @@ void TgChat::Impl::DownloadFile(std::string p_ChatId, std::string p_MsgId, std::
   catch (...)
   {
   }
+}
+
+void TgChat::Impl::RequestStickers()
+{
+  // all handlers run on the single response thread (ProcessResponse), so State needs no locking
+  struct State
+  {
+    std::vector<td::td_api::object_ptr<td::td_api::sticker>> stickers;
+    std::shared_ptr<NewStickersNotify> notify;
+    size_t pending = 0;
+  };
+  auto state = std::make_shared<State>();
+
+  auto collect = [state](Object object)
+  {
+    if (object->get_id() != td::td_api::stickers::ID) return;
+    auto list = td::move_tl_object_as<td::td_api::stickers>(object);
+    for (auto& s : list->stickers_) state->stickers.push_back(std::move(s));
+  };
+
+  auto finish = [this, state]()
+  {
+    const size_t maxStickers = 50;
+    std::vector<int64_t> ids;
+    for (const auto& s : state->stickers) ids.push_back(s->id_);
+
+    state->notify = std::make_shared<NewStickersNotify>(m_ProfileId);
+    std::vector<std::pair<size_t, int32_t>> downloads; // (index in notify, thumbnail file id)
+    for (size_t i : StickerUtil::DedupeCap(ids, maxStickers))
+    {
+      const auto& s = state->stickers[i];
+      StickerInfo info;
+      info.fileId = s->sticker_->id_;
+      info.emoji = s->emoji_;
+      if (s->thumbnail_ && s->thumbnail_->file_ && s->thumbnail_->format_)
+      {
+        const int format = s->thumbnail_->format_->get_id();
+        if ((format == td::td_api::thumbnailFormatWebp::ID) || (format == td::td_api::thumbnailFormatJpeg::ID) ||
+            (format == td::td_api::thumbnailFormatPng::ID))
+        {
+          if (s->thumbnail_->file_->local_->is_downloading_completed_)
+          {
+            info.thumbnailPath = s->thumbnail_->file_->local_->path_;
+          }
+          else
+          {
+            downloads.emplace_back(state->notify->stickerInfos.size(), s->thumbnail_->file_->id_);
+          }
+        }
+      }
+
+      state->notify->stickerInfos.push_back(info);
+    }
+
+    state->stickers.clear();
+
+    if (downloads.empty())
+    {
+      CallMessageHandler(state->notify);
+      return;
+    }
+
+    state->pending = downloads.size();
+    for (const auto& download : downloads)
+    {
+      auto download_file = td::td_api::make_object<td::td_api::downloadFile>();
+      download_file->file_id_ = download.second;
+      download_file->priority_ = 32;
+      download_file->synchronous_ = true;
+      SendQuery(std::move(download_file), [this, state, index = download.first](Object object)
+      {
+        if (object->get_id() == td::td_api::file::ID)
+        {
+          auto file = td::move_tl_object_as<td::td_api::file>(object);
+          state->notify->stickerInfos[index].thumbnailPath = file->local_->path_;
+        }
+
+        if (--state->pending == 0) CallMessageHandler(state->notify);
+      });
+    }
+  };
+
+  SendQuery(td::td_api::make_object<td::td_api::getFavoriteStickers>(),
+            [this, collect, finish](Object favorites)
+  {
+    collect(std::move(favorites));
+    SendQuery(td::td_api::make_object<td::td_api::getRecentStickers>(false /*is_attached_*/),
+              [collect, finish](Object recents)
+    {
+      collect(std::move(recents));
+      finish();
+    });
+  });
 }
 
 void TgChat::Impl::RequestSponsoredMessagesIfNeeded()

@@ -80,6 +80,10 @@ private:
     void InsertText(const std::wstring& p_Text);
     void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
     std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
+    void RequestStickers(const std::string& p_ProfileId);
+    std::vector<StickerInfo> GetStickers(const std::string& p_ProfileId);
+    int64_t GetStickersUpdateTime();
+    void SendSticker(const std::string& p_ProfileId, const std::string& p_ChatId, int32_t p_StickerFileId);
     bool GetChatInfoIsGroup(const std::string& p_ProfileId, const std::string& p_ChatId);
     bool HasProtocolFeature(const std::string& p_ProfileId, ProtocolFeature p_ProtocolFeature);
     std::map<std::string, std::string> ParseMentions(const std::string& p_ProfileId, const std::string& p_ChatId,
@@ -155,6 +159,8 @@ private:
     bool GetListDialogActive();
     void SetListDialogActive(bool p_ListDialogActive);
 
+    bool GetStickerDialogActive();
+    void SetStickerDialogActive(bool p_StickerDialogActive);
     bool GetFileListDialogActive();
     void SetFileListDialogActive(bool p_FileListDialogActive);
 
@@ -308,6 +314,9 @@ private:
     std::unordered_map<std::string, std::unordered_map<std::string, std::vector<std::string>>> m_GroupMembers;
     int64_t m_GroupMembersUpdateTime = 0;
 
+    std::unordered_map<std::string, std::vector<StickerInfo>> m_Stickers;
+    int64_t m_StickersUpdateTime = 0;
+
     std::unordered_map<std::string, std::unordered_map<std::string, std::set<std::string>>> m_AvailableReactions;
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> m_AvailableReactionsPending;
 
@@ -318,6 +327,7 @@ private:
     bool m_ListFilterEditing = false;
     std::set<std::string> m_CollapsedGroups;
     bool m_ListDialogActive = false;
+    bool m_StickerDialogActive = false;
     bool m_FileListDialogActive = false;
     bool m_MessageDialogActive = false;
     bool m_EditMessageActive = false;
@@ -365,11 +375,15 @@ public:
   int64_t GetGroupMembersUpdateTime();
   void RequestGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
   std::vector<std::string> GetGroupMembers(const std::string& p_ProfileId, const std::string& p_ChatId);
+  void RequestStickers(const std::string& p_ProfileId);
+  std::vector<StickerInfo> GetStickers(const std::string& p_ProfileId);
+  int64_t GetStickersUpdateTime();
   bool GetEmojiEnabled();
   int GetHelpOffset();
   void SetHelpOffset(int p_HelpOffset);
   void SetMessageDialogActive(bool p_MessageDialogActive);
   void SetListDialogActive(bool p_ListDialogActive);
+  void SetStickerDialogActive(bool p_StickerDialogActive);
   void SetFileListDialogActive(bool p_FileListDialogActive);
   void SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline);
   void SetTerminalActive(bool p_TerminalActive);
@@ -395,6 +409,7 @@ public:
   int GetHelpOffsetLocked();
   int64_t GetLastMessageTimeLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   bool GetListDialogActiveLocked();
+  bool GetStickerDialogActiveLocked();
   bool GetFileListDialogActiveLocked();
   bool GetMessageDialogActiveLocked();
   int GetMessageOffsetLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
@@ -438,6 +453,7 @@ private:
   std::vector<std::string> SelectFile();
   void OnKeyTransfer();
   void OnKeySelectEmoji();
+  void OnKeySelectSticker();
   void OnKeySelectContact();
   void OnKeyReact();
   void OnKeyFind();
