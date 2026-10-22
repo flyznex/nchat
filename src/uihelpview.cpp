@@ -44,6 +44,14 @@ void UiHelpView::Draw()
     return helpItems;
   }();
 
+  static std::vector<std::wstring> stickerDialogHelpItems = []()
+  {
+    std::vector<std::wstring> helpItems;
+    AppendHelpItem("ok", "Select", helpItems);
+    AppendHelpItem("cancel", "Cancel", helpItems);
+    return helpItems;
+  }();
+
   static std::vector<std::wstring> fileListDialogHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
@@ -201,6 +209,7 @@ void UiHelpView::Draw()
   static std::vector<std::wstring> listFocusHelpViews;
   static std::vector<std::wstring> historyFocusHelpViews;
   static std::vector<std::wstring> listDialogHelpViews;
+  static std::vector<std::wstring> stickerDialogHelpViews;
   static std::vector<std::wstring> fileListDialogHelpViews;
   static std::vector<std::wstring> messageDialogHelpViews;
   static std::vector<std::wstring> editMessageHelpViews;
@@ -214,6 +223,7 @@ void UiHelpView::Draw()
 
     const int maxW = m_W - 2;
     listDialogHelpViews = GetHelpViews(maxW, listDialogHelpItems, otherHelpItem);
+    stickerDialogHelpViews = GetHelpViews(maxW, stickerDialogHelpItems, otherHelpItem);
     fileListDialogHelpViews = GetHelpViews(maxW, fileListDialogHelpItems, otherHelpItem);
     messageDialogHelpViews = GetHelpViews(maxW, messageDialogHelpItems, otherHelpItem);
     editMessageHelpViews = GetHelpViews(maxW, editMessageHelpItems, otherHelpItem);
@@ -234,6 +244,10 @@ void UiHelpView::Draw()
   if (m_Model->GetFileListDialogActiveLocked())
   {
     wstr = fileListDialogHelpViews.at(m_Model->GetHelpOffsetLocked() % fileListDialogHelpViews.size());
+  }
+  else if (m_Model->GetStickerDialogActiveLocked())
+  {
+    wstr = stickerDialogHelpViews.at(m_Model->GetHelpOffsetLocked() % stickerDialogHelpViews.size());
   }
   else if (m_Model->GetListDialogActiveLocked())
   {

@@ -28,7 +28,7 @@ UiStickerDialog::UiStickerDialog(const UiDialogParams& p_Params, const std::stri
   : UiDialog(p_Params)
   , m_ProfileId(p_ProfileId)
 {
-  m_Model->SetListDialogActive(true);
+  m_Model->SetStickerDialogActive(true);
   // read the timestamp before requesting, so any answer is seen as a change
   m_StickersUpdateTime = m_Model->GetStickersUpdateTime();
   m_Model->RequestStickers(m_ProfileId);
@@ -37,7 +37,7 @@ UiStickerDialog::UiStickerDialog(const UiDialogParams& p_Params, const std::stri
 
 UiStickerDialog::~UiStickerDialog()
 {
-  m_Model->SetListDialogActive(false);
+  m_Model->SetStickerDialogActive(false);
 }
 
 int32_t UiStickerDialog::GetSelectedFileId() const
@@ -120,6 +120,7 @@ void UiStickerDialog::KeyHandler(wint_t p_Key)
 {
   static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
+  static wint_t keyFocusEntry = UiKeyConfig::GetKey("focus_entry");
   static wint_t keyOk = UiKeyConfig::GetKey("ok");
   static wint_t keyLeft = UiKeyConfig::GetKey("left");
   static wint_t keyRight = UiKeyConfig::GetKey("right");
@@ -153,7 +154,7 @@ void UiStickerDialog::KeyHandler(wint_t p_Key)
   {
     m_Model->SetTerminalActive(false);
   }
-  else if ((p_Key == keyCancel) || (p_Key == keyQuit))
+  else if ((p_Key == keyCancel) || (p_Key == keyQuit) || (p_Key == keyFocusEntry))
   {
     m_Result = false;
     m_Running = false;

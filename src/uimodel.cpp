@@ -3643,6 +3643,18 @@ void UiModel::Impl::SetListDialogActive(bool p_ListDialogActive)
   UpdateHelp();
 }
 
+bool UiModel::Impl::GetStickerDialogActive()
+{
+  return m_StickerDialogActive;
+}
+
+void UiModel::Impl::SetStickerDialogActive(bool p_StickerDialogActive)
+{
+  m_StickerDialogActive = p_StickerDialogActive;
+  SetHelpOffset(0);
+  UpdateHelp();
+}
+
 bool UiModel::Impl::GetFileListDialogActive()
 {
   return m_FileListDialogActive;
@@ -5589,6 +5601,12 @@ void UiModel::SetListDialogActive(bool p_ListDialogActive)
   GetImpl().SetListDialogActive(p_ListDialogActive);
 }
 
+void UiModel::SetStickerDialogActive(bool p_StickerDialogActive)
+{
+  std::unique_lock<owned_mutex> lock(m_ModelMutex);
+  GetImpl().SetStickerDialogActive(p_StickerDialogActive);
+}
+
 void UiModel::SetFileListDialogActive(bool p_FileListDialogActive)
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
@@ -5720,6 +5738,12 @@ bool UiModel::GetListDialogActiveLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetListDialogActive();
+}
+
+bool UiModel::GetStickerDialogActiveLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetStickerDialogActive();
 }
 
 bool UiModel::GetFileListDialogActiveLocked()

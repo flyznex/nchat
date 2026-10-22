@@ -159,6 +159,8 @@ private:
     bool GetListDialogActive();
     void SetListDialogActive(bool p_ListDialogActive);
 
+    bool GetStickerDialogActive();
+    void SetStickerDialogActive(bool p_StickerDialogActive);
     bool GetFileListDialogActive();
     void SetFileListDialogActive(bool p_FileListDialogActive);
 
@@ -325,6 +327,7 @@ private:
     bool m_ListFilterEditing = false;
     std::set<std::string> m_CollapsedGroups;
     bool m_ListDialogActive = false;
+    bool m_StickerDialogActive = false;
     bool m_FileListDialogActive = false;
     bool m_MessageDialogActive = false;
     bool m_EditMessageActive = false;
@@ -380,6 +383,7 @@ public:
   void SetHelpOffset(int p_HelpOffset);
   void SetMessageDialogActive(bool p_MessageDialogActive);
   void SetListDialogActive(bool p_ListDialogActive);
+  void SetStickerDialogActive(bool p_StickerDialogActive);
   void SetFileListDialogActive(bool p_FileListDialogActive);
   void SetStatusOnline(const std::string& p_ProfileId, bool p_IsOnline);
   void SetTerminalActive(bool p_TerminalActive);
@@ -405,6 +409,7 @@ public:
   int GetHelpOffsetLocked();
   int64_t GetLastMessageTimeLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
   bool GetListDialogActiveLocked();
+  bool GetStickerDialogActiveLocked();
   bool GetFileListDialogActiveLocked();
   bool GetMessageDialogActiveLocked();
   int GetMessageOffsetLocked(const std::string& p_ProfileId, const std::string& p_ChatId);
