@@ -3577,7 +3577,13 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
                : (m_Focus == NavFocus::History) ? NavFocus::List : NavFocus::History);
       break;
     case NavAction::FocusEntry:
-      if (m_Focus == NavFocus::Entry)
+      if (list && !m_ListFilter.text.empty())
+      {
+        m_ListFilter.text.clear(); // first Esc drops a kept filter, the next one leaves the list
+        SnapSelectionToRows();
+        UpdateList();
+      }
+      else if (m_Focus == NavFocus::Entry)
       {
         if (GetEditMessageActive() || GetSelectMessageActive()) OnKeyCancel(); // drop the edit or reply
       }
