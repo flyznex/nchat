@@ -11,6 +11,29 @@ NavAction NavKeyResolver::Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys&
 {
   const bool pendingG = m_PendingG;
   m_PendingG = false;
+  const bool pendingPane = m_PendingPane;
+  m_PendingPane = false;
+
+  if (p_Vim && pendingPane)
+  {
+    // vim Ctrl-W h/j/k/l on the layout: list left, history top right, entry bottom right.
+    // Any other key after the prefix is swallowed (Pending) so it cannot type into the entry.
+    const bool list = (p_Focus == NavFocus::List);
+    switch (p_Key)
+    {
+      case L'h': return list ? NavAction::Pending : NavAction::FocusList;
+      case L'l': return list ? NavAction::FocusHistory : NavAction::Pending;
+      case L'j': return (p_Focus == NavFocus::History) ? NavAction::FocusEntry : NavAction::Pending;
+      case L'k': return (p_Focus == NavFocus::Entry) ? NavAction::FocusHistory : NavAction::Pending;
+      default: return NavAction::Pending;
+    }
+  }
+
+  if (p_Vim && (p_Key == p_Keys.panePrefix))
+  {
+    m_PendingPane = true;
+    return NavAction::Pending;
+  }
 
   if (p_Key == p_Keys.focusNext) return NavAction::FocusNext;
   if (p_Key == p_Keys.focusPrev) return NavAction::FocusPrev;

@@ -11,7 +11,7 @@
 
 #include "unittest.h"
 
-static const NavKeys keys = { 1001, 1002, 1003, 1004, 10, 9, 1005, 27 };
+static const NavKeys keys = { 1001, 1002, 1003, 1004, 10, 9, 1005, 27, 23 };
 
 #define R(focus, key, vim) r.Resolve(NavFocus::focus, key, keys, vim)
 
@@ -87,6 +87,37 @@ static void TestGg()
   unittest::ExpectTrue(R(List, L'g', true) == NavAction::Pending);
 }
 
+static void TestPaneKeys()
+{
+  NavKeyResolver r;
+  // Ctrl-W prefix works from every focus, then h/j/k/l move on the list | history / entry layout
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'h', true) == NavAction::FocusList);
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'k', true) == NavAction::FocusHistory);
+  unittest::ExpectTrue(R(History, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(History, L'j', true) == NavAction::FocusEntry);
+  unittest::ExpectTrue(R(History, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(History, L'h', true) == NavAction::FocusList);
+  unittest::ExpectTrue(R(List, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(List, L'l', true) == NavAction::FocusHistory);
+  // moves with no target are swallowed, not typed
+  unittest::ExpectTrue(R(List, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(List, L'h', true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'j', true) == NavAction::Pending);
+  // unknown key and Esc after the prefix are swallowed, and the prefix expires
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'a', true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'a', true) == NavAction::None);
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, 27, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, 27, true) == NavAction::FocusEntry);
+  // without vim_keys Ctrl-W is not a prefix
+  unittest::ExpectTrue(R(Entry, 23, false) == NavAction::None);
+  unittest::ExpectTrue(R(Entry, L'h', false) == NavAction::None);
+}
+
 int main()
 {
   int rv = 0;
@@ -97,6 +128,7 @@ int main()
     TestVimList();
     TestVimHistory();
     TestGg();
+    TestPaneKeys();
   }
   catch (const std::exception& ex)
   {

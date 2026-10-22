@@ -248,7 +248,8 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "archive_chat", "\\33\\141" }, // alt/opt-a
     { "pin", "\\33\\160" }, // alt/opt-p
     { "open", "KEY_CTRLV" },
-    { "open_link", "KEY_CTRLW" },
+    { "open_link", "\\33\\165" }, // alt/opt-u
+    { "pane_prefix", "KEY_CTRLW" }, // vim_keys only: Ctrl-W then h/j/k/l moves between panes
     { "open_msg", "\\33\\167" }, // alt/opt-w
     { "save", "KEY_CTRLR" },
     { "transfer", "KEY_CTRLT" },

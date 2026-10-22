@@ -90,10 +90,10 @@ Interactive Commands for Selected Message:
     Ctrl-d      delete selected message (`x` in history focus if `vim_keys=1`)
     Ctrl-r      download attached file
     Ctrl-v      open/view attached file
-    Ctrl-w      open link
     Ctrl-x      send reply to selected message
     Ctrl-z      edit selected message
     Alt-c       copy selected message to clipboard
+    Alt-u       open link
     Alt-q       jump to quoted/replied message
     Alt-r       forward selected message
     Alt-s       add/remove reaction on selected message
@@ -143,6 +143,10 @@ in list and history focus:
     y           history: copy selected message
     x           history: delete selected message
 
+With `vim_keys=1` Ctrl-w followed by h / j / k / l also moves between panes from any
+focus, including the text entry: h list, l history (from the list), j entry (from
+history), k history (from the entry). Any other key after Ctrl-w is ignored.
+
 With `vim_keys=1` Ctrl-d / Ctrl-u are half-page keys in list and history focus,
 so use `x` to delete a message there. With `vim_keys=0` these letters type into
 the entry and Ctrl-d deletes the selected message again.
@@ -160,6 +164,87 @@ turns the CR sent by Alt-Enter into LF, so the `newline` key defaults to
 `key.conf` instead. Most terminals, including Ghostty, send Alt-Enter as ESC CR.
 Use `nchat -k` to verify the codes your terminal sends. nchat sets the
 escape delay to 25 ms, so Esc responds quickly and Alt-combinations still work.
+
+Message layout and theme:
+
+- In the chat list the chat name is bold and the last message preview is gray
+  (`list_name_attr`, `list_preview_attr`, `list_preview_color_*` in `color.conf`).
+- In the message history the sender name is underlined, over the text only
+  (`history_name_attr` in `color.conf`).
+- With `sent_align_right=1` in `ui.conf` your own messages are shown on the right
+  and other people's on the left, both limited to 75% of the pane width. Default
+  is off (everything left-aligned).
+
+
+Inline Images
+=============
+Photos and stickers can be shown inline in the message history (and sticker
+previews in the Telegram sticker picker, Alt-g / Opt-g). nchat draws them with
+the kitty graphics protocol, so it needs a terminal that supports it, and it
+needs a tool to convert the downloaded file to PNG. Nothing else has to be
+configured on the nchat side, `inline_images=auto` is the default.
+
+**1. Terminal**
+
+[Ghostty](https://ghostty.org) and [kitty](https://sw.kovidgoyal.net/kitty/)
+are supported. With `inline_images=auto` nchat detects them through the
+`GHOSTTY_RESOURCES_DIR` / `KITTY_WINDOW_ID` environment variables or a `TERM`
+containing `ghostty` / `kitty`. If you set `term = "xterm-256color"` in the
+Ghostty config, only the environment variable identifies the terminal, and it is
+missing when the shell was not started by Ghostty (for example a tmux server
+started elsewhere, or ssh). In that case set `inline_images=on` in `ui.conf`.
+The terminal must also report at least 256 colors.
+
+To use Alt/Opt shortcuts such as Alt-g on macOS, enable it in the Ghostty config
+(`~/Library/Application Support/com.mitchellh.ghostty/config.ghostty`):
+
+    macos-option-as-alt = true
+
+**2. tmux (optional)**
+
+Inside tmux nchat wraps the graphics in passthrough sequences, which tmux only
+forwards when this is set in `~/.tmux.conf` (`on` or `all` both work):
+
+    set -g allow-passthrough on
+
+Apply it to a running server with `tmux set -g allow-passthrough on`. Without it
+nchat keeps the plain text lines and logs `inline images disabled: tmux
+allow-passthrough is ...`.
+
+**3. Image conversion tools**
+
+nchat tries these in order and uses the first that works. Install at least one:
+
+    macOS:    sips is built in; for webp and video stickers also
+              brew install imagemagick webp ffmpeg
+    Ubuntu:   sudo apt install imagemagick webp ffmpeg
+    Arch:     sudo pacman -S imagemagick libwebp ffmpeg
+
+`magick` handles photos and webp stickers, `dwebp` handles webp, and `ffmpeg`
+is required for video (`.webm`) stickers. Animated stickers are shown as a still
+first frame, and Lottie (`.tgs`) stickers keep the text line. Converted images are
+cached in `~/.config/nchat/images`.
+
+**4. Related settings in ~/.config/nchat/ui.conf**
+
+    inline_images=auto
+    inline_image_max_rows=10
+    inline_sticker_max_rows=6
+
+See the descriptions of `inline_images`, `inline_image_max_rows` and
+`inline_sticker_max_rows` below.
+
+**Troubleshooting**
+
+- Only text lines like `[Photo]` are shown: check `inline_images` is not `off`,
+  that you run Ghostty or kitty (try `inline_images=on`), that tmux has
+  `allow-passthrough` set, and that one of `magick`, `sips`, `dwebp`, `ffmpeg` is
+  installed. The reason is logged in `~/.config/nchat/log.txt` (start nchat with
+  `-e` for verbose logging, which also logs when no supported terminal is detected).
+- Photos and stickers are downloaded when they become visible, so they can appear
+  a moment after scrolling to them.
+- Other terminals (Terminal.app, iTerm2, Alacritty, ...) are not supported and
+  always fall back to text lines.
 
 
 Supported Platforms
@@ -288,6 +373,10 @@ functionality.
 
 To support pasting images directly from clipboard `libpng-dev` is needed. On
 X11 systems `libxcb1-dev` and `libx11-dev` are needed as well.
+
+To show photos and stickers inline, install one or more image conversion tools
+at runtime (`sips` is built into macOS, otherwise `imagemagick`, `webp` and
+`ffmpeg`). See [Inline Images](#inline-images).
 
 **Build**
 
@@ -584,6 +673,7 @@ This configuration file holds general user interface settings. Default content:
     proxy_indicator=🔒
     read_indicator=✓
     reactions_enabled=1
+    sent_align_right=0
     spell_check_command=
     status_broadcast=1
     status_enabled=1
@@ -802,7 +892,8 @@ in the message history. See `inline_images`.
 
 Specifies whether photos and stickers are shown inline in the message
 history, using the kitty graphics protocol (supported by Ghostty and
-kitty, also inside tmux with `set -g allow-passthrough on`). Animated
+kitty, also inside tmux with `set -g allow-passthrough on`, see "Inline
+Images" above for the full setup). Animated
 stickers are shown as a still first frame, and Lottie (`.tgs`) stickers
 keep the text line.
 Supported values are `auto` (enabled when a supporting terminal is
@@ -938,6 +1029,13 @@ Specifies text to indicate a message has been read by the receiver.
 
 Specifies whether to display reactions.
 
+### sent_align_right
+
+Specifies whether your own messages are shown on the right side of the message
+history and other people's on the left, instead of everything on the left. Both
+sides use at most 75% of the pane width, and the sender line, text, quote,
+reactions and inline images of a message are aligned together.
+
 ### spell_check_command
 
 Specifies a custom command to use for spell checking composed messages. If not
@@ -1008,9 +1106,11 @@ Specifies the character to suffix chats with unread messages in the chat list.
 ### vim_keys
 
 Specifies whether vim-style navigation keys (`j k gg G Ctrl-d Ctrl-u / i l h u z
-n r e y x`) are enabled in chat list and message history focus. See
-"Focus and Navigation" above. When disabled, letters type into the text entry
-from any focus.
+n r e y x`) are enabled in chat list and message history focus, and Ctrl-w
+followed by `h j k l` moves between panes from any focus (the Ctrl-w prefix key
+is `pane_prefix` in `key.conf`). See "Focus and Navigation" above. When
+disabled, letters type into the text entry from any focus and Ctrl-w is not a
+prefix.
 
 ~/.config/nchat/key.conf
 ------------------------
@@ -1059,9 +1159,10 @@ This configuration file holds user interface key bindings. Default content:
     next_page=KEY_NPAGE
     ok=KEY_RETURN
     open=KEY_CTRLV
-    open_link=KEY_CTRLW
+    open_link=\33\165
     open_msg=\33\167
     other_commands_help=KEY_CTRLO
+    pane_prefix=KEY_CTRLW
     paste=\33\166
     pin=\33\160
     prev_chat=\33\153
@@ -1120,7 +1221,7 @@ This configuration file holds user interface color settings. Default content:
     help_attr=reverse
     help_color_bg=black
     help_color_fg=white
-    history_name_attr=bold
+    history_name_attr=underline
     history_name_attr_selected=reverse
     history_name_recv_color_bg=
     history_name_recv_color_fg=
@@ -1148,6 +1249,10 @@ This configuration file holds user interface color settings. Default content:
     list_color_fg=
     list_color_unread_bg=
     list_color_unread_fg=
+    list_name_attr=bold
+    list_preview_attr=
+    list_preview_color_bg=
+    list_preview_color_fg=gray
     listborder_attr=
     listborder_color_bg=
     listborder_color_fg=

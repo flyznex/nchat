@@ -3510,6 +3510,7 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
     keys.focusNext = UiKeyConfig::GetKey("focus_next");
     keys.focusPrev = UiKeyConfig::GetKey("focus_prev");
     keys.focusEntry = UiKeyConfig::GetKey("focus_entry");
+    keys.panePrefix = UiKeyConfig::GetKey("pane_prefix");
     return keys;
   }();
   static const bool vim = UiConfig::GetBool("vim_keys");
@@ -3558,7 +3559,8 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
 
   AnyUserKeyInput();
 
-  if (GetEditMessageActive() && ((action == NavAction::FocusNext) || (action == NavAction::FocusPrev)))
+  if (GetEditMessageActive() && ((action == NavAction::FocusNext) || (action == NavAction::FocusPrev) ||
+                                 (action == NavAction::FocusList) || (action == NavAction::FocusHistory)))
   {
     return true; // finish or cancel the edit first
   }
@@ -3594,6 +3596,9 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
       break;
     case NavAction::FocusList:
       SetFocus(NavFocus::List);
+      break;
+    case NavAction::FocusHistory:
+      SetFocus(NavFocus::History);
       break;
     case NavAction::Up:
       if (list) ListMove(-1); else HistoryMove(1);

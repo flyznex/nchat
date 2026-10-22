@@ -14,7 +14,7 @@ enum class NavFocus { List, History, Entry };
 enum class NavAction
 {
   None, Pending,
-  FocusNext, FocusPrev, FocusEntry, FocusList,
+  FocusNext, FocusPrev, FocusEntry, FocusList, FocusHistory,
   Up, Down, First, Last, HalfUp, HalfDown,
   Open, Reply, Edit, Copy, Delete,
   Search, FindNext, UnreadOnly, ToggleGroup
@@ -30,6 +30,7 @@ struct NavKeys
   wint_t focusNext;
   wint_t focusPrev;
   wint_t focusEntry;
+  wint_t panePrefix;
 };
 
 class NavKeyResolver
@@ -39,4 +40,5 @@ public:
 
 private:
   bool m_PendingG = false;
+  bool m_PendingPane = false;
 };
