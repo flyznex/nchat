@@ -444,7 +444,9 @@ void UiHistoryView::Draw()
       return colorPairGroup;
     }();
 
-    wattron(m_PaddedWin, attributeName | colorPairName);
+    // selected rows keep a full-width reverse bar; otherwise the attribute covers the name only
+    const int headerAttr = isSelectedMessage ? attributeName : 0;
+    wattron(m_PaddedWin, headerAttr | colorPairName);
     std::string name = m_Model->GetContactNameLocked(currentChat.first, msg.senderId);
     if (!emojiEnabled)
     {
@@ -483,9 +485,22 @@ void UiHistoryView::Draw()
     }
 
     std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);
-    mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+    if (isSelectedMessage)
+    {
+      mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+    }
+    else
+    {
+      // wdisp starts with the name unless the name alone overflows, then it is all name
+      const std::wstring wname = (StrUtil::WStringWidth(wsender) >= m_PaddedW) ? wdisp : wsender;
+      const std::wstring wrest = wdisp.substr(wname.size());
+      wattron(m_PaddedWin, attributeName);
+      mvwaddnwstr(m_PaddedWin, y, 0, wname.c_str(), wname.size());
+      wattroff(m_PaddedWin, attributeName);
+      mvwaddnwstr(m_PaddedWin, y, StrUtil::WStringWidth(wname), wrest.c_str(), wrest.size());
+    }
 
-    wattroff(m_PaddedWin, attributeName | colorPairName);
+    wattroff(m_PaddedWin, headerAttr | colorPairName);
 
     ++m_HistoryShowCount;
 

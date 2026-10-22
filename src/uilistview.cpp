@@ -83,6 +83,9 @@ void UiListView::Draw()
   static int attribute = UiColorConfig::GetAttribute("list_attr");
   static int attributeSelected = UiColorConfig::GetAttribute("list_attr_selected");
   static int colorPairUnread = UiColorConfig::GetColorPair("list_color_unread");
+  static int nameAttr = UiColorConfig::GetAttribute("list_name_attr");
+  static int previewAttr = UiColorConfig::GetAttribute("list_preview_attr");
+  static int previewColorPair = UiColorConfig::GetColorPair("list_preview_color");
   static int dimAttr = UiColorConfig::GetAttribute("dim_attr");
   static int focusColorPair = UiColorConfig::GetColorPair("focus_color");
   static int focusAttr = UiColorConfig::GetAttribute("focus_attr");
@@ -179,7 +182,9 @@ void UiListView::Draw()
     if (unread) wattron(m_PaddedWin, colorPairUnread);
 
     std::wstring wname = FitWidth(StrUtil::ToWString(name), nameW);
+    wattron(m_PaddedWin, nameAttr);
     mvwaddnwstr(m_PaddedWin, y, 0, wname.c_str(), wname.size());
+    wattroff(m_PaddedWin, nameAttr);
     if (rightW > 0)
     {
       mvwaddnwstr(m_PaddedWin, y, m_PaddedW - rightW, wright.c_str(), wright.size());
@@ -192,11 +197,12 @@ void UiListView::Draw()
       std::string preview = m_Model->GetChatPreviewLocked(profileId, chatId);
       if (!emojiEnabled) preview = StrUtil::Textize(preview);
       std::wstring wpreview = FitWidth(StrUtil::ToWString(" " + preview), m_PaddedW);
-      // unfocused lists are already dim via base; toggling it off here would leak bright rows
-      const bool dimPreview = !selected && focused;
-      if (dimPreview) wattron(m_PaddedWin, dimAttr);
+      // selected rows keep the reverse bar; unfocused lists are already dim via base
+      const int previewStyle = selected ? 0 : (previewAttr | previewColorPair);
+      wattron(m_PaddedWin, previewStyle);
       mvwaddnwstr(m_PaddedWin, y + 1, 0, wpreview.c_str(), wpreview.size());
-      if (dimPreview) wattroff(m_PaddedWin, dimAttr);
+      wattroff(m_PaddedWin, previewStyle);
+      if (!selected) wattron(m_PaddedWin, colorPair);
     }
 
     if (selected)
