@@ -72,6 +72,7 @@ void UiConfig::Init()
     { "proxy_indicator", "\xF0\x9F\x94\x92" },
     { "read_indicator", "\xe2\x9c\x93" },
     { "reactions_enabled", "1" },
+    { "sent_align_right", "0" },
     { "spell_check_command", "" },
     { "status_broadcast", "1" },
     { "status_enabled", "1" },

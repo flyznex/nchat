@@ -89,6 +89,9 @@ void UiHistoryView::Draw()
   std::pair<std::string, std::string>& currentChat = m_Model->GetCurrentChatLocked();
   const bool emojiEnabled = m_Model->GetEmojiEnabledLocked();
   static const bool developerMode = AppUtil::GetDeveloperMode();
+  static const bool alignSent = UiConfig::GetBool("sent_align_right");
+  // ponytail: fixed 75% cap when aligned; make it a config key if it needs tuning
+  const int maxW = alignSent ? std::max(1, m_PaddedW * 3 / 4) : m_PaddedW;
 
   std::vector<std::string>& messageVec =
     m_Model->GetMessageVecLocked(currentChat.first, currentChat.second);
@@ -145,7 +148,7 @@ void UiHistoryView::Draw()
         text = StrUtil::Textize(text);
       }
 
-      wlines = StrUtil::WordWrap(StrUtil::ToWString(text), m_PaddedW, false, false, false, 2);
+      wlines = StrUtil::WordWrap(StrUtil::ToWString(text), maxW, false, false, false, 2);
     }
 
     // Quoted message
@@ -175,7 +178,7 @@ void UiHistoryView::Draw()
         quotedText = "";
       }
 
-      int maxQuoteLen = m_PaddedW - 3;
+      int maxQuoteLen = maxW - 3;
       std::wstring quote = quoteIndicator + StrUtil::ToWString(quotedText);
       if (StrUtil::WStringWidth(quote) > maxQuoteLen)
       {
@@ -227,7 +230,7 @@ void UiHistoryView::Draw()
           TermGfx::GetCellPixelSize(cellW, cellH);
           const int maxRows = std::min((imageKind == ImageKind::Sticker) ? maxStickerRows : maxPhotoRows,
                                        std::max(1, m_PaddedH / 2));
-          const int maxCols = std::min(m_PaddedW, KittyEncoder::GetDiacriticCount());
+          const int maxCols = std::min(maxW, KittyEncoder::GetDiacriticCount());
           imageGrid = ImageGeom::FitToCells(imageInfo.pxWidth, imageInfo.pxHeight, cellW, cellH,
                                             maxCols, maxRows);
           if (imageGrid.cols > 0)
@@ -345,7 +348,7 @@ void UiHistoryView::Draw()
             reactionsText = StrUtil::Textize(reactionsText);
           }
 
-          const int maxReactionsLen = m_PaddedW - 4;
+          const int maxReactionsLen = maxW - 4;
           std::wstring reactions = StrUtil::ToWString(reactionsText);
           if (StrUtil::WStringWidth(reactions) > maxReactionsLen)
           {
@@ -370,11 +373,61 @@ void UiHistoryView::Draw()
       reactionLines = 0;
     }
 
+    std::string name = m_Model->GetContactNameLocked(currentChat.first, msg.senderId);
+    if (!emojiEnabled)
+    {
+      name = StrUtil::Textize(name);
+    }
+
+    std::wstring wsender = StrUtil::ToWString(name);
+    std::wstring wtime;
+    if (developerMode)
+    {
+      wtime = L" (" + StrUtil::ToWString(std::to_string(msg.timeSent)) + L")";
+    }
+    else
+    {
+      if (msg.timeSent != std::numeric_limits<int64_t>::max())
+      {
+        wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, false /* p_IsExport */)) + L")";
+      }
+    }
+
+    static const std::string readIndicator = " " + UiConfig::GetStr("read_indicator");
+    static const std::string editedIndicator = " " + UiConfig::GetStr("edited_indicator");
+    static const std::string pinnedIndicator = " " + UiConfig::GetStr("pinned_indicator");
+    std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
+    std::wstring wedited = StrUtil::ToWString(msg.isEdited ? editedIndicator : "");
+    std::wstring wpinned = StrUtil::ToWString(msg.isPinned ? pinnedIndicator : "");
+    std::wstring wheader = wsender + wtime + wreceipt + wedited + wpinned;
+
+    if (developerMode)
+    {
+      wheader = wheader +
+        L" msg " + StrUtil::ToWString(msg.id) +
+        L" user " + StrUtil::ToWString(msg.senderId);
+    }
+
+    // block = widest line of this message; aligned mode pads and offsets by it instead of the full pane
+    int blockW = m_PaddedW;
+    if (alignSent)
+    {
+      blockW = StrUtil::WStringWidth(wheader);
+      for (const std::wstring& wl : wlines)
+      {
+        if ((imageId != 0) && (wl.size() == 2) && (wl[0] == imageRowMark)) continue;
+        blockW = std::max(blockW, StrUtil::WStringWidth(wl));
+      }
+      if (imageId != 0) blockW = std::max(blockW, imageGrid.cols);
+      blockW = std::min(blockW, maxW);
+    }
+    const int x0 = (alignSent && msg.isOutgoing) ? (m_PaddedW - blockW) : 0;
+
     for (auto wline = wlines.rbegin(); wline != wlines.rend(); ++wline)
     {
       if ((imageId != 0) && (wline->size() == 2) && ((*wline)[0] == imageRowMark))
       {
-        UiImageRow::Draw(m_PaddedWin, y, 0, static_cast<int>((*wline)[1]), imageId, imageGrid.cols);
+        UiImageRow::Draw(m_PaddedWin, y, x0, static_cast<int>((*wline)[1]), imageId, imageGrid.cols);
         if (--y < 0) break;
         continue;
       }
@@ -400,8 +453,8 @@ void UiHistoryView::Draw()
         wattron(m_PaddedWin, attributeText | colorPairText);
       }
 
-      const std::wstring wdisp = isReaction ? *wline : StrUtil::TrimPadWString(*wline, m_PaddedW);
-      mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+      const std::wstring wdisp = isReaction ? *wline : StrUtil::TrimPadWString(*wline, blockW);
+      mvwaddnwstr(m_PaddedWin, y, x0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
 
       if (isAttachment)
       {
@@ -444,60 +497,26 @@ void UiHistoryView::Draw()
       return colorPairGroup;
     }();
 
-    // selected rows keep a full-width reverse bar; otherwise the attribute covers the name only
+    // selected rows keep a reverse bar over the whole block; otherwise the attribute covers the name only
     const int headerAttr = isSelectedMessage ? attributeName : 0;
     wattron(m_PaddedWin, headerAttr | colorPairName);
-    std::string name = m_Model->GetContactNameLocked(currentChat.first, msg.senderId);
-    if (!emojiEnabled)
-    {
-      name = StrUtil::Textize(name);
-    }
-
-    std::wstring wsender = StrUtil::ToWString(name);
-    std::wstring wtime;
-    if (developerMode)
-    {
-      wtime = L" (" + StrUtil::ToWString(std::to_string(msg.timeSent)) + L")";
-    }
-    else
-    {
-      if (msg.timeSent != std::numeric_limits<int64_t>::max())
-      {
-        wtime = L" (" + StrUtil::ToWString(TimeUtil::GetTimeString(msg.timeSent, false /* p_IsExport */)) + L")";
-      }
-    }
 
     m_Model->MarkReadLocked(currentChat.first, currentChat.second, *it, (!msg.isOutgoing && !msg.isRead));
 
-    static const std::string readIndicator = " " + UiConfig::GetStr("read_indicator");
-    static const std::string editedIndicator = " " + UiConfig::GetStr("edited_indicator");
-    static const std::string pinnedIndicator = " " + UiConfig::GetStr("pinned_indicator");
-    std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
-    std::wstring wedited = StrUtil::ToWString(msg.isEdited ? editedIndicator : "");
-    std::wstring wpinned = StrUtil::ToWString(msg.isPinned ? pinnedIndicator : "");
-    std::wstring wheader = wsender + wtime + wreceipt + wedited + wpinned;
-
-    if (developerMode)
-    {
-      wheader = wheader +
-        L" msg " + StrUtil::ToWString(msg.id) +
-        L" user " + StrUtil::ToWString(msg.senderId);
-    }
-
-    std::wstring wdisp = StrUtil::TrimPadWString(wheader, m_PaddedW);
+    std::wstring wdisp = StrUtil::TrimPadWString(wheader, blockW);
     if (isSelectedMessage)
     {
-      mvwaddnwstr(m_PaddedWin, y, 0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+      mvwaddnwstr(m_PaddedWin, y, x0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
     }
     else
     {
       // wdisp starts with the name unless the name alone overflows, then it is all name
-      const std::wstring wname = (StrUtil::WStringWidth(wsender) >= m_PaddedW) ? wdisp : wsender;
+      const std::wstring wname = (StrUtil::WStringWidth(wsender) >= blockW) ? wdisp : wsender;
       const std::wstring wrest = wdisp.substr(wname.size());
       wattron(m_PaddedWin, attributeName);
-      mvwaddnwstr(m_PaddedWin, y, 0, wname.c_str(), wname.size());
+      mvwaddnwstr(m_PaddedWin, y, x0, wname.c_str(), wname.size());
       wattroff(m_PaddedWin, attributeName);
-      mvwaddnwstr(m_PaddedWin, y, StrUtil::WStringWidth(wname), wrest.c_str(), wrest.size());
+      mvwaddnwstr(m_PaddedWin, y, x0 + StrUtil::WStringWidth(wname), wrest.c_str(), wrest.size());
     }
 
     wattroff(m_PaddedWin, headerAttr | colorPairName);
