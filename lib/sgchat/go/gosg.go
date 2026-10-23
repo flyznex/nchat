@@ -1524,15 +1524,16 @@ func (handler *SgEventHandler) handleReceipt(evt *events.Receipt) bool {
 	connId := handler.connId
 
 	receipt := evt.Content
-	if receipt.GetType() == signalpb.ReceiptMessage_READ {
+	receiptType := receipt.GetType()
+	if receiptType == signalpb.ReceiptMessage_READ || receiptType == signalpb.ReceiptMessage_DELIVERY {
+		isRead := receiptType == signalpb.ReceiptMessage_READ
 		senderId := UUIDToString(evt.Sender)
 		for _, timestamp := range receipt.GetTimestamp() {
 			msgId := fmt.Sprintf("%d", timestamp)
-			// For read receipts, we need the chatId which we derive from the sender
+			// For receipts, we need the chatId which we derive from the sender
 			chatId := senderId
-			isRead := true
-			LOG_TRACE(fmt.Sprintf("Call CSgNewMessageStatusNotify read"))
-			CSgNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead))
+			LOG_TRACE(fmt.Sprintf("Call CSgNewMessageStatusNotify read %t", isRead))
+			CSgNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead), BoolToInt(!isRead))
 		}
 	}
 	return true
@@ -1549,7 +1550,7 @@ func (handler *SgEventHandler) handleReadSelf(evt *events.ReadSelf) bool {
 			msgId := fmt.Sprintf("%d", read.GetTimestamp())
 			isRead := true
 			LOG_TRACE(fmt.Sprintf("Call CSgNewMessageStatusNotify self-read"))
-			CSgNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead))
+			CSgNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead), 0)
 		}
 	}
 	return true

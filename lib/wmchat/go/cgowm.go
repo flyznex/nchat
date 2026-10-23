@@ -15,7 +15,7 @@ package main
 // extern void WmNewMessagesNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe, char* p_QuotedId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_TimeSent, int p_IsRead, int p_IsEdited);
 // extern void WmNewStatusNotify(int p_ConnId, char* p_UserId, int p_IsOnline, int p_TimeSeen);
 // extern void WmNewTypingNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsTyping);
-// extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead);
+// extern void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead, int p_IsDelivered);
 // extern void WmNewMessageIsPinnedNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsPinned);
 // extern void WmNewMessageFileNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_FileId, char* p_FilePath, int p_FileStatus, int p_Action);
 // extern void WmNewMessageReactionNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, char* p_SenderId, char* p_Text, int p_FromMe);
@@ -162,8 +162,8 @@ func CWmNewTypingNotify(connId int, chatId string, userId string, isTyping int) 
 	C.WmNewTypingNotify(C.int(connId), C.CString(chatId), C.CString(userId), C.int(isTyping))
 }
 
-func CWmNewMessageStatusNotify(connId int, chatId string, msgId string, isRead int) {
-	C.WmNewMessageStatusNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.int(isRead))
+func CWmNewMessageStatusNotify(connId int, chatId string, msgId string, isRead int, isDelivered int) {
+	C.WmNewMessageStatusNotify(C.int(connId), C.CString(chatId), C.CString(msgId), C.int(isRead), C.int(isDelivered))
 }
 
 func CWmNewMessageIsPinnedNotify(connId int, chatId string, msgId string, isPinned int) {
