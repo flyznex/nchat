@@ -213,6 +213,7 @@ struct ChatMessage
   int64_t timeSent = -1;
   bool isOutgoing = true;
   bool isRead = false;
+  bool isDelivered = false;
   bool isEdited = false;
   bool isDeleted = false;
   bool isPinned = false;
@@ -652,6 +653,7 @@ public:
   std::string chatId;
   std::string msgId;
   bool isRead = false;
+  bool isDelivered = false;
 };
 
 class NewMessageIsPinnedNotify : public ServiceMessage

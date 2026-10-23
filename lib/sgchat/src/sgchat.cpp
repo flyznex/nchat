@@ -1127,7 +1127,7 @@ void SgNewTypingNotify(int p_ConnId, char* p_ChatId, char* p_UserId, int p_IsTyp
   free(p_UserId);
 }
 
-void SgNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead)
+void SgNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p_IsRead, int p_IsDelivered)
 {
   SgChat* instance = SgChat::GetInstance(p_ConnId);
   if (instance != nullptr)
@@ -1137,6 +1137,7 @@ void SgNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p
     newMessageStatusNotify->chatId = std::string(p_ChatId);
     newMessageStatusNotify->msgId = std::string(p_MsgId);
     newMessageStatusNotify->isRead = (p_IsRead == 1);
+    newMessageStatusNotify->isDelivered = (p_IsDelivered == 1);
 
     std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
     deferNotifyRequest->serviceMessage = newMessageStatusNotify;

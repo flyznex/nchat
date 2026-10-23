@@ -668,6 +668,7 @@ This configuration file holds general user interface settings. Default content:
     confirm_archiving=1
     confirm_deletion=1
     confirm_send_pasted_image=1
+    delivered_indicator=○
     desktop_notify_active_current=0
     desktop_notify_active_noncurrent=1
     desktop_notify_command=
@@ -711,6 +712,7 @@ This configuration file holds general user interface settings. Default content:
     read_indicator=✓
     reactions_enabled=1
     sent_align_right=0
+    sent_indicator=·
     spell_check_command=
     status_broadcast=1
     status_enabled=1
@@ -813,6 +815,11 @@ or a chat.
 
 Specifies whether to prompt the user for confirmation when pasting an image
 to a chat.
+
+### delivered_indicator
+
+Specifies text to indicate a sent message has been delivered to the receiver but
+not yet read.
 
 ### desktop_notify_active_current
 
@@ -1072,6 +1079,10 @@ Specifies whether your own messages are shown on the right side of the message
 history and other people's on the left, instead of everything on the left. Both
 sides use at most 75% of the pane width, and the sender line, text, quote,
 reactions and inline images of a message are aligned together.
+
+### sent_indicator
+
+Specifies text to indicate a message has been sent but not yet delivered.
 
 ### spell_check_command
 

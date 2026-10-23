@@ -933,7 +933,7 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 		isRead := true
 		for _, msgId := range receipt.MessageIDs {
 			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
-			CWmNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead))
+			CWmNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead), 0)
 		}
 	} else if receipt.Type == types.ReceiptTypePlayed || receipt.Type == types.ReceiptTypePlayedSelf {
 		// played receipts are sent for view-once media and for voice notes; treat both as read.
@@ -947,7 +947,19 @@ func (handler *WmEventHandler) HandleReceipt(receipt *events.Receipt) {
 		isRead := true
 		for _, msgId := range receipt.MessageIDs {
 			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify"))
-			CWmNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead))
+			CWmNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead), 0)
+		}
+	} else if receipt.Type == types.ReceiptTypeDelivered {
+		connId := handler.connId
+		var client *whatsmeow.Client = GetClient(connId)
+		if client == nil {
+			LOG_WARNING("client is nil")
+			return
+		}
+		chatId := GetChatId(client, &receipt.MessageSource.Chat, nil)
+		for _, msgId := range receipt.MessageIDs {
+			LOG_TRACE(fmt.Sprintf("Call CWmNewMessageStatusNotify delivered"))
+			CWmNewMessageStatusNotify(connId, chatId, msgId, 0, 1)
 		}
 	}
 }

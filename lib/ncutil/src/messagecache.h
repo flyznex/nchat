@@ -43,6 +43,7 @@ private:
     DeleteOneContactRequestType,
     MoveChatRequestType,
     UpdateMessageIsReadRequestType,
+    UpdateMessageIsDeliveredRequestType,
     UpdateMessageIsPinnedRequestType,
     UpdateMessageFileInfoRequestType,
     UpdateMessageReactionsRequestType,
@@ -179,6 +180,15 @@ private:
     bool isRead = false;
   };
 
+  class UpdateMessageIsDeliveredRequest : public Request
+  {
+  public:
+    virtual RequestType GetRequestType() const { return UpdateMessageIsDeliveredRequestType; }
+    std::string profileId;
+    std::string chatId;
+    std::string msgId;
+  };
+
   class UpdateMessageIsPinnedRequest : public Request
   {
   public:
@@ -290,6 +300,8 @@ public:
   static void UpdateMessageIsRead(const std::string& p_ProfileId, const std::string& p_ChatId,
                                   const std::string& p_MsgId,
                                   bool p_IsRead);
+  static void UpdateMessageIsDelivered(const std::string& p_ProfileId, const std::string& p_ChatId,
+                                       const std::string& p_MsgId);
   static void UpdateMessageIsPinned(const std::string& p_ProfileId, const std::string& p_ChatId,
                                     const std::string& p_MsgId,
                                     bool p_IsPinned);

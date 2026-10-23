@@ -53,6 +53,7 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/config.h
   src/debuginfo.cpp
   src/debuginfo.h
+  src/deliverystate.h
   src/emojilist.cpp
   src/emojilist.h
   src/emojiutil.cpp
