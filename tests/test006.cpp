@@ -53,7 +53,10 @@ static void TestVimList()
   unittest::ExpectTrue(R(List, L'u', true) == NavAction::UnreadOnly);
   unittest::ExpectTrue(R(List, L'z', true) == NavAction::ToggleGroup);
   unittest::ExpectTrue(R(List, L'r', true) == NavAction::None);
-  unittest::ExpectTrue(R(List, L'n', true) == NavAction::None);
+  unittest::ExpectTrue(R(List, L'n', true) == NavAction::FolderNext);
+  unittest::ExpectTrue(R(List, L'b', true) == NavAction::FolderPrev);
+  unittest::ExpectTrue(R(List, L'n', false) == NavAction::None);
+  unittest::ExpectTrue(R(History, L'b', true) == NavAction::None);
 }
 
 static void TestVimHistory()

@@ -3723,6 +3723,12 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
       SnapSelectionToRows();
       UpdateList();
       break;
+    case NavAction::FolderNext:
+      OnKeyFolder(1);
+      break;
+    case NavAction::FolderPrev:
+      OnKeyFolder(-1);
+      break;
     case NavAction::ToggleGroup:
     {
       // ponytail: once collapsed, the selection snaps to another group and headers are not selectable,

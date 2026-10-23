@@ -137,6 +137,7 @@ in list and history focus:
     u           list: toggle unread-only
     z           list: expand all groups if any collapsed, otherwise
                 collapse the group of the selected chat
+    n / b       list: next / previous folder tab
     n           history: find next
     r           history: reply to selected message
     e           history: edit selected message

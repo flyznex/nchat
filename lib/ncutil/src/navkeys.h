@@ -17,7 +17,7 @@ enum class NavAction
   FocusNext, FocusPrev, FocusEntry, FocusList, FocusHistory,
   Up, Down, First, Last, HalfUp, HalfDown,
   Open, Reply, Edit, Copy, Delete,
-  Search, FindNext, UnreadOnly, ToggleGroup
+  Search, FindNext, UnreadOnly, ToggleGroup, FolderNext, FolderPrev
 };
 
 struct NavKeys

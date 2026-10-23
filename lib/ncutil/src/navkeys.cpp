@@ -64,7 +64,8 @@ NavAction NavKeyResolver::Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys&
       return NavAction::Pending;
     case L'h': return list ? NavAction::None : NavAction::FocusList;
     case L'l': return list ? NavAction::Open : NavAction::None;
-    case L'n': return list ? NavAction::None : NavAction::FindNext;
+    case L'n': return list ? NavAction::FolderNext : NavAction::FindNext;
+    case L'b': return list ? NavAction::FolderPrev : NavAction::None;
     case L'r': return list ? NavAction::None : NavAction::Reply;
     case L'e': return list ? NavAction::None : NavAction::Edit;
     case L'y': return list ? NavAction::None : NavAction::Copy;
