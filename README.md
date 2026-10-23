@@ -386,6 +386,40 @@ at runtime (`sips` is built into macOS, otherwise `imagemagick`, `webp` and
 
     sudo make install
 
+Using vcpkg
+-----------
+As an alternative to system packages, the C/C++ libraries listed in
+`vcpkg.json` (ncurses, sqlite3, zlib, libpng, libmagic) can be managed by
+[vcpkg](https://vcpkg.io) in manifest mode. This is optional - the
+system-package build above remains the default and is unaffected.
+
+**Prerequisites**
+
+Install the vcpkg tool and clone its registry (the Fedora vcpkg package ships
+only the tool, so the registry must be cloned separately):
+
+    git clone https://github.com/microsoft/vcpkg.git ~/.local/share/vcpkg
+
+If using a different location, set `VCPKG_ROOT` accordingly. The following
+remain system dependencies even with vcpkg - OpenSSL (used by tdlib, present
+on most Linux distributions, `brew install openssl` on macOS), Go (>= 1.23),
+gperf, cmake and a C++ compiler. Building some ports additionally requires
+autotools and perl, for example on Fedora:
+
+    sudo dnf install autoconf autoconf-archive automake libtool perl-core openssl-devel golang gperf cmake
+
+**Build / Install**
+
+    USE_VCPKG=1 ./make.sh build && USE_VCPKG=1 ./make.sh install
+
+Or manually with cmake:
+
+    cmake -B build -DCMAKE_TOOLCHAIN_FILE=$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake && cmake --build build -s
+
+On first configure vcpkg downloads and builds the manifest dependencies into
+`build/vcpkg_installed`, which takes some extra time and is cached for later
+builds.
+
 Advanced Build Options
 ----------------------
 By default nchat requires ~3.5GB RAM to build using G++ and ~1.5GB RAM with
