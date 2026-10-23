@@ -559,6 +559,17 @@ void UiModel::Impl::SetTyping(const std::string& p_ProfileId, const std::string&
   }
 }
 
+void UiModel::Impl::OnKeyFolder(int p_Delta)
+{
+  AnyUserKeyInput();
+
+  if (GetEditMessageActive()) return;
+
+  m_ListFilter.folder = ChatList::CycleFolder(GetFolderNames(), m_ListFilter.folder, p_Delta);
+  SnapSelectionToRows();
+  UpdateList();
+}
+
 void UiModel::Impl::OnKeyNextChat()
 {
   AnyUserKeyInput();
@@ -2323,6 +2334,45 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
       }
       break;
 
+    case NewChatFoldersNotifyType:
+      {
+        std::shared_ptr<NewChatFoldersNotify> newChatFoldersNotify =
+          std::static_pointer_cast<NewChatFoldersNotify>(p_ServiceMessage);
+        m_Folders[profileId] = newChatFoldersNotify->folders;
+
+        const std::vector<std::string> names = GetFolderNames();
+        if (!m_ListFilter.folder.empty() &&
+            (std::find(names.begin(), names.end(), m_ListFilter.folder) == names.end()))
+        {
+          m_ListFilter.folder.clear(); // selected folder was deleted or renamed
+          SnapSelectionToRows();
+        }
+
+        UpdateList();
+      }
+      break;
+
+    case UpdateChatFolderNotifyType:
+      {
+        std::shared_ptr<UpdateChatFolderNotify> updateChatFolderNotify =
+          std::static_pointer_cast<UpdateChatFolderNotify>(p_ServiceMessage);
+        bool changed = false;
+        for (const std::string& chatId : updateChatFolderNotify->chatIds)
+        {
+          if (updateChatFolderNotify->isMember)
+          {
+            changed |= m_ChatFolderIds[profileId][chatId].insert(updateChatFolderNotify->folderId).second;
+          }
+          else
+          {
+            changed |= (m_ChatFolderIds[profileId][chatId].erase(updateChatFolderNotify->folderId) > 0);
+          }
+        }
+
+        if (changed) UpdateList();
+      }
+      break;
+
     case UpdateArchivedNotifyType:
       {
         std::shared_ptr<UpdateArchivedNotify> updateArchivedNotify = std::static_pointer_cast<UpdateArchivedNotify>(
@@ -3346,6 +3396,20 @@ const ListFilter& UiModel::Impl::GetListFilter()
   return m_ListFilter;
 }
 
+std::vector<std::string> UiModel::Impl::GetFolderNames()
+{
+  std::vector<std::string> names;
+  for (const auto& profile : m_Folders)
+  {
+    for (const auto& folder : profile.second)
+    {
+      if (std::find(names.begin(), names.end(), folder.second) == names.end()) names.push_back(folder.second);
+    }
+  }
+
+  return names;
+}
+
 bool UiModel::Impl::GetListFilterEditing()
 {
   return m_ListFilterEditing;
@@ -3406,6 +3470,16 @@ std::vector<ListChat> UiModel::Impl::BuildListChats()
     const ChatInfo& info = m_ChatInfos[chatPair.first][chatPair.second];
     chat.group = info.isPinned ? "Pinned" : chatPair.first;
     chat.unread = info.isUnread;
+    const auto folderIt = m_Folders.find(chatPair.first);
+    if (folderIt != m_Folders.end())
+    {
+      const std::set<int32_t>& ids = m_ChatFolderIds[chatPair.first][chatPair.second];
+      for (const auto& folder : folderIt->second)
+      {
+        if (ids.count(folder.first)) chat.folders.insert(folder.second);
+      }
+    }
+
     chats.push_back(chat);
   }
 
@@ -5157,6 +5231,8 @@ void UiModel::KeyHandler(wint_t p_Key)
   static wint_t keySendMsg = UiKeyConfig::GetKey("send_msg");
   static wint_t keyNextChat = UiKeyConfig::GetKey("next_chat");
   static wint_t keyPrevChat = UiKeyConfig::GetKey("prev_chat");
+  static wint_t keyFolderNext = UiKeyConfig::GetKey("folder_next");
+  static wint_t keyFolderPrev = UiKeyConfig::GetKey("folder_prev");
   static wint_t keyUnreadChat = UiKeyConfig::GetKey("unread_chat");
 
   static wint_t keyQuit = UiKeyConfig::GetKey("quit");
@@ -5294,6 +5370,16 @@ void UiModel::KeyHandler(wint_t p_Key)
   {
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
     GetImpl().OnKeyPrevChat();
+  }
+  else if (p_Key == keyFolderNext)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyFolder(1);
+  }
+  else if (p_Key == keyFolderPrev)
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    GetImpl().OnKeyFolder(-1);
   }
   else if (p_Key == keyUnreadChat)
   {
@@ -5865,6 +5951,12 @@ const ListFilter& UiModel::GetListFilterLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetListFilter();
+}
+
+std::vector<std::string> UiModel::GetFolderNamesLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetFolderNames();
 }
 
 bool UiModel::GetListFilterEditingLocked()

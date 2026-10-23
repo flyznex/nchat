@@ -50,6 +50,7 @@ private:
     void SetTyping(const std::string& p_ProfileId, const std::string& p_ChatId, bool p_IsTyping);
 
     void OnKeyNextChat();
+    void OnKeyFolder(int p_Delta);
     void OnKeyPrevChat();
     void OnKeyUnreadChat();
     void OnKeyPrevPage();
@@ -150,6 +151,7 @@ private:
     NavFocus GetFocus();
     void FocusEntryIfEditing();
     const ListFilter& GetListFilter();
+    std::vector<std::string> GetFolderNames();
     bool GetListFilterEditing();
     std::vector<ListChat> BuildListChats();
     std::vector<ListRow> BuildListRows();
@@ -328,6 +330,8 @@ private:
     NavFocus m_Focus = NavFocus::Entry; // History focus == m_SelectMessageActive (see SetSelectMessageActive)
     NavKeyResolver m_NavResolver;
     ListFilter m_ListFilter;
+    std::map<std::string, std::vector<std::pair<int32_t, std::string>>> m_Folders; // profile -> folders, Telegram order
+    std::map<std::string, std::map<std::string, std::set<int32_t>>> m_ChatFolderIds; // profile -> chat -> folder ids
     bool m_ListFilterEditing = false;
     std::set<std::string> m_CollapsedGroups;
     bool m_ListDialogActive = false;
@@ -428,6 +432,7 @@ public:
   NavFocus GetFocusLocked();
   std::vector<ListRow> GetListRowsLocked();
   const ListFilter& GetListFilterLocked();
+  std::vector<std::string> GetFolderNamesLocked();
   bool GetListFilterEditingLocked();
 
   void DownloadAttachmentLocked(const std::string& p_ProfileId, const std::string& p_ChatId, const std::string& p_MsgId,
