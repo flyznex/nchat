@@ -156,7 +156,7 @@ chats grouped under a "Pinned" header and one header per account (shown when
 there are two or more groups). Groups can be collapsed with `z`, `/` filters
 chats by name (case-insensitive) and `u` shows only chats with unread messages.
 Telegram chat folders show as tabs above the chat list; `folder_next` /
-`folder_prev` (default alt-l / alt-h) switch between All and the folders.
+`folder_prev` (default shift-right / shift-left) switch between All and the folders.
 The text entry shows a title line while composing, replying or editing, and
 grows with its content up to half the screen height.
 
@@ -1180,8 +1180,8 @@ This configuration file holds user interface key bindings. Default content:
     focus_entry=KEY_CTRL[
     focus_next=KEY_TAB
     focus_prev=KEY_BTAB
-    folder_next=\33\154
-    folder_prev=\33\150
+    folder_next=KEY_SRIGHT
+    folder_prev=KEY_SLEFT
     forward_msg=\33\162
     forward_word=
     goto_chat=KEY_CTRLN
