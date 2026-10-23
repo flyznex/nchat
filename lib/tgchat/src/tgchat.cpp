@@ -52,7 +52,7 @@
 // For development testing of sponsored messages only
 // #define SIMULATED_SPONSORED_MESSAGES
 
-static const int s_TdlibDate = 20260824;
+static const int s_TdlibDate = 20261009;
 
 static int32_t GetForumTopicId(const td::td_api::message& p_Message)
 {
