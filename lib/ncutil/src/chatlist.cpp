@@ -7,6 +7,7 @@
 
 #include "chatlist.h"
 
+#include <algorithm>
 #include <cstdlib>
 
 #include "strutil.h"
@@ -22,6 +23,7 @@ std::vector<ListRow> ChatList::BuildRows(const std::vector<ListChat>& p_Chats, c
   for (int i = 0; i < static_cast<int>(p_Chats.size()); ++i)
   {
     const ListChat& chat = p_Chats[i];
+    if (!p_Filter.folder.empty() && !chat.folders.count(p_Filter.folder)) continue;
     if (p_Filter.unreadOnly && !chat.unread) continue;
     if (hasText && (StrUtil::ToLower(StrUtil::ToWString(chat.name)).find(needle) == std::wstring::npos)) continue;
     visible.push_back(i);
@@ -110,4 +112,35 @@ int ChatList::Edge(const std::vector<ListRow>& p_Rows, bool p_Last)
   }
 
   return edge;
+}
+
+std::string ChatList::CycleFolder(const std::vector<std::string>& p_Names, const std::string& p_Current, int p_Delta)
+{
+  if (p_Names.empty()) return "";
+
+  const int count = static_cast<int>(p_Names.size()) + 1; // slot 0 is All
+  int index = 0;
+  for (int i = 0; i < static_cast<int>(p_Names.size()); ++i)
+  {
+    if (p_Names[i] == p_Current) index = i + 1;
+  }
+
+  index = (((index + p_Delta) % count) + count) % count;
+  return (index == 0) ? std::string() : p_Names[index - 1];
+}
+
+int ChatList::FirstTab(const std::vector<int>& p_Widths, int p_Selected, int p_Width, int p_Gap)
+{
+  if (p_Widths.empty()) return 0;
+
+  const int last = static_cast<int>(p_Widths.size()) - 1;
+  int first = std::max(0, std::min(p_Selected, last));
+  int used = p_Widths[first];
+  while ((first > 0) && ((used + p_Gap + p_Widths[first - 1]) <= p_Width))
+  {
+    --first;
+    used += p_Gap + p_Widths[first];
+  }
+
+  return first;
 }

@@ -107,9 +107,39 @@ void UiListView::Draw()
   wbkgd(m_PaddedWin, base | colorPair | ' ');
   wattron(m_PaddedWin, base | colorPair);
 
-  const bool bar = (editing || !filter.text.empty() || filter.unreadOnly) && (m_PaddedH > 1);
-  const int top = bar ? 1 : 0;
+  const std::vector<std::string> folderNames = m_Model->GetFolderNamesLocked();
+  const bool tabs = !folderNames.empty() && (m_PaddedH > 2);
+  const int barRow = tabs ? 1 : 0;
+  const bool bar = (editing || !filter.text.empty() || filter.unreadOnly) && (m_PaddedH > (barRow + 1));
+  const int top = barRow + (bar ? 1 : 0);
   const int height = m_PaddedH - top;
+
+  if (tabs)
+  {
+    std::vector<std::wstring> labels = { L"All" };
+    int selected = 0;
+    for (size_t i = 0; i < folderNames.size(); ++i)
+    {
+      labels.push_back(StrUtil::ToWString(folderNames[i]));
+      if (folderNames[i] == filter.folder) selected = static_cast<int>(i) + 1;
+    }
+
+    std::vector<int> widths;
+    for (const std::wstring& label : labels) widths.push_back(StrUtil::WStringWidth(label));
+
+    const int gap = 2;
+    int x = 0;
+    for (int i = ChatList::FirstTab(widths, selected, m_PaddedW, gap);
+         (i < static_cast<int>(labels.size())) && (x < m_PaddedW); ++i)
+    {
+      const std::wstring text = ((x + widths[i]) <= m_PaddedW) ? labels[i] : FitWidth(labels[i], m_PaddedW - x);
+      if (i == selected) wattron(m_PaddedWin, focusAttr | focusColorPair);
+      mvwaddnwstr(m_PaddedWin, 0, x, text.c_str(), text.size());
+      if (i == selected) wattroff(m_PaddedWin, focusAttr | focusColorPair);
+      x += widths[i] + gap;
+    }
+  }
+
   if (bar)
   {
     std::string text = "/" + filter.text + (editing ? "_" : "") + (filter.unreadOnly ? " [unread]" : "");
@@ -118,7 +148,7 @@ void UiListView::Draw()
     while ((StrUtil::WStringWidth(wtext) > m_PaddedW) && (wtext.size() > 1)) wtext.erase(0, 1);
     std::wstring wbar = StrUtil::TrimPadWString(wtext, m_PaddedW);
     wattron(m_PaddedWin, focusAttr | focusColorPair);
-    mvwaddnwstr(m_PaddedWin, 0, 0, wbar.c_str(), wbar.size());
+    mvwaddnwstr(m_PaddedWin, barRow, 0, wbar.c_str(), wbar.size());
     wattroff(m_PaddedWin, focusAttr | focusColorPair);
   }
 

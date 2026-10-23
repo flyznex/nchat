@@ -235,6 +235,8 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "toggle_top", "KEY_NONE" },
     { "next_chat", "\\33\\152" }, // alt/opt-j (alt/opt-n and -p are select_contact and pin)
     { "prev_chat", "\\33\\153" }, // alt/opt-k
+    { "folder_next", "KEY_SRIGHT" }, // shift-right, next Telegram chat folder
+    { "folder_prev", "KEY_SLEFT" }, // shift-left
     { "focus_next", "KEY_TAB" },
     { "focus_prev", "KEY_BTAB" },
     { "focus_entry", "KEY_CTRL[" },

@@ -137,6 +137,7 @@ in list and history focus:
     u           list: toggle unread-only
     z           list: expand all groups if any collapsed, otherwise
                 collapse the group of the selected chat
+    n / b       list: next / previous folder tab
     n           history: find next
     r           history: reply to selected message
     e           history: edit selected message
@@ -154,9 +155,11 @@ the entry and Ctrl-d deletes the selected message again.
 The chat list shows two lines per chat (name and last message preview) with
 chats grouped under a "Pinned" header and one header per account (shown when
 there are two or more groups). Groups can be collapsed with `z`, `/` filters
-chats by name (case-insensitive) and `u` shows only chats with unread messages. The text entry shows a title line while
-composing, replying or editing, and grows with its content up to half the
-screen height.
+chats by name (case-insensitive) and `u` shows only chats with unread messages.
+Telegram chat folders show as tabs above the chat list; `folder_next` /
+`folder_prev` (default shift-right / shift-left) switch between All and the folders.
+The text entry shows a title line while composing, replying or editing, and
+grows with its content up to half the screen height.
 
 Alt-Enter inserts a linebreak. With the default `linefeed_on_enter=1` ncurses
 turns the CR sent by Alt-Enter into LF, so the `newline` key defaults to
@@ -1178,6 +1181,8 @@ This configuration file holds user interface key bindings. Default content:
     focus_entry=KEY_CTRL[
     focus_next=KEY_TAB
     focus_prev=KEY_BTAB
+    folder_next=KEY_SRIGHT
+    folder_prev=KEY_SLEFT
     forward_msg=\33\162
     forward_word=
     goto_chat=KEY_CTRLN

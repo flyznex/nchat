@@ -194,6 +194,7 @@ private:
   std::function<void(Object)> CreateAuthQueryHandler();
   void OnAuthStateUpdate();
   void SendQuery(td::td_api::object_ptr<td::td_api::Function> f, std::function<void(Object)> handler);
+  void EmitChatFolder(int64_t p_ChatId, int32_t p_FolderId, bool p_IsMember);
   void CheckAuthError(Object object);
   void CreateChat(Object p_Object);
   std::string GetRandomString(size_t p_Len);
@@ -2426,6 +2427,11 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
 
         SetForumArchived(update_chat_position.chat_id_, isArchived);
       }
+      else if (chatList && (chatList->get_id() == td::td_api::chatListFolder::ID))
+      {
+        const auto& folder = static_cast<td::td_api::chatListFolder&>(*chatList);
+        EmitChatFolder(update_chat_position.chat_id_, folder.chat_folder_id_, (position->order_ > 0));
+      }
     }
   },
   [this](td::td_api::updateForumTopic& update_forum_topic)
@@ -2575,6 +2581,57 @@ void TgChat::Impl::ProcessUpdate(td::td_api::object_ptr<td::td_api::Object> upda
   [](td::td_api::updateUnreadChatCount&)
   {
     LOG_TRACE("update unread chat count");
+  },
+  [this](td::td_api::updateChatFolders& update_chat_folders)
+  {
+    LOG_TRACE("update chat folders");
+
+    std::shared_ptr<NewChatFoldersNotify> notify = std::make_shared<NewChatFoldersNotify>(m_ProfileId);
+    for (const auto& folderInfo : update_chat_folders.chat_folders_)
+    {
+      notify->folders.push_back(std::make_pair(folderInfo->id_, folderInfo->name_->text_->text_));
+    }
+
+    CallMessageHandler(notify);
+
+    const int32_t limit = std::numeric_limits<int32_t>::max(); // no limit
+    for (const auto& folderInfo : update_chat_folders.chat_folders_)
+    {
+      const int32_t folderId = folderInfo->id_;
+      SendQuery(td::td_api::make_object<td::td_api::getChats>(
+                  td::td_api::make_object<td::td_api::chatListFolder>(folderId), limit),
+                [this, folderId](Object object)
+      {
+        if (object->get_id() == td::td_api::error::ID) return;
+
+        auto chats = td::move_tl_object_as<td::td_api::chats>(object);
+        std::shared_ptr<UpdateChatFolderNotify> memberNotify = std::make_shared<UpdateChatFolderNotify>(m_ProfileId);
+        memberNotify->folderId = folderId;
+        memberNotify->isMember = true;
+        for (auto chatId : chats->chat_ids_)
+        {
+          memberNotify->chatIds.push_back(StrUtil::NumToHex(chatId));
+        }
+
+        CallMessageHandler(memberNotify);
+      });
+    }
+  },
+  [this](td::td_api::updateChatAddedToList& update_chat_added_to_list)
+  {
+    LOG_TRACE("update chat added to list");
+
+    if (update_chat_added_to_list.chat_list_->get_id() != td::td_api::chatListFolder::ID) return;
+    const auto& folder = static_cast<td::td_api::chatListFolder&>(*update_chat_added_to_list.chat_list_);
+    EmitChatFolder(update_chat_added_to_list.chat_id_, folder.chat_folder_id_, true);
+  },
+  [this](td::td_api::updateChatRemovedFromList& update_chat_removed_from_list)
+  {
+    LOG_TRACE("update chat removed from list");
+
+    if (update_chat_removed_from_list.chat_list_->get_id() != td::td_api::chatListFolder::ID) return;
+    const auto& folder = static_cast<td::td_api::chatListFolder&>(*update_chat_removed_from_list.chat_list_);
+    EmitChatFolder(update_chat_removed_from_list.chat_id_, folder.chat_folder_id_, false);
   },
   [](td::td_api::updateHavePendingNotifications&)
   {
@@ -3071,6 +3128,15 @@ void TgChat::Impl::SendQuery(td::td_api::object_ptr<td::td_api::Function> f,
   {
     m_ClientManager->send(m_ClientId, request_id, std::move(f));
   }
+}
+
+void TgChat::Impl::EmitChatFolder(int64_t p_ChatId, int32_t p_FolderId, bool p_IsMember)
+{
+  std::shared_ptr<UpdateChatFolderNotify> notify = std::make_shared<UpdateChatFolderNotify>(m_ProfileId);
+  notify->folderId = p_FolderId;
+  notify->chatIds.push_back(StrUtil::NumToHex(p_ChatId));
+  notify->isMember = p_IsMember;
+  CallMessageHandler(notify);
 }
 
 void TgChat::Impl::CheckAuthError(Object object)

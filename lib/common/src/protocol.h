@@ -132,6 +132,8 @@ enum MessageType
   MoveChatNotifyType,
   NewStickersNotifyType,
   NewStickerSetsNotifyType,
+  NewChatFoldersNotifyType,
+  UpdateChatFolderNotifyType,
 };
 
 struct ContactInfo
@@ -819,4 +821,24 @@ public:
   bool success = false;
   std::string chatId;
   bool isArchived = false;
+};
+
+class NewChatFoldersNotify : public ServiceMessage
+{
+public:
+  explicit NewChatFoldersNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return NewChatFoldersNotifyType; }
+  std::vector<std::pair<int32_t, std::string>> folders;
+};
+
+class UpdateChatFolderNotify : public ServiceMessage
+{
+public:
+  explicit UpdateChatFolderNotify(const std::string& p_ProfileId)
+    : ServiceMessage(p_ProfileId) { }
+  virtual MessageType GetMessageType() const { return UpdateChatFolderNotifyType; }
+  int32_t folderId = 0;
+  std::vector<std::string> chatIds;
+  bool isMember = false;
 };
