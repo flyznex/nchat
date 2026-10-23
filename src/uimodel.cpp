@@ -3475,7 +3475,9 @@ std::vector<ListChat> UiModel::Impl::BuildListChats()
     const auto folderIt = m_Folders.find(chatPair.first);
     if (folderIt != m_Folders.end())
     {
-      const std::set<int32_t>& ids = m_ChatFolderIds[chatPair.first][chatPair.second];
+      // forum topic ids are "<chat>:<topic>", folders are tracked per parent chat
+      const std::string parentChatId = chatPair.second.substr(0, chatPair.second.find(':'));
+      const std::set<int32_t>& ids = m_ChatFolderIds[chatPair.first][parentChatId];
       for (const auto& folder : folderIt->second)
       {
         if (ids.count(folder.first)) chat.folders.insert(folder.second);
