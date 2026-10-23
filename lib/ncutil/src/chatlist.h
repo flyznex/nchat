@@ -16,12 +16,14 @@ struct ListChat
   std::string name;
   std::string group;
   bool unread;
+  std::set<std::string> folders; // names of the folders the chat belongs to
 };
 
 struct ListFilter
 {
   std::string text;
   bool unreadOnly = false;
+  std::string folder; // empty = All
 };
 
 struct ListRow
@@ -38,4 +40,6 @@ public:
   static int Move(const std::vector<ListRow>& p_Rows, int p_CurChat, int p_Delta);
   static int Nearest(const std::vector<ListRow>& p_Rows, int p_Chat); // p_Chat if visible, else next, else previous, else -1
   static int Edge(const std::vector<ListRow>& p_Rows, bool p_Last);
+  static std::string CycleFolder(const std::vector<std::string>& p_Names, const std::string& p_Current, int p_Delta);
+  static int FirstTab(const std::vector<int>& p_Widths, int p_Selected, int p_Width, int p_Gap);
 };
