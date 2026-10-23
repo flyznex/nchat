@@ -46,6 +46,9 @@ show_usage()
   echo "Env:"
   echo "  NCHAT_PREFIX    - install prefix (default: /usr/local). A user-writable"
   echo "                    prefix such as ~/.local installs without sudo/doas."
+  echo "  USE_VCPKG=1     - manage C/C++ deps via vcpkg manifest mode (vcpkg.json)"
+  echo "                    instead of system packages. Needs VCPKG_ROOT with the"
+  echo "                    vcpkg registry cloned. Go/toolchain deps stay system."
   echo ""
 }
 
@@ -64,6 +67,16 @@ SRC="0"
 BUMP="0"
 YES=""
 CMAKEARGS="${DEV_CMAKEARGS:-} ${NCHAT_CMAKEARGS:-}"
+
+# vcpkg (opt-in): USE_VCPKG=1 uses $VCPKG_ROOT manifest mode for C/C++ deps
+# (see vcpkg.json). Requires the vcpkg registry cloned at $VCPKG_ROOT.
+if [[ "${USE_VCPKG}" == "1" ]]; then
+  VCPKG_TOOLCHAIN="${VCPKG_ROOT:-${HOME}/.local/share/vcpkg}/scripts/buildsystems/vcpkg.cmake"
+  if [[ ! -f "${VCPKG_TOOLCHAIN}" ]]; then
+    exiterr "vcpkg toolchain not found: ${VCPKG_TOOLCHAIN} (clone https://github.com/microsoft/vcpkg into VCPKG_ROOT)"
+  fi
+  CMAKEARGS="-DCMAKE_TOOLCHAIN_FILE=${VCPKG_TOOLCHAIN} ${CMAKEARGS}"
+fi
 
 if [[ "${#}" == "0" ]]; then
   show_usage

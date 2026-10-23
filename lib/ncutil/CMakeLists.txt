@@ -16,6 +16,10 @@ find_path(MAGIC_INCLUDE_DIR magic.h
   /usr/local/include
   /usr/include
 )
+# keep compatible with cmake_minimum_required 3.16 (REQUIRED for find_* needs 3.18)
+if(NOT MAGIC_LIBRARY OR NOT MAGIC_INCLUDE_DIR)
+  message(FATAL_ERROR "libmagic not found: install file-devel (RPM) / libmagic-dev (DEB), or set MAGIC_LIBRARY/MAGIC_INCLUDE_DIR")
+endif()
 if(HAS_STATIC_EXTLIBS)
   # static libmagic needs its compression backends
   foreach(MAGIC_DEP z bz2 lzma zstd)

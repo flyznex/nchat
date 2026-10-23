@@ -1,0 +1,12 @@
+{
+  "name": "nchat",
+  "version-string": "5.20.10",
+  "builtin-baseline": "67972e92edd181d433927b42d8ab4bfa52ac164a",
+  "dependencies": [
+    "libmagic",
+    "libpng",
+    "ncurses",
+    "sqlite3",
+    "zlib"
+  ]
+}
