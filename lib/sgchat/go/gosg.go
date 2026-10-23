@@ -1532,7 +1532,7 @@ func (handler *SgEventHandler) handleReceipt(evt *events.Receipt) bool {
 			msgId := fmt.Sprintf("%d", timestamp)
 			// For receipts, we need the chatId which we derive from the sender
 			chatId := senderId
-			LOG_TRACE(fmt.Sprintf("Call CSgNewMessageStatusNotify read %t", isRead))
+			LOG_TRACE(fmt.Sprintf("Call CSgNewMessageStatusNotify isRead %t", isRead))
 			CSgNewMessageStatusNotify(connId, chatId, msgId, BoolToInt(isRead), BoolToInt(!isRead))
 		}
 	}

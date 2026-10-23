@@ -1014,7 +1014,8 @@ void WmNewMessageStatusNotify(int p_ConnId, char* p_ChatId, char* p_MsgId, int p
       std::make_shared<NewMessageStatusNotify>(instance->GetProfileId());
     newMessageStatusNotify->chatId = std::string(p_ChatId);
     newMessageStatusNotify->msgId = std::string(p_MsgId);
-    newMessageStatusNotify->isRead = (p_IsRead == 1); newMessageStatusNotify->isDelivered = (p_IsDelivered == 1);
+    newMessageStatusNotify->isRead = (p_IsRead == 1);
+    newMessageStatusNotify->isDelivered = (p_IsDelivered == 1);
 
     std::shared_ptr<DeferNotifyRequest> deferNotifyRequest = std::make_shared<DeferNotifyRequest>();
     deferNotifyRequest->serviceMessage = newMessageStatusNotify;
