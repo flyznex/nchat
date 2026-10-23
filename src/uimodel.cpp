@@ -2019,13 +2019,14 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
           std::static_pointer_cast<NewMessageStatusNotify>(p_ServiceMessage);
         std::string chatId = newMessageStatusNotify->chatId;
         std::string msgId = newMessageStatusNotify->msgId;
-        bool isRead = newMessageStatusNotify->isRead;
-        LOG_TRACE("new read status %s is %s", msgId.c_str(), (isRead ? "read" : "unread"));
+        LOG_TRACE("new status %s read %d delivered %d", msgId.c_str(), newMessageStatusNotify->isRead,
+                  newMessageStatusNotify->isDelivered);
         std::unordered_map<std::string, ChatMessage>& messages = m_Messages[profileId][chatId];
         auto mit = messages.find(msgId);
         if (mit != messages.end())
         {
-          mit->second.isRead = isRead;
+          if (newMessageStatusNotify->isRead) mit->second.isRead = true;
+          if (newMessageStatusNotify->isDelivered) mit->second.isDelivered = true;
         }
 
         UpdateChatInfoIsUnread(profileId, chatId);

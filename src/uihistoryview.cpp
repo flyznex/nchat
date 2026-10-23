@@ -12,6 +12,7 @@
 
 #include "appconfig.h"
 #include "apputil.h"
+#include "deliverystate.h"
 #include "fileutil.h"
 #include "imagecache.h"
 #include "imagegeom.h"
@@ -394,9 +395,21 @@ void UiHistoryView::Draw()
     }
 
     static const std::string readIndicator = " " + UiConfig::GetStr("read_indicator");
+    static const std::string sentIndicator = " " + UiConfig::GetStr("sent_indicator");
+    static const std::string deliveredIndicator = " " + UiConfig::GetStr("delivered_indicator");
     static const std::string editedIndicator = " " + UiConfig::GetStr("edited_indicator");
     static const std::string pinnedIndicator = " " + UiConfig::GetStr("pinned_indicator");
-    std::wstring wreceipt = StrUtil::ToWString(msg.isRead ? readIndicator : "");
+    const bool isPending = (msg.timeSent == std::numeric_limits<int64_t>::max());
+    std::string receipt;
+    switch (GetDeliveryState(msg.isOutgoing, isPending, msg.isRead, msg.isDelivered))
+    {
+      case DeliveryState::Read: receipt = readIndicator; break;
+      case DeliveryState::Delivered: receipt = deliveredIndicator; break;
+      case DeliveryState::Sent: receipt = sentIndicator; break;
+      case DeliveryState::None:
+      default: break;
+    }
+    std::wstring wreceipt = StrUtil::ToWString(receipt);
     std::wstring wedited = StrUtil::ToWString(msg.isEdited ? editedIndicator : "");
     std::wstring wpinned = StrUtil::ToWString(msg.isPinned ? pinnedIndicator : "");
     std::wstring wheader = wsender + wtime + wreceipt + wedited + wpinned;
