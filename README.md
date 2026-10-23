@@ -156,9 +156,9 @@ chats grouped under a "Pinned" header and one header per account (shown when
 there are two or more groups). Groups can be collapsed with `z`, `/` filters
 chats by name (case-insensitive) and `u` shows only chats with unread messages.
 Telegram chat folders show as tabs above the chat list; `folder_next` /
-`folder_prev` (default alt-l / alt-h) switch between All and the folders. The text entry shows a title line while
-composing, replying or editing, and grows with its content up to half the
-screen height.
+`folder_prev` (default alt-l / alt-h) switch between All and the folders.
+The text entry shows a title line while composing, replying or editing, and
+grows with its content up to half the screen height.
 
 Alt-Enter inserts a linebreak. With the default `linefeed_on_enter=1` ncurses
 turns the CR sent by Alt-Enter into LF, so the `newline` key defaults to

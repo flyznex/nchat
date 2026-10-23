@@ -3403,6 +3403,7 @@ std::vector<std::string> UiModel::Impl::GetFolderNames()
   {
     for (const auto& folder : profile.second)
     {
+      if (folder.second.empty()) continue;
       if (std::find(names.begin(), names.end(), folder.second) == names.end()) names.push_back(folder.second);
     }
   }
