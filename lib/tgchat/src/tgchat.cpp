@@ -1812,6 +1812,64 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<FindMessageRequest> findMessageRequest =
           std::static_pointer_cast<FindMessageRequest>(p_RequestMessage);
 
+        if (findMessageRequest->findPinned)
+        {
+          // pinned messages are usually older than the cached history, so ask the server
+          const std::string chatIdStr = findMessageRequest->chatId;
+          const ChatRef chatRef = ParseChatId(chatIdStr);
+          const int32_t topicId = GetEffectiveTopicId(chatRef);
+          const int64_t fromMsgId = findMessageRequest->fromMsgId.empty()
+            ? 0 : StrUtil::NumFromHex<int64_t>(findMessageRequest->fromMsgId);
+
+          auto search_chat_messages = td::td_api::make_object<td::td_api::searchChatMessages>();
+          search_chat_messages->chat_id_ = chatRef.chatId;
+          if (topicId > 0)
+          {
+            search_chat_messages->topic_id_ = td::td_api::make_object<td::td_api::messageTopicForum>(topicId);
+          }
+
+          search_chat_messages->from_message_id_ = fromMsgId;
+          search_chat_messages->limit_ = 2; // from_message_id itself is included, so look one further
+          search_chat_messages->filter_ = td::td_api::make_object<td::td_api::searchMessagesFilterPinned>();
+
+          SendQuery(std::move(search_chat_messages),
+                    [this, chatIdStr, fromMsgId](Object object)
+          {
+            std::vector<ChatMessage> chatMessages;
+            if (object->get_id() == td::td_api::foundChatMessages::ID)
+            {
+              auto found = td::move_tl_object_as<td::td_api::foundChatMessages>(object);
+              for (auto& message : found->messages_)
+              {
+                if (message->id_ == fromMsgId) continue;
+
+                ChatMessage chatMessage;
+                TdMessageConvert(*message, chatMessage);
+                chatMessages.push_back(chatMessage);
+                break;
+              }
+            }
+
+            if (!chatMessages.empty())
+            {
+              std::shared_ptr<NewMessagesNotify> newMessagesNotify = std::make_shared<NewMessagesNotify>(m_ProfileId);
+              newMessagesNotify->success = true;
+              newMessagesNotify->chatId = chatIdStr;
+              newMessagesNotify->chatMessages = chatMessages;
+              newMessagesNotify->fromMsgId = "";
+              newMessagesNotify->sequence = false;
+              CallMessageHandler(newMessagesNotify);
+            }
+
+            std::shared_ptr<FindMessageNotify> findMessageNotify = std::make_shared<FindMessageNotify>(m_ProfileId);
+            findMessageNotify->success = !chatMessages.empty();
+            findMessageNotify->chatId = chatIdStr;
+            findMessageNotify->msgId = chatMessages.empty() ? "" : chatMessages.front().id;
+            CallMessageHandler(findMessageNotify);
+          });
+          break;
+        }
+
         MessageCache::FindMessage(m_ProfileId,
                                   findMessageRequest->chatId,
                                   findMessageRequest->fromMsgId,
