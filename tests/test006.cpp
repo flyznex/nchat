@@ -174,6 +174,29 @@ static void TestFirstKeys()
   unittest::ExpectTrue(!r.Map().FirstKeys(NavFocus::List, NavAction::Down, true, k));
 }
 
+static void TestContinuations()
+{
+  NavKeyResolver r;
+  std::vector<NavHint> h = r.Map().Continuations(NavFocus::Entry, { 23 }, keys, true);
+  unittest::ExpectEqual(size_t, h.size(), size_t(3));
+  unittest::ExpectTrue((h[0].keys == std::vector<wint_t>{ L'a' }));
+  unittest::ExpectTrue(h[0].action == NavAction::SelectContact);
+  unittest::ExpectTrue(h[1].action == NavAction::FocusList);
+  unittest::ExpectTrue(h[2].action == NavAction::FocusHistory);
+
+  h = r.Map().Continuations(NavFocus::List, { L'g' }, keys, true);
+  unittest::ExpectEqual(size_t, h.size(), size_t(1));
+  unittest::ExpectTrue(h[0].action == NavAction::First);
+  unittest::ExpectTrue(r.Map().Continuations(NavFocus::List, { L'g' }, keys, false).empty());
+
+  // PendingKeys tracks the resolver state
+  unittest::ExpectTrue(r.PendingKeys().empty());
+  r.Resolve(NavFocus::List, 23, keys, true);
+  unittest::ExpectTrue((r.PendingKeys() == std::vector<wint_t>{ 23 }));
+  r.Resolve(NavFocus::List, L'a', keys, true);
+  unittest::ExpectTrue(r.PendingKeys().empty());
+}
+
 static void TestNavConfErrors()
 {
   NavKeyResolver r;
@@ -205,6 +228,7 @@ int main()
     TestPaneKeys();
     TestNavConf();
     TestFirstKeys();
+    TestContinuations();
     TestNavConfErrors();
   }
   catch (const std::exception& ex)

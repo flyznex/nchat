@@ -20,8 +20,12 @@ UiHelpView::UiHelpView(const UiViewParams& p_Params)
 {
 }
 
+static std::string NavKeysLabel(const std::vector<wint_t>& p_Keys);
+
 void UiHelpView::Draw()
 {
+  std::vector<wint_t> navPrefix;
+  std::vector<NavHint> navHints;
   if (!m_Enabled || !m_Dirty) return;
   m_Dirty = false;
 
@@ -260,6 +264,19 @@ void UiHelpView::Draw()
   else if (m_Model->GetMessageDialogActiveLocked())
   {
     wstr = messageDialogHelpViews.at(m_Model->GetHelpOffsetLocked() % messageDialogHelpViews.size());
+  }
+  else if (m_Model->GetNavHintLocked(navPrefix, navHints))
+  {
+    std::vector<std::wstring> items;
+    for (const NavHint& hint : navHints)
+    {
+      if (hint.action == NavAction::None) continue;
+      items.push_back(StrUtil::ToWString(NavKeysLabel(hint.keys) + " " + NavActionName(hint.action)));
+    }
+
+    std::string prefix = NavKeysLabel(navPrefix);
+    while (!prefix.empty() && (prefix.back() == ' ')) prefix.pop_back();
+    wstr = StrUtil::ToWString(prefix + ": ") + StrUtil::Join(items, L" | ");
   }
   else if (m_Model->GetEditMessageActiveLocked())
   {

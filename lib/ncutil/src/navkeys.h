@@ -43,6 +43,14 @@ struct NavBinding
   bool vimOnly;
 };
 
+struct NavHint
+{
+  std::vector<wint_t> keys; // keys still to press
+  NavAction action; // None when the keys only lead to a longer sequence
+};
+
+const char* NavActionName(NavAction p_Action);
+
 class NavKeyMap
 {
 public:
@@ -53,6 +61,9 @@ public:
   std::vector<std::string> Load(const std::string& p_Text, bool p_VimOnly = false);
   const NavBinding* Find(NavFocus p_Focus, const std::vector<wint_t>& p_Seq, const NavKeys& p_Keys, bool p_Vim,
                          bool& p_Prefix) const;
+  // What can follow the pending sequence p_Seq in this focus.
+  std::vector<NavHint> Continuations(NavFocus p_Focus, const std::vector<wint_t>& p_Seq, const NavKeys& p_Keys,
+                                     bool p_Vim) const;
   // Keys of the last-defined active binding for the action, false if unbound in that focus.
   bool FirstKeys(NavFocus p_Focus, NavAction p_Action, bool p_Vim, std::vector<wint_t>& p_Keys) const;
 
@@ -65,6 +76,7 @@ class NavKeyResolver
 public:
   NavAction Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys& p_Keys, bool p_Vim);
   NavKeyMap& Map() { return m_Map; }
+  const std::vector<wint_t>& PendingKeys() const { return m_Seq; }
 
 private:
   NavKeyMap m_Map;

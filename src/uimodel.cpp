@@ -3605,7 +3605,7 @@ void UiModel::Impl::SnapSelectionToRows()
   if ((chat >= 0) && (chat != m_CurrentChatIndex)) SelectChatIndex(chat);
 }
 
-bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
+const NavKeys& UiModel::Impl::GetNavKeys()
 {
   static const NavKeys navKeys = []()
   {
@@ -3621,6 +3621,22 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
     keys.panePrefix = UiKeyConfig::GetKey("pane_prefix");
     return keys;
   }();
+  return navKeys;
+}
+
+bool UiModel::Impl::GetNavHint(std::vector<wint_t>& p_Prefix, std::vector<NavHint>& p_Hints)
+{
+  static const bool vim = UiConfig::GetBool("vim_keys");
+  p_Prefix = m_NavResolver.PendingKeys();
+  if (p_Prefix.empty()) return false;
+
+  p_Hints = m_NavResolver.Map().Continuations(m_Focus, p_Prefix, GetNavKeys(), vim);
+  return true;
+}
+
+bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
+{
+  const NavKeys& navKeys = GetNavKeys();
   static const bool vim = UiConfig::GetBool("vim_keys");
   static const int kHalfPage = 5; // ponytail: fixed step, view height not wired in
   static wint_t keyCancel = UiKeyConfig::GetKey("cancel");
@@ -3662,7 +3678,9 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
     return true;
   }
 
+  const bool wasPending = !m_NavResolver.PendingKeys().empty();
   const NavAction action = m_NavResolver.Resolve(m_Focus, p_Key, navKeys, vim);
+  if (wasPending || !m_NavResolver.PendingKeys().empty()) UpdateHelp(); // the help line shows the pending keys
   if (action == NavAction::None) return false;
 
   AnyUserKeyInput();
@@ -5983,6 +6001,12 @@ NavFocus UiModel::GetFocusLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetFocus();
+}
+
+bool UiModel::GetNavHintLocked(std::vector<wint_t>& p_Prefix, std::vector<NavHint>& p_Hints)
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetNavHint(p_Prefix, p_Hints);
 }
 
 const NavKeyMap& UiModel::GetNavMapLocked()

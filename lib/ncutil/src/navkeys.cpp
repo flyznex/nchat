@@ -132,6 +132,27 @@ static bool ParseAction(const std::string& p_Str, NavAction& p_Action)
   return false;
 }
 
+const char* NavActionName(NavAction p_Action)
+{
+  for (const auto& entry : s_Actions)
+  {
+    if (entry.action == p_Action) return entry.name;
+  }
+
+  return "";
+}
+
+static bool Matches(const NavBinding& p_Binding, const std::vector<wint_t>& p_Seq, const NavKeys& p_Keys)
+{
+  for (size_t i = 0; i < p_Seq.size(); ++i)
+  {
+    const wint_t token = p_Binding.keys[i];
+    if ((token != p_Seq[i]) && !((token == NavKeyMap::Pane) && (p_Seq[i] == p_Keys.panePrefix))) return false;
+  }
+
+  return true;
+}
+
 NavKeyMap::NavKeyMap()
 {
   Load(s_Defaults, true);
@@ -211,18 +232,31 @@ const NavBinding* NavKeyMap::Find(NavFocus p_Focus, const std::vector<wint_t>& p
   {
     if (!(b.focusMask & bit) || (b.vimOnly && !p_Vim) || (b.keys.size() < p_Seq.size())) continue;
 
-    bool match = true;
-    for (size_t i = 0; match && (i < p_Seq.size()); ++i)
-    {
-      match = (b.keys[i] == p_Seq[i]) || ((b.keys[i] == Pane) && (p_Seq[i] == p_Keys.panePrefix));
-    }
-
-    if (!match) continue;
+    if (!Matches(b, p_Seq, p_Keys)) continue;
     if (b.keys.size() == p_Seq.size()) return &b;
     p_Prefix = true;
   }
 
   return nullptr;
+}
+
+std::vector<NavHint> NavKeyMap::Continuations(NavFocus p_Focus, const std::vector<wint_t>& p_Seq,
+                                              const NavKeys& p_Keys, bool p_Vim) const
+{
+  const unsigned bit = 1u << static_cast<unsigned>(p_Focus);
+  std::vector<NavHint> hints;
+  for (const NavBinding& b : m_Bindings)
+  {
+    if (!(b.focusMask & bit) || (b.vimOnly && !p_Vim) || (b.keys.size() <= p_Seq.size())) continue;
+    if (!Matches(b, p_Seq, p_Keys)) continue;
+
+    NavHint hint;
+    hint.keys.assign(b.keys.begin() + p_Seq.size(), b.keys.end());
+    hint.action = b.action;
+    hints.push_back(hint);
+  }
+
+  return hints;
 }
 
 bool NavKeyMap::FirstKeys(NavFocus p_Focus, NavAction p_Action, bool p_Vim, std::vector<wint_t>& p_Keys) const

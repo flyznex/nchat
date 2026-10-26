@@ -151,6 +151,8 @@ private:
     void SetFocus(NavFocus p_Focus);
     NavFocus GetFocus();
     const NavKeyMap& GetNavMap() { return m_NavResolver.Map(); }
+    static const NavKeys& GetNavKeys();
+    bool GetNavHint(std::vector<wint_t>& p_Prefix, std::vector<NavHint>& p_Hints);
     void FocusEntryIfEditing();
     const ListFilter& GetListFilter();
     std::vector<std::string> GetFolderNames();
@@ -433,6 +435,7 @@ public:
   bool GetSelectMessageActiveLocked();
   NavFocus GetFocusLocked();
   const NavKeyMap& GetNavMapLocked();
+  bool GetNavHintLocked(std::vector<wint_t>& p_Prefix, std::vector<NavHint>& p_Hints);
   std::vector<ListRow> GetListRowsLocked();
   const ListFilter& GetListFilterLocked();
   std::vector<std::string> GetFolderNamesLocked();
