@@ -13,6 +13,8 @@
 
 #include "strutil.h"
 
+const wint_t NavKeyMap::Pane;
+
 static const char* s_Defaults =
   "map list,history j down\n"
   "map list,history k up\n"
