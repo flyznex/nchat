@@ -64,6 +64,15 @@ void UiModel::Impl::Init()
 {
   m_View->Init();
   if (m_View->GetListEnabled()) m_Focus = NavFocus::List;
+
+  const std::string navPath = FileUtil::GetApplicationDir() + std::string("/nav.conf");
+  if (FileUtil::Exists(navPath))
+  {
+    for (const std::string& err : m_NavResolver.Map().Load(FileUtil::ReadFile(navPath)))
+    {
+      LOG_WARNING("nav.conf %s", err.c_str());
+    }
+  }
 }
 
 void UiModel::Impl::Cleanup()

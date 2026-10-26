@@ -126,6 +126,54 @@ static void TestPaneKeys()
   unittest::ExpectTrue(R(Entry, L'h', false) == NavAction::None);
 }
 
+static void TestNavConf()
+{
+  NavKeyResolver r;
+  const std::vector<std::string> errs = r.Map().Load(
+    "# comment\n"
+    "map list x delete\n"            // new key
+    "map list,history <Space> reply\n"
+    "map list j none\n"              // disable a default
+    "unmap history r\n"              // remove a default
+    "map list <Pane>x folderprev\n"  // custom pane sequence
+    "unmap list z\n"                 // an exact single key wins over a longer sequence
+    "map list zz first\n"
+    "map entry <C-g> search\n");
+  unittest::ExpectEqual(size_t, errs.size(), size_t(0));
+  unittest::ExpectTrue(R(List, L'x', true) == NavAction::Delete);
+  unittest::ExpectTrue(R(List, L' ', true) == NavAction::Reply);
+  unittest::ExpectTrue(R(History, L' ', true) == NavAction::Reply);
+  unittest::ExpectTrue(R(List, L'j', true) == NavAction::None);
+  unittest::ExpectTrue(R(History, L'j', true) == NavAction::Down);
+  unittest::ExpectTrue(R(History, L'r', true) == NavAction::None);
+  unittest::ExpectTrue(R(List, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(List, L'x', true) == NavAction::FolderPrev);
+  unittest::ExpectTrue(R(List, L'z', true) == NavAction::Pending);
+  unittest::ExpectTrue(R(List, L'z', true) == NavAction::First);
+  unittest::ExpectTrue(R(Entry, 7, true) == NavAction::Search);
+  // user maps work without vim_keys, defaults do not
+  unittest::ExpectTrue(R(List, L'x', false) == NavAction::Delete);
+  unittest::ExpectTrue(R(List, L'k', false) == NavAction::None);
+}
+
+static void TestNavConfErrors()
+{
+  NavKeyResolver r;
+  const std::vector<std::string> errs = r.Map().Load(
+    "map list x\n"
+    "map nowhere x delete\n"
+    "map list <Bogus> delete\n"
+    "map list x explode\n"
+    "map list <lt> delete\n");
+  unittest::ExpectEqual(size_t, errs.size(), size_t(4));
+  unittest::ExpectTrue(R(List, L'<', false) == NavAction::Delete);
+  // mapclear drops the defaults but keeps the configured keys
+  r.Map().Load("mapclear\nmap list q open\n");
+  unittest::ExpectTrue(R(List, L'j', true) == NavAction::None);
+  unittest::ExpectTrue(R(List, L'q', true) == NavAction::Open);
+  unittest::ExpectTrue(R(List, 1001, true) == NavAction::Up);
+}
+
 int main()
 {
   int rv = 0;
@@ -137,6 +185,8 @@ int main()
     TestVimHistory();
     TestGg();
     TestPaneKeys();
+    TestNavConf();
+    TestNavConfErrors();
   }
   catch (const std::exception& ex)
   {
