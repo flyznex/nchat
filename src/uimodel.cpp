@@ -1702,6 +1702,15 @@ void UiModel::Impl::OpenCreateChat(const std::pair<std::string, std::string>& p_
   ReinitView();
 }
 
+void UiModel::Impl::OpenFindChat(const std::string& p_ProfileId, const std::string& p_Query)
+{
+  LOG_TRACE("find chat %s", p_Query.c_str());
+  std::shared_ptr<FindChatRequest> findChatRequest = std::make_shared<FindChatRequest>();
+  findChatRequest->query = p_Query;
+  SendProtocolRequest(p_ProfileId, findChatRequest);
+  ReinitView();
+}
+
 void UiModel::Impl::FetchCachedMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                                        const std::string& p_MsgId)
 {
@@ -2161,7 +2170,17 @@ void UiModel::Impl::MessageHandler(std::shared_ptr<ServiceMessage> p_ServiceMess
           const ChatInfo& chatInfo = createChatNotify->chatInfo;
           LOG_TRACE("chat created %s", chatInfo.id.c_str());
 
-          m_ChatInfos[profileId][chatInfo.id] = chatInfo;
+          // a lookup by username or phone may resolve to a chat that already exists
+          auto existingIt = m_ChatInfos[profileId].find(chatInfo.id);
+          if (existingIt == m_ChatInfos[profileId].end())
+          {
+            m_ChatInfos[profileId][chatInfo.id] = chatInfo;
+          }
+          else
+          {
+            existingIt->second.isArchived = false;
+          }
+
           if (m_ChatSet[profileId].insert(chatInfo.id).second)
           {
             m_ChatVec.push_back(std::make_pair(profileId, chatInfo.id));
@@ -6181,7 +6200,14 @@ void UiModel::OnKeySelectContact()
     std::string userId = selectedContact.contactId;
     std::pair<std::string, std::string> newChat = std::make_pair(profileId, userId);
     std::unique_lock<owned_mutex> lock(m_ModelMutex);
-    GetImpl().OpenCreateChat(newChat);
+    if (!selectedContact.lookupQuery.empty())
+    {
+      GetImpl().OpenFindChat(profileId, selectedContact.lookupQuery);
+    }
+    else
+    {
+      GetImpl().OpenCreateChat(newChat);
+    }
   }
   else
   {

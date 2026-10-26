@@ -1556,6 +1556,40 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case FindChatRequestType:
+      {
+        Status::Set(m_ProfileId, Status::FlagUpdating);
+
+        std::shared_ptr<FindChatRequest> findChatRequest =
+          std::static_pointer_cast<FindChatRequest>(p_RequestMessage);
+        const std::string& query = findChatRequest->query;
+        LOG_DEBUG("find chat %s", query.c_str());
+
+        if (!query.empty() && (query[0] == '@'))
+        {
+          auto searchChat = td::td_api::make_object<td::td_api::searchPublicChat>(query.substr(1));
+          SendQuery(std::move(searchChat), [this](Object obj) { CreateChat(std::move(obj)); });
+        }
+        else
+        {
+          auto searchUser = td::td_api::make_object<td::td_api::searchUserByPhoneNumber>(query, false);
+          SendQuery(std::move(searchUser), [this](Object obj)
+          {
+            if (obj->get_id() != td::td_api::user::ID)
+            {
+              CreateChat(std::move(obj)); // error, logs and clears status
+              return;
+            }
+
+            auto user = td::move_tl_object_as<td::td_api::user>(obj);
+            auto createChat = td::td_api::make_object<td::td_api::createPrivateChat>();
+            createChat->user_id_ = user->id_;
+            SendQuery(std::move(createChat), [this](Object chatObj) { CreateChat(std::move(chatObj)); });
+          });
+        }
+      }
+      break;
+
     case DownloadFileRequestType:
       {
         std::shared_ptr<DownloadFileRequest> downloadFileRequest =

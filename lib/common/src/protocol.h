@@ -102,6 +102,7 @@ enum MessageType
   GetStickersRequestType,
   GetStickerSetsRequestType,
   SendStickerRequestType,
+  FindChatRequestType,
   // Service messages
   ServiceMessageType,
   NewContactsNotifyType,
@@ -493,6 +494,13 @@ public:
   virtual MessageType GetMessageType() const { return SendStickerRequestType; }
   std::string chatId;
   int32_t stickerFileId = 0;
+};
+
+class FindChatRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return FindChatRequestType; }
+  std::string query; // "@username" or phone number in international format
 };
 
 // Service messages

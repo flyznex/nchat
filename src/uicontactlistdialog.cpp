@@ -8,11 +8,33 @@
 #include "uicontactlistdialog.h"
 
 #include <algorithm>
+#include <cctype>
 
 #include "apputil.h"
 #include "log.h"
 #include "uimodel.h"
 #include "strutil.h"
+
+// "@username" (5-32 chars) or a phone number (7-15 digits, optional +, spaces and dashes ignored), else empty
+static std::string GetLookupQuery(const std::string& p_Filter)
+{
+  if ((p_Filter.size() >= 6) && (p_Filter.size() <= 33) && (p_Filter[0] == '@') &&
+      std::all_of(p_Filter.begin() + 1, p_Filter.end(),
+                  [](unsigned char c) { return std::isalnum(c) || (c == '_'); }))
+  {
+    return p_Filter;
+  }
+
+  std::string digits;
+  for (size_t i = 0; i < p_Filter.size(); ++i)
+  {
+    const unsigned char c = p_Filter[i];
+    if (std::isdigit(c)) digits += c;
+    else if (!((c == '+' && i == 0) || c == ' ' || c == '-')) return "";
+  }
+
+  return ((digits.size() >= 7) && (digits.size() <= 15)) ? digits : "";
+}
 
 UiContactListDialog::UiContactListDialog(const UiDialogParams& p_Params)
   : UiListDialog(p_Params, false /*p_ShadeHidden*/)
@@ -129,6 +151,32 @@ void UiContactListDialog::UpdateList()
   {
     return lhs.name < rhs.name;
   });
+
+  const std::string lookupQuery = GetLookupQuery(StrUtil::ToString(m_FilterStr));
+  if (!lookupQuery.empty())
+  {
+    std::vector<std::string> telegramProfileIds;
+    for (const auto& profileProtocol : m_Model->GetProtocols())
+    {
+      if (StrUtil::GetProtocolName(profileProtocol.first) == "Telegram")
+      {
+        telegramProfileIds.push_back(profileProtocol.first);
+      }
+    }
+
+    std::sort(telegramProfileIds.begin(), telegramProfileIds.end());
+    std::vector<UiContactListItem> lookupItems;
+    for (const std::string& profileId : telegramProfileIds)
+    {
+      UiContactListItem lookupItem;
+      lookupItem.profileId = profileId;
+      lookupItem.lookupQuery = lookupQuery;
+      lookupItem.name = "Open chat with " + lookupQuery + m_Model->GetProfileSuffix(profileId);
+      lookupItems.push_back(lookupItem);
+    }
+
+    localContactListItemVec.insert(localContactListItemVec.begin(), lookupItems.begin(), lookupItems.end());
+  }
 
   for (const auto& contactListItem : localContactListItemVec)
   {
