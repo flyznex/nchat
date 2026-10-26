@@ -19,6 +19,7 @@ struct UiContactListItem
   std::string profileId;
   std::string contactId;
   std::string name;
+  std::string lookupQuery; // set instead of contactId for "@username" / phone number lookups
 };
 
 class UiContactListDialog : public UiListDialog

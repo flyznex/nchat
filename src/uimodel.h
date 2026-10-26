@@ -93,6 +93,7 @@ private:
     std::map<std::string, std::string> ParseMentions(const std::string& p_ProfileId, const std::string& p_ChatId,
                                                      const std::string& p_Text);
     void OpenCreateChat(const std::pair<std::string, std::string>& p_Chat);
+    void OpenFindChat(const std::string& p_ProfileId, const std::string& p_Query);
     void FetchCachedMessage(const std::string& p_ProfileId, const std::string& p_ChatId,
                             const std::string& p_MsgId);
 
