@@ -111,7 +111,7 @@ void Ui::Run()
   while (m_Model->Process() && !AppUtil::IsTerminateRequested())
   {
     wint_t key = UiController::GetKey(50);
-    if (key != 0)
+    if (key != WEOF)
     {
       m_Model->KeyHandler(key);
     }
