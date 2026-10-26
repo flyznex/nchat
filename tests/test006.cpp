@@ -156,6 +156,24 @@ static void TestNavConf()
   unittest::ExpectTrue(R(List, L'k', false) == NavAction::None);
 }
 
+static void TestFirstKeys()
+{
+  NavKeyResolver r;
+  std::vector<wint_t> k;
+  unittest::ExpectTrue(r.Map().FirstKeys(NavFocus::List, NavAction::Down, true, k));
+  unittest::ExpectTrue((k == std::vector<wint_t>{ L'j' }));
+  unittest::ExpectTrue(!r.Map().FirstKeys(NavFocus::List, NavAction::Down, false, k));
+  unittest::ExpectTrue(!r.Map().FirstKeys(NavFocus::History, NavAction::Open, true, k));
+  unittest::ExpectTrue(r.Map().FirstKeys(NavFocus::Entry, NavAction::SelectContact, true, k));
+  unittest::ExpectTrue((k == std::vector<wint_t>{ NavKeyMap::Pane, L'a' }));
+  // the last-defined binding wins, and user maps show without vim_keys
+  r.Map().Load("map list <C-n> down\n");
+  unittest::ExpectTrue(r.Map().FirstKeys(NavFocus::List, NavAction::Down, false, k));
+  unittest::ExpectTrue((k == std::vector<wint_t>{ 14 }));
+  r.Map().Load("unmap list <C-n>\nunmap list j\n");
+  unittest::ExpectTrue(!r.Map().FirstKeys(NavFocus::List, NavAction::Down, true, k));
+}
+
 static void TestNavConfErrors()
 {
   NavKeyResolver r;
@@ -186,6 +204,7 @@ int main()
     TestGg();
     TestPaneKeys();
     TestNavConf();
+    TestFirstKeys();
     TestNavConfErrors();
   }
   catch (const std::exception& ex)

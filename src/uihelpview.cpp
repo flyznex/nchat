@@ -162,22 +162,24 @@ void UiHelpView::Draw()
 
   static const bool vim = UiConfig::GetBool("vim_keys");
 
-  static std::vector<std::wstring> listFocusHelpItems = []()
+  const NavKeyMap& nav = m_Model->GetNavMapLocked();
+
+  static std::vector<std::wstring> listFocusHelpItems = [&nav]()
   {
+    const NavFocus f = NavFocus::List;
     std::vector<std::wstring> helpItems;
-    if (vim)
-    {
-      AppendLiteralHelpItem("j/k", "Move", helpItems);
-      AppendLiteralHelpItem("gg/G", "Ends", helpItems);
-      AppendLiteralHelpItem("/", "Filter", helpItems);
-      AppendLiteralHelpItem("u", "Unread", helpItems);
-      AppendLiteralHelpItem("z", "Fold", helpItems);
-      AppendLiteralHelpItem("l", "Open", helpItems);
-    }
-    else
+    if (!AppendNavHelpItem(nav, f, vim, { NavAction::Down, NavAction::Up }, "Move", helpItems))
     {
       AppendHelpItem("up", "Prev", helpItems);
       AppendHelpItem("down", "Next", helpItems);
+    }
+
+    AppendNavHelpItem(nav, f, vim, { NavAction::First, NavAction::Last }, "Ends", helpItems);
+    AppendNavHelpItem(nav, f, vim, { NavAction::Search }, "Filter", helpItems);
+    AppendNavHelpItem(nav, f, vim, { NavAction::UnreadOnly }, "Unread", helpItems);
+    AppendNavHelpItem(nav, f, vim, { NavAction::ToggleGroup }, "Fold", helpItems);
+    if (!AppendNavHelpItem(nav, f, vim, { NavAction::Open }, "Open", helpItems))
+    {
       AppendHelpItem("ok", "Open", helpItems);
     }
 
@@ -185,25 +187,25 @@ void UiHelpView::Draw()
     return helpItems;
   }();
 
-  static std::vector<std::wstring> historyFocusHelpItems = []()
+  static std::vector<std::wstring> historyFocusHelpItems = [&nav]()
   {
+    const NavFocus f = NavFocus::History;
     std::vector<std::wstring> helpItems;
-    if (vim)
-    {
-      AppendLiteralHelpItem("j/k", "Move", helpItems);
-      AppendLiteralHelpItem("r", "Reply", helpItems);
-      AppendLiteralHelpItem("e", "Edit", helpItems);
-      AppendLiteralHelpItem("y", "Copy", helpItems);
-      AppendLiteralHelpItem("x", "Delete", helpItems);
-      AppendLiteralHelpItem("/", "Find", helpItems);
-    }
-    else
+    if (!AppendNavHelpItem(nav, f, vim, { NavAction::Down, NavAction::Up }, "Move", helpItems))
     {
       AppendHelpItem("up", "Prev", helpItems);
       AppendHelpItem("down", "Next", helpItems);
+    }
+
+    if (!AppendNavHelpItem(nav, f, vim, { NavAction::Reply }, "Reply", helpItems))
+    {
       AppendHelpItem("ok", "Reply", helpItems);
     }
 
+    AppendNavHelpItem(nav, f, vim, { NavAction::Edit }, "Edit", helpItems);
+    AppendNavHelpItem(nav, f, vim, { NavAction::Copy }, "Copy", helpItems);
+    AppendNavHelpItem(nav, f, vim, { NavAction::Delete }, "Delete", helpItems);
+    AppendNavHelpItem(nav, f, vim, { NavAction::Search }, "Find", helpItems);
     AppendHelpItem("focus_entry", "Entry", helpItems);
     return helpItems;
   }();
@@ -345,6 +347,41 @@ void UiHelpView::AppendLiteralHelpItem(const std::string& p_Key, const std::stri
                                        std::vector<std::wstring>& p_HelpItems)
 {
   p_HelpItems.push_back(StrUtil::ToWString(p_Key + " " + p_Desc));
+}
+
+static std::string NavKeysLabel(const std::vector<wint_t>& p_Keys)
+{
+  std::string label;
+  for (const wint_t key : p_Keys)
+  {
+    if (key == NavKeyMap::Pane) label += UiHelpView::GetKeyDisplay("pane_prefix") + " ";
+    else if (key == 9) label += "Tab";
+    else if (key == 10) label += "\xe2\x8f\x8e";
+    else if (key == 27) label += "Esc";
+    else if (key == L' ') label += "Space";
+    else if ((key >= 1) && (key <= 26)) label += UiConfig::GetStr("help_prefix_ctrl") + std::string(1, 'A' + key - 1);
+    else label += StrUtil::ToString(std::wstring(1, static_cast<wchar_t>(key)));
+  }
+
+  return label;
+}
+
+bool UiHelpView::AppendNavHelpItem(const NavKeyMap& p_Map, NavFocus p_Focus, bool p_Vim,
+                                   std::initializer_list<NavAction> p_Actions, const std::string& p_Desc,
+                                   std::vector<std::wstring>& p_HelpItems)
+{
+  std::string label;
+  for (const NavAction action : p_Actions)
+  {
+    std::vector<wint_t> keys;
+    if (!p_Map.FirstKeys(p_Focus, action, p_Vim, keys)) continue;
+    if (!label.empty()) label += "/";
+    label += NavKeysLabel(keys);
+  }
+
+  if (label.empty()) return false;
+  AppendLiteralHelpItem(label, p_Desc, p_HelpItems);
+  return true;
 }
 
 std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)

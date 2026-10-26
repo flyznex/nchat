@@ -62,9 +62,7 @@ UiModel::Impl::~Impl()
 
 void UiModel::Impl::Init()
 {
-  m_View->Init();
-  if (m_View->GetListEnabled()) m_Focus = NavFocus::List;
-
+  // before the view init: the help view reads the bindings once on first draw
   const std::string navPath = FileUtil::GetApplicationDir() + std::string("/nav.conf");
   if (FileUtil::Exists(navPath))
   {
@@ -73,6 +71,9 @@ void UiModel::Impl::Init()
       LOG_WARNING("nav.conf %s", err.c_str());
     }
   }
+
+  m_View->Init();
+  if (m_View->GetListEnabled()) m_Focus = NavFocus::List;
 }
 
 void UiModel::Impl::Cleanup()
@@ -5982,6 +5983,12 @@ NavFocus UiModel::GetFocusLocked()
 {
   nc_assert(m_ModelMutex.owns_lock());
   return GetImpl().GetFocus();
+}
+
+const NavKeyMap& UiModel::GetNavMapLocked()
+{
+  nc_assert(m_ModelMutex.owns_lock());
+  return GetImpl().GetNavMap();
 }
 
 std::vector<ListRow> UiModel::GetListRowsLocked()

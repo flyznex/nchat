@@ -180,6 +180,7 @@ in `nav.conf` are active regardless of `vim_keys`.
 - If a key is bound on its own and also starts a longer sequence, the single key
   wins, so `unmap` it first to use the sequence.
 - Up/Down/Home/End/Enter and Tab/Sh-Tab/Esc are not mapped here, set them in `key.conf`.
+- The help line shown in list and history focus follows these bindings.
 
 Example:
 

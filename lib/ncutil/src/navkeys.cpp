@@ -225,6 +225,21 @@ const NavBinding* NavKeyMap::Find(NavFocus p_Focus, const std::vector<wint_t>& p
   return nullptr;
 }
 
+bool NavKeyMap::FirstKeys(NavFocus p_Focus, NavAction p_Action, bool p_Vim, std::vector<wint_t>& p_Keys) const
+{
+  const unsigned bit = 1u << static_cast<unsigned>(p_Focus);
+  for (auto it = m_Bindings.rbegin(); it != m_Bindings.rend(); ++it)
+  {
+    if ((it->focusMask & bit) && (!it->vimOnly || p_Vim) && (it->action == p_Action))
+    {
+      p_Keys = it->keys;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 NavAction NavKeyResolver::Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys& p_Keys, bool p_Vim)
 {
   std::vector<wint_t> seq;

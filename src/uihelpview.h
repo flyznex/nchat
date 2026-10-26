@@ -7,9 +7,11 @@
 
 #pragma once
 
+#include <initializer_list>
 #include <string>
 #include <vector>
 
+#include "navkeys.h"
 #include "uiviewbase.h"
 
 class UiHelpView : public UiViewBase
@@ -27,4 +29,8 @@ private:
                              std::vector<std::wstring>& p_HelpItems);
   static void AppendLiteralHelpItem(const std::string& p_Key, const std::string& p_Desc,
                                     std::vector<std::wstring>& p_HelpItems);
+  // Appends "<keys> <desc>" from the nav bindings (actions joined by '/'), false if none is bound.
+  static bool AppendNavHelpItem(const NavKeyMap& p_Map, NavFocus p_Focus, bool p_Vim,
+                                std::initializer_list<NavAction> p_Actions, const std::string& p_Desc,
+                                std::vector<std::wstring>& p_HelpItems);
 };

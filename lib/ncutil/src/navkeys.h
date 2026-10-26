@@ -53,6 +53,8 @@ public:
   std::vector<std::string> Load(const std::string& p_Text, bool p_VimOnly = false);
   const NavBinding* Find(NavFocus p_Focus, const std::vector<wint_t>& p_Seq, const NavKeys& p_Keys, bool p_Vim,
                          bool& p_Prefix) const;
+  // Keys of the last-defined active binding for the action, false if unbound in that focus.
+  bool FirstKeys(NavFocus p_Focus, NavAction p_Action, bool p_Vim, std::vector<wint_t>& p_Keys) const;
 
 private:
   std::vector<NavBinding> m_Bindings;
