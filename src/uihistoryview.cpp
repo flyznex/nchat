@@ -18,6 +18,7 @@
 #include "imagegeom.h"
 #include "kittyencoder.h"
 #include "log.h"
+#include "mdstyle.h"
 #include "protocolutil.h"
 #include "strutil.h"
 #include "termgfx.h"
@@ -26,6 +27,48 @@
 #include "uiconfig.h"
 #include "uiimagerow.h"
 #include "uimodel.h"
+
+static int MdAttribute(uint8_t p_Style)
+{
+  int attr = 0;
+  if (p_Style & MdStyleBold) attr |= A_BOLD;
+  if (p_Style & MdStyleItalic)
+  {
+#ifdef A_ITALIC
+    attr |= A_ITALIC;
+#else
+    attr |= A_UNDERLINE;
+#endif
+  }
+
+  if (p_Style & MdStyleCode) attr |= A_REVERSE;
+  return attr;
+}
+
+// draws p_Str in runs of equal style; p_BaseAttr is already on and must stay on after each run
+static void DrawStyledLine(WINDOW* p_Win, int p_Y, int p_X, const std::wstring& p_Str,
+                           const std::vector<uint8_t>& p_Styles, int p_MaxChars, int p_BaseAttr)
+{
+  const int count = std::min(static_cast<int>(p_Str.size()), p_MaxChars);
+  auto styleAt = [&](int p_Idx) -> uint8_t
+  {
+    return (p_Idx < static_cast<int>(p_Styles.size())) ? p_Styles[p_Idx] : static_cast<uint8_t>(MdStyleNone);
+  };
+
+  int x = p_X;
+  for (int i = 0; i < count;)
+  {
+    int j = i + 1;
+    while ((j < count) && (styleAt(j) == styleAt(i))) ++j;
+
+    const int attr = MdAttribute(styleAt(i));
+    wattron(p_Win, attr);
+    mvwaddnwstr(p_Win, p_Y, x, p_Str.c_str() + i, j - i);
+    wattroff(p_Win, attr & ~p_BaseAttr);
+    x += StrUtil::WStringWidth(p_Str.substr(i, j - i));
+    i = j;
+  }
+}
 
 UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
   : UiViewBase(p_Params)
@@ -140,6 +183,8 @@ void UiHistoryView::Draw()
     }();
 
     std::vector<std::wstring> wlines;
+    std::vector<std::vector<uint8_t>> wstyles; // per message text line, wlines index = textOffset + i
+    size_t textOffset = 0;
     if (!msg.text.empty())
     {
       std::string text = msg.text;
@@ -149,7 +194,11 @@ void UiHistoryView::Draw()
         text = StrUtil::Textize(text);
       }
 
-      wlines = StrUtil::WordWrap(StrUtil::ToWString(text), maxW, false, false, false, 2);
+      std::wstring wtext;
+      std::vector<uint8_t> textStyles;
+      MdStyleUtil::Parse(StrUtil::ToWString(text), wtext, textStyles);
+      wlines = StrUtil::WordWrap(wtext, maxW, false, false, false, 2);
+      wstyles = MdStyleUtil::WrapStyles(wtext, textStyles, wlines);
     }
 
     // Quoted message
@@ -166,6 +215,11 @@ void UiHistoryView::Draw()
           {
             quotedText = StrUtil::Textize(quotedText);
           }
+
+          std::wstring wquoted;
+          std::vector<uint8_t> quotedStyles;
+          MdStyleUtil::Parse(StrUtil::ToWString(quotedText), wquoted, quotedStyles);
+          quotedText = StrUtil::ToString(wquoted);
         }
         else if (!quotedIt->second.fileInfo.empty())
         {
@@ -187,6 +241,7 @@ void UiHistoryView::Draw()
       }
 
       wlines.insert(wlines.begin(), quote);
+      ++textOffset;
     }
 
     // File attachment
@@ -275,12 +330,14 @@ void UiHistoryView::Draw()
         for (int row = imageGrid.rows - 1; row >= 0; --row)
         {
           wlines.insert(wlines.begin(), std::wstring{ imageRowMark, static_cast<wchar_t>(row) });
+          ++textOffset;
         }
       }
       else
       {
         std::wstring fileStr = attachmentIndicator + StrUtil::ToWString(fileName + fileStatus);
         wlines.insert(wlines.begin(), fileStr);
+        ++textOffset;
       }
     }
 
@@ -371,6 +428,7 @@ void UiHistoryView::Draw()
     {
       wlines.resize(std::max(0, maxMessageLines - 1)); // tiny terminals: pane height can be <= 1
       wlines.push_back(L"[...]");
+      wstyles.resize(std::max(0, maxMessageLines - 1 - static_cast<int>(textOffset)));
       reactionLines = 0;
     }
 
@@ -467,7 +525,17 @@ void UiHistoryView::Draw()
       }
 
       const std::wstring wdisp = isReaction ? *wline : StrUtil::TrimPadWString(*wline, blockW);
-      mvwaddnwstr(m_PaddedWin, y, x0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+      const size_t lineIdx = static_cast<size_t>(std::distance(wline, wlines.rend())) - 1;
+      const bool isStyledText = !isAttachment && !isQuote && !isReaction &&
+        (lineIdx >= textOffset) && (lineIdx - textOffset < wstyles.size());
+      if (isStyledText)
+      {
+        DrawStyledLine(m_PaddedWin, y, x0, wdisp, wstyles[lineIdx - textOffset], m_PaddedW, attributeText);
+      }
+      else
+      {
+        mvwaddnwstr(m_PaddedWin, y, x0, wdisp.c_str(), std::min((int)wdisp.size(), m_PaddedW));
+      }
 
       if (isAttachment)
       {
