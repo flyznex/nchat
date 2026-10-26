@@ -63,6 +63,7 @@ UiModel::Impl::~Impl()
 void UiModel::Impl::Init()
 {
   m_View->Init();
+  if (m_View->GetListEnabled()) m_Focus = NavFocus::List;
 }
 
 void UiModel::Impl::Cleanup()
