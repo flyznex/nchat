@@ -146,11 +146,47 @@ in list and history focus:
 
 With `vim_keys=1` Ctrl-w followed by h / j / k / l also moves between panes from any
 focus, including the text entry: h list, l history (from the list), j entry (from
-history), k history (from the entry). Any other key after Ctrl-w is ignored.
+history), k history (from the entry). Ctrl-w a opens the contact dialog (same as
+Alt-n), where a Telegram `@username` or phone number can be typed to open a chat.
+Any other key after Ctrl-w is ignored.
 
 With `vim_keys=1` Ctrl-d / Ctrl-u are half-page keys in list and history focus,
 so use `x` to delete a message there. With `vim_keys=0` these letters type into
 the entry and Ctrl-d deletes the selected message again.
+
+**Custom navigation keys (nav.conf)**
+
+The vim keys above are built-in defaults, active without any file and only with
+`vim_keys=1`. To change them create `~/.config/nchat/nav.conf` (read at startup;
+rejected lines are logged as `nav.conf line N: ...` and skipped). Bindings written
+in `nav.conf` are active regardless of `vim_keys`.
+
+    # comment lines start with #
+    map   <focus> <keys> <action>
+    unmap <focus> <keys>
+    mapclear
+
+- `focus`: `list`, `history`, `entry` or `all`, comma-separated to combine (for
+  example `list,history`). Plain keys mapped in `entry` or `all` no longer type into
+  the text entry.
+- `keys`: literal characters or a sequence such as `gg`, plus `<C-x>` (Ctrl),
+  `<Space>`, `<CR>`, `<Tab>`, `<Esc>`, `<lt>` (for `<`) and `<Pane>` (the pane prefix,
+  Ctrl-w by default, `pane_prefix` in `key.conf`). Keys cannot contain spaces.
+- `action`: `up down first last halfup halfdown open reply edit copy delete search
+  findnext unreadonly togglegroup foldernext folderprev selectcontact focusentry
+  focuslist focushistory focusnext focusprev none` (`none` disables a key).
+- Later lines override earlier ones and the built-in defaults. `unmap` removes a
+  binding, `mapclear` removes all defaults.
+- If a key is bound on its own and also starts a longer sequence, the single key
+  wins, so `unmap` it first to use the sequence.
+- Up/Down/Home/End/Enter and Tab/Sh-Tab/Esc are not mapped here, set them in `key.conf`.
+
+Example:
+
+    map all <Pane>a selectcontact
+    map list,history <C-n> down
+    unmap history x
+    map list zz first
 
 The chat list shows two lines per chat (name and last message preview) with
 chats grouped under a "Pinned" header and one header per account (shown when
