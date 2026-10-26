@@ -428,6 +428,14 @@ std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)
   {
     return "Tab";
   }
+  else if (keyName == "\\33")
+  {
+    return "Esc";
+  }
+  else if (keyName == "KEY_CTRL@")
+  {
+    return UiConfig::GetStr("help_prefix_ctrl") + "@";
+  }
   else if (keyName == "KEY_BTAB")
   {
     return "STab";
