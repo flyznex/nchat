@@ -111,8 +111,13 @@ static void TestPaneKeys()
   unittest::ExpectTrue(R(Entry, L'j', true) == NavAction::Pending);
   // unknown key and Esc after the prefix are swallowed, and the prefix expires
   unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
-  unittest::ExpectTrue(R(Entry, L'a', true) == NavAction::Pending);
-  unittest::ExpectTrue(R(Entry, L'a', true) == NavAction::None);
+  unittest::ExpectTrue(R(Entry, L'z', true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'z', true) == NavAction::None);
+  // Ctrl-W a opens the address book from every focus
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'a', true) == NavAction::SelectContact);
+  unittest::ExpectTrue(R(List, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(List, L'a', true) == NavAction::SelectContact);
   unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
   unittest::ExpectTrue(R(Entry, 27, true) == NavAction::Pending);
   unittest::ExpectTrue(R(Entry, 27, true) == NavAction::FocusEntry);

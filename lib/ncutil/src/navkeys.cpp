@@ -16,7 +16,8 @@ NavAction NavKeyResolver::Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys&
 
   if (p_Vim && pendingPane)
   {
-    // vim Ctrl-W h/j/k/l on the layout: list left, history top right, entry bottom right.
+    // vim Ctrl-W h/j/k/l on the layout: list left, history top right, entry bottom right,
+    // Ctrl-W a opens the address book dialog (select_contact).
     // Any other key after the prefix is swallowed (Pending) so it cannot type into the entry.
     const bool list = (p_Focus == NavFocus::List);
     switch (p_Key)
@@ -25,6 +26,7 @@ NavAction NavKeyResolver::Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys&
       case L'l': return list ? NavAction::FocusHistory : NavAction::Pending;
       case L'j': return (p_Focus == NavFocus::History) ? NavAction::FocusEntry : NavAction::Pending;
       case L'k': return (p_Focus == NavFocus::Entry) ? NavAction::FocusHistory : NavAction::Pending;
+      case L'a': return NavAction::SelectContact;
       default: return NavAction::Pending;
     }
   }
