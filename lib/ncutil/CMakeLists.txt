@@ -74,6 +74,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/setuputil.h
   src/log.cpp
   src/log.h
+  src/mdstyle.cpp
+  src/mdstyle.h
   src/messagecache.cpp
   src/messagecache.h
   src/navkeys.cpp
