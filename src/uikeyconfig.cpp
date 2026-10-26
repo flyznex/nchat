@@ -30,6 +30,7 @@ void UiKeyConfig::InitKeyCodes(bool p_MapKeys)
     { "KEY_TAB", keyCodeTab },
     { "KEY_SPACE", keyCodeSpace },
     { "KEY_RETURN", keyCodeReturn },
+    { "KEY_ESC", 27 },
     { "KEY_NONE", -1 },
 
     // ctrl keys

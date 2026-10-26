@@ -428,7 +428,7 @@ std::string UiHelpView::GetKeyDisplay(const std::string& p_Func)
   {
     return "Tab";
   }
-  else if (keyName == "\\33")
+  else if ((keyName == "KEY_ESC") || (keyName == "\\33"))
   {
     return "Esc";
   }
