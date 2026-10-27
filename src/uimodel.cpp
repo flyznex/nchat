@@ -74,6 +74,7 @@ void UiModel::Impl::Init()
   }
 
   m_View->Init();
+  m_NavResolver.SetListRight(m_View->GetListRight());
   if (m_View->GetListEnabled()) m_Focus = NavFocus::List;
 }
 
@@ -3631,7 +3632,7 @@ bool UiModel::Impl::GetNavHint(std::vector<wint_t>& p_Prefix, std::vector<NavHin
   p_Prefix = m_NavResolver.PendingKeys();
   if (p_Prefix.empty()) return false;
 
-  p_Hints = m_NavResolver.Map().Continuations(m_Focus, p_Prefix, GetNavKeys(), vim);
+  p_Hints = m_NavResolver.Continuations(m_Focus, GetNavKeys(), vim);
   return true;
 }
 

@@ -29,6 +29,8 @@ UiView::UiView(UiModel* p_UiModel)
   m_StatusEnabled = UiConfig::GetBool("status_enabled");
   m_TopEnabled = UiConfig::GetBool("top_enabled");
   m_ListWidth = UiConfig::GetNum("list_width");
+  m_Sidebar = (UiConfig::GetStr("layout_mode") != "classic");
+  m_ListRight = (UiConfig::GetStr("list_position") == "right");
   m_EntryHeight = std::max(1, UiConfig::GetNum("entry_height"));
 }
 
@@ -55,6 +57,8 @@ void UiView::Init()
   in.history = m_HistoryEnabled;
   in.entry = m_EntryEnabled;
   in.listWidth = m_ListWidth;
+  in.sidebar = m_Sidebar;
+  in.listRight = m_ListRight;
   in.entryMin = m_EntryHeight;
   in.entryLines = m_EntryLines;
   const LayoutOut lo = ComputeLayout(in);
@@ -133,6 +137,11 @@ void UiView::SetListEnabled(bool p_Enabled)
 bool UiView::GetListEnabled()
 {
   return m_ListEnabled;
+}
+
+bool UiView::GetListRight()
+{
+  return m_ListRight;
 }
 
 void UiView::SetListDirty(bool p_Dirty)

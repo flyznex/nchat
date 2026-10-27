@@ -730,10 +730,12 @@ This configuration file holds general user interface settings. Default content:
     inline_image_max_rows=10
     inline_images=auto
     inline_sticker_max_rows=6
+    layout_mode=sidebar
     linefeed_on_enter=1
     link_open_command=
     link_preview_enabled=1
     list_enabled=1
+    list_position=left
     list_width=30
     listdialog_show_filter=1
     mark_read_any_chat=0
@@ -1005,6 +1007,13 @@ clears the search.
 Specifies the maximum height, in terminal rows, of a sticker shown
 inline in the message history. See `inline_images`.
 
+### layout_mode
+
+Specifies the panel layout, read at startup. With `sidebar` (default) the chat
+list is a full-height panel and the message history, status line and message
+entry are stacked in the other column. With `classic` the status line and
+message entry span the full width below both the list and the history.
+
 ### linefeed_on_enter
 
 Specifies if enter key press should be read as linefeed (LF `\12`).
@@ -1037,6 +1046,12 @@ messages containing a link, when the protocol provides one (Telegram). Set to
 ### list_enabled
 
 Specifies whether to display chat list. Controlled by Ctrl-l in run-time.
+
+### list_position
+
+Specifies on which side the chat list is shown, `left` (default) or `right`.
+Read at startup. With `right`, the pane keys `Ctrl-W` `h` and `Ctrl-W` `l` swap
+so that they still move in the direction of the panes on screen.
 
 ### list_width
 

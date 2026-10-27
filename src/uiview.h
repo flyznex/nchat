@@ -36,6 +36,7 @@ public:
   bool GetHelpEnabled();
   void SetListEnabled(bool p_Enabled);
   bool GetListEnabled();
+  bool GetListRight();
   void SetListDirty(bool p_Dirty);
   void SetListBorderDirty(bool p_Dirty);
   void SetStatusDirty(bool p_Dirty);
@@ -76,6 +77,8 @@ private:
   bool m_ListEnabled = true;
   const bool m_HistoryEnabled = true;
   int m_ListWidth = 14;
+  bool m_Sidebar = true;
+  bool m_ListRight = false;
   int m_EntryHeight = 4;
   int m_EntryLines = 1;
 
