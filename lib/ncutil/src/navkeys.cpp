@@ -276,12 +276,31 @@ bool NavKeyMap::FirstKeys(NavFocus p_Focus, NavAction p_Action, bool p_Vim, std:
   return false;
 }
 
+static wint_t SwapLeftRight(wint_t p_Key)
+{
+  if (p_Key == L'h') return L'l';
+  if (p_Key == L'l') return L'h';
+  return p_Key;
+}
+
+std::vector<NavHint> NavKeyResolver::Continuations(NavFocus p_Focus, const NavKeys& p_Keys, bool p_Vim) const
+{
+  std::vector<NavHint> hints = m_Map.Continuations(p_Focus, m_Seq, p_Keys, p_Vim);
+  if (m_ListRight && (m_Seq.size() == 1) && (m_Seq[0] == p_Keys.panePrefix))
+  {
+    for (NavHint& hint : hints) hint.keys[0] = SwapLeftRight(hint.keys[0]);
+  }
+
+  return hints;
+}
+
 NavAction NavKeyResolver::Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys& p_Keys, bool p_Vim)
 {
   std::vector<wint_t> seq;
   seq.swap(m_Seq);
   // a failed Ctrl-W sequence is swallowed so the stray key cannot type into the entry
   const bool swallow = !seq.empty() && (seq[0] == p_Keys.panePrefix);
+  if (m_ListRight && swallow && (seq.size() == 1)) p_Key = SwapLeftRight(p_Key);
   seq.push_back(p_Key);
   for (;;)
   {

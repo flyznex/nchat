@@ -126,6 +126,61 @@ static void TestPaneKeys()
   unittest::ExpectTrue(R(Entry, L'h', false) == NavAction::None);
 }
 
+static void TestPaneKeysListRight()
+{
+  NavKeyResolver r;
+  r.SetListRight(true);
+  // with the list on the right, Ctrl-W l reaches the list and Ctrl-W h leaves it
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'l', true) == NavAction::FocusList);
+  unittest::ExpectTrue(R(History, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(History, L'l', true) == NavAction::FocusList);
+  unittest::ExpectTrue(R(List, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(List, L'h', true) == NavAction::FocusHistory);
+  // moves towards the screen edge have no target and are swallowed
+  unittest::ExpectTrue(R(List, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(List, L'l', true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'h', true) == NavAction::Pending);
+  // j, k and a are unchanged
+  unittest::ExpectTrue(R(History, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(History, L'j', true) == NavAction::FocusEntry);
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'k', true) == NavAction::FocusHistory);
+  unittest::ExpectTrue(R(Entry, 23, true) == NavAction::Pending);
+  unittest::ExpectTrue(R(Entry, L'a', true) == NavAction::SelectContact);
+
+  // the which-key hints show the swapped key
+  unittest::ExpectTrue(R(History, 23, true) == NavAction::Pending);
+  bool toList = false;
+  for (const NavHint& hint : r.Continuations(NavFocus::History, keys, true))
+  {
+    if (hint.action == NavAction::FocusList)
+    {
+      unittest::ExpectEqual(size_t, hint.keys.size(), size_t(1));
+      unittest::ExpectTrue(hint.keys[0] == L'l');
+      toList = true;
+    }
+  }
+
+  unittest::ExpectTrue(toList);
+
+  // list on the left: hints unchanged
+  NavKeyResolver left;
+  unittest::ExpectTrue(left.Resolve(NavFocus::History, 23, keys, true) == NavAction::Pending);
+  toList = false;
+  for (const NavHint& hint : left.Continuations(NavFocus::History, keys, true))
+  {
+    if (hint.action == NavAction::FocusList)
+    {
+      unittest::ExpectTrue(hint.keys[0] == L'h');
+      toList = true;
+    }
+  }
+
+  unittest::ExpectTrue(toList);
+}
+
 static void TestNavConf()
 {
   NavKeyResolver r;
@@ -226,6 +281,7 @@ int main()
     TestVimHistory();
     TestGg();
     TestPaneKeys();
+    TestPaneKeysListRight();
     TestNavConf();
     TestFirstKeys();
     TestContinuations();

@@ -75,10 +75,14 @@ class NavKeyResolver
 {
 public:
   NavAction Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys& p_Keys, bool p_Vim);
+  // Hints for the keys pending now; after the pane prefix h/l are swapped when the list is on the right.
+  std::vector<NavHint> Continuations(NavFocus p_Focus, const NavKeys& p_Keys, bool p_Vim) const;
+  void SetListRight(bool p_ListRight) { m_ListRight = p_ListRight; }
   NavKeyMap& Map() { return m_Map; }
   const std::vector<wint_t>& PendingKeys() const { return m_Seq; }
 
 private:
   NavKeyMap m_Map;
   std::vector<wint_t> m_Seq;
+  bool m_ListRight = false;
 };
