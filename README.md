@@ -142,6 +142,7 @@ in list and history focus:
     r           history: reply to selected message
     e           history: edit selected message
     y           history: copy selected message
+    t           history: translate selected message (dialog)
     x           history: delete selected message
 
 With `vim_keys=1` Ctrl-w followed by h / j / k / l also moves between panes from any
@@ -173,7 +174,7 @@ in `nav.conf` are active regardless of `vim_keys`.
 - `keys`: literal characters or a sequence such as `gg`, plus `<C-x>` (Ctrl),
   `<Space>`, `<CR>`, `<Tab>`, `<Esc>`, `<lt>` (for `<`) and `<Pane>` (the pane prefix,
   Ctrl-w by default, `pane_prefix` in `key.conf`). Keys cannot contain spaces.
-- `action`: `up down first last halfup halfdown open reply edit copy delete search
+- `action`: `up down first last halfup halfdown open reply edit copy translate delete search
   findnext unreadonly togglegroup foldernext folderprev selectcontact focusentry
   focuslist focushistory focusleft focusright focusnext focusprev none` (`none`
   disables a key).

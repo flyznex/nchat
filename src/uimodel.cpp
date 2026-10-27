@@ -3782,6 +3782,7 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
     case NavAction::FindNext:
     case NavAction::Edit:
     case NavAction::Copy:
+    case NavAction::Translate:
     case NavAction::Delete:
     case NavAction::SelectContact:
       p_Deferred = action; // dialogs or self-locking handlers, run by KeyHandler without the mutex
@@ -5399,6 +5400,9 @@ void UiModel::KeyHandler(wint_t p_Key)
         break;
       case NavAction::Copy:
         OnKeyCopy();
+        break;
+      case NavAction::Translate:
+        OnKeyTranslate();
         break;
       case NavAction::Delete:
         OnKeyDeleteMsg();

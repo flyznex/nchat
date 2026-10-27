@@ -67,6 +67,8 @@ static void TestVimHistory()
   unittest::ExpectTrue(R(History, L'r', true) == NavAction::Reply);
   unittest::ExpectTrue(R(History, L'e', true) == NavAction::Edit);
   unittest::ExpectTrue(R(History, L'y', true) == NavAction::Copy);
+  unittest::ExpectTrue(R(History, L't', true) == NavAction::Translate);
+  unittest::ExpectTrue(R(List, L't', true) == NavAction::None);
   unittest::ExpectTrue(R(History, L'x', true) == NavAction::Delete);
   unittest::ExpectTrue(R(History, L'n', true) == NavAction::FindNext);
   unittest::ExpectTrue(R(History, L'/', true) == NavAction::Search);

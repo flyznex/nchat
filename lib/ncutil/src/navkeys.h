@@ -18,7 +18,7 @@ enum class NavAction
   None, Pending,
   FocusNext, FocusPrev, FocusEntry, FocusList, FocusHistory, FocusLeft, FocusRight,
   Up, Down, First, Last, HalfUp, HalfDown,
-  Open, Reply, Edit, Copy, Delete,
+  Open, Reply, Edit, Copy, Translate, Delete,
   Search, FindNext, UnreadOnly, ToggleGroup, FolderNext, FolderPrev, SelectContact
 };
 

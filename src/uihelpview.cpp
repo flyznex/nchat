@@ -209,6 +209,7 @@ void UiHelpView::Draw()
 
     AppendNavHelpItem(nav, f, vim, { NavAction::Edit }, "Edit", helpItems);
     AppendNavHelpItem(nav, f, vim, { NavAction::Copy }, "Copy", helpItems);
+    AppendNavHelpItem(nav, f, vim, { NavAction::Translate }, "Transl", helpItems);
     AppendNavHelpItem(nav, f, vim, { NavAction::Delete }, "Delete", helpItems);
     AppendNavHelpItem(nav, f, vim, { NavAction::Search }, "Find", helpItems);
     AppendHelpItem("focus_entry", "Entry", helpItems);

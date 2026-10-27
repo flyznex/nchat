@@ -34,6 +34,7 @@ static const char* s_Defaults =
   "map history r reply\n"
   "map history e edit\n"
   "map history y copy\n"
+  "map history t translate\n"
   "map history x delete\n"
   "map all <Pane>a selectcontact\n"
   "map all <Pane>h focusleft\n"
@@ -60,6 +61,7 @@ static const struct { const char* name; NavAction action; } s_Actions[] = {
   { "reply", NavAction::Reply },
   { "edit", NavAction::Edit },
   { "copy", NavAction::Copy },
+  { "translate", NavAction::Translate },
   { "delete", NavAction::Delete },
   { "search", NavAction::Search },
   { "findnext", NavAction::FindNext },
