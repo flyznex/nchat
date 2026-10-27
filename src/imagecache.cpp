@@ -19,6 +19,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include <sys/stat.h>
+
 #include "fileutil.h"
 #include "imageconverter.h"
 #include "imagegeom.h"
@@ -61,8 +63,17 @@ namespace
 
   std::string CacheName(const std::string& p_SrcPath)
   {
+    // size and mtime are part of the key so a reused path (e.g. temp/clipboard-1.png) never shows a stale preview
+    std::string key = p_SrcPath;
+    struct stat st;
+    if (stat(p_SrcPath.c_str(), &st) == 0)
+    {
+      key += "|" + std::to_string(static_cast<long long>(st.st_size)) + "|" +
+             std::to_string(static_cast<long long>(st.st_mtime));
+    }
+
     char buf[40];
-    snprintf(buf, sizeof(buf), "%016zx.png", std::hash<std::string>{}(p_SrcPath));
+    snprintf(buf, sizeof(buf), "%016zx.png", std::hash<std::string>{}(key));
     return buf;
   }
 
