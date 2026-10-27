@@ -62,8 +62,10 @@ namespace
       std::to_string(++s_Seq);
     const std::string inPath = base + ".in";
     const std::string outPath = base + ".out";
-    FileUtil::WriteFile(inPath, p_Text);
-    const std::string cmd = p_Cmd + " -b -t " + p_Target + " -i '" + StrUtil::EscapeSingleQuote(inPath) + "' >'" +
+    // trans treats input starting with http(s):// as a web page: prints a translate.google.com link and opens a browser
+    const bool urlLike = StrUtil::StartsWith(StrUtil::ToLower(p_Text), "http");
+    FileUtil::WriteFile(inPath, urlLike ? (" " + p_Text) : p_Text);
+    const std::string cmd = p_Cmd + " -b -no-browser -t " + p_Target + " -i '" + StrUtil::EscapeSingleQuote(inPath) + "' >'" +
       StrUtil::EscapeSingleQuote(outPath) + "' 2>/dev/null </dev/null";
     int status = SysUtil::System(cmd); // non-const: macOS WEXITSTATUS casts away const (-Wcast-qual)
     p_Out = FileUtil::ReadFile(outPath);

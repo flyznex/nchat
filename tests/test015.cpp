@@ -24,15 +24,15 @@ static void SetupFake()
   FileUtil::SetApplicationDir(g_Dir);
   FileUtil::MkDir(FileUtil::GetTempDir());
   const std::string script = g_Dir + "/fake.sh";
-  // args: -b -t <lang> -i <file>; counts calls, "same*" is echoed back, "fail*" exits 1
+  // args: -b -no-browser -t <lang> -i <file>; counts calls, "same*" is echoed back, "fail*" exits 1
   FileUtil::WriteFile(script,
                       "#!/bin/sh\n"
                       "echo x >> \"$(dirname \"$0\")/calls\"\n"
-                      "text=$(cat \"$5\")\n"
+                      "text=$(cat \"$6\")\n"
                       "case \"$text\" in\n"
                       "  fail*) exit 1;;\n"
                       "  same*) printf '%s' \"$text\";;\n"
-                      "  *) printf '[%s] %s' \"$3\" \"$text\";;\n"
+                      "  *) printf '[%s] %s' \"$4\" \"$text\";;\n"
                       "esac\n");
   g_Cmd = "sh '" + script + "'";
   FileUtil::WriteFile(g_Dir + "/calls", "");
@@ -84,6 +84,9 @@ static void TestTranslateNowAndCache()
   unittest::ExpectTrue(Translator::TranslateNow("hello", out, err));
   unittest::ExpectEqual(std::string, out, std::string("[vi] hello"));
   unittest::ExpectEqual(int, Calls(), callsAfterFirst);
+  // URL-like text gets a leading space so trans does not open a web page
+  unittest::ExpectTrue(Translator::TranslateNow("https://x.io hi", out, err));
+  unittest::ExpectEqual(std::string, out, std::string("[vi]  https://x.io hi"));
   Translator::Cleanup();
 }
 
