@@ -105,6 +105,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/sysutil.h
   src/timeutil.cpp
   src/timeutil.h
+  src/translator.cpp
+  src/translator.h
 )
 install(TARGETS ncutil DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
