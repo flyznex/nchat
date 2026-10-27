@@ -20,12 +20,14 @@
 #include <vector>
 
 #include <sys/stat.h>
+#include <sys/time.h>
 
 #include "fileutil.h"
 #include "imageconverter.h"
 #include "imagegeom.h"
 #include "log.h"
 #include "termgfx.h"
+#include "uiconfig.h"
 
 namespace
 {
@@ -93,6 +95,9 @@ namespace
 
   void WorkerMain()
   {
+    const int days = std::min(UiConfig::GetNum("image_cache_days"), 20000);
+    if (days > 0) FileUtil::RmFilesByAge(GetImagesDir(), "*.png", days * 86400);
+
     while (true)
     {
       std::string src;
@@ -106,6 +111,7 @@ namespace
 
       ImageInfo info;
       info.pngPath = GetImagesDir() + "/" + CacheName(src);
+      if (FileUtil::Exists(info.pngPath)) utimes(info.pngPath.c_str(), nullptr); // age counts from last use
       bool ok = FileUtil::Exists(info.pngPath) || ImageConverter::ToPng(src, info.pngPath);
       ok = ok && ImageGeom::ParsePngSize(ReadHeader(info.pngPath), info.pxWidth, info.pxHeight);
       if (!ok)

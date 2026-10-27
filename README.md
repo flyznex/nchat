@@ -725,6 +725,7 @@ This configuration file holds general user interface settings. Default content:
     help_prefix_ctrl=^
     help_prefix_meta=M-
     home_fetch_all=0
+    image_cache_days=30
     inline_image_max_rows=10
     inline_images=auto
     inline_sticker_max_rows=6
@@ -964,6 +965,13 @@ configured in `key.conf`.
 ### home_fetch_all
 
 Specifies whether `home` button shall repeatedly fetch all chat history.
+
+### image_cache_days
+
+Specifies after how many days without use the inline image previews in the
+`images` directory below the nchat data directory are deleted. They are
+checked when the first inline image is requested after startup, and are
+recreated on demand. Set to `0` to never delete them. Default is `30`.
 
 ### inline_image_max_rows
 
