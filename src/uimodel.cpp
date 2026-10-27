@@ -8,6 +8,7 @@
 #include "uimodel.h"
 
 #include <algorithm>
+#include <thread>
 #include <chrono>
 
 #include <ncurses.h>
@@ -4017,8 +4018,8 @@ void UiModel::Impl::DesktopNotify(const std::string& p_Name, const std::string& 
   StrUtil::ReplaceString(cmd, "%1", name);
   StrUtil::ReplaceString(cmd, "%2", text);
 
-  // run command
-  RunCommand(cmd);
+  // run detached, osascript/notify-send take 60-100 ms and the model lock is held here
+  std::thread([cmd]() { SysUtil::RunCommand(cmd); }).detach();
 }
 
 void UiModel::Impl::SetHistoryInteraction(bool p_HistoryInteraction)
