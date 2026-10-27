@@ -206,6 +206,8 @@ private:
     void OnKeyExtEdit();
     void Cut();
     void Copy();
+    std::string GetSelectedTextForTranslate();
+    void UpdateHistory(); // public: called from the translator update callback in UiModel::Init
     void Paste();
     void OnKeyCancel();
     bool PreEditMsg(std::string& p_ProfileId, std::string& p_ChatId, std::string& p_MsgId,
@@ -247,7 +249,6 @@ private:
     void UpdateList();
     void UpdateStatus();
     void UpdateHelp();
-    void UpdateHistory();
     void UpdateEntry();
     void AutoSizeEntry();
     void ResetMessageOffset();
@@ -489,6 +490,7 @@ private:
   void OnKeySelectMention();
   void OnKeyCut();
   void OnKeyCopy();
+  void OnKeyTranslate();
   void OnKeyPaste();
 
 private:

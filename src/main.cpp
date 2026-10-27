@@ -697,6 +697,7 @@ void ShowHelp()
     "    Ctrl-x      send reply to selected message\n"
     "    Ctrl-z      edit selected message\n"
     "    Alt-c       copy selected message to clipboard\n"
+    "    Alt-l       translate selected message\n"
     "    Alt-u       open link\n"
     "    Alt-q       jump to quoted/replied message\n"
     "    Alt-r       forward selected message\n"

@@ -23,6 +23,7 @@
 #include "strutil.h"
 #include "termgfx.h"
 #include "timeutil.h"
+#include "translator.h"
 #include "uicolorconfig.h"
 #include "uiconfig.h"
 #include "uiimagerow.h"
@@ -365,6 +366,29 @@ void UiHistoryView::Draw()
 
         wlines.push_back(wpreview);
         ++previewLines;
+      }
+    }
+
+    // Translation (auto), drawn like the link preview
+    static const bool translateAuto = UiConfig::GetBool("translate_auto");
+    if (translateAuto && !msg.isOutgoing && !msg.text.empty())
+    {
+      std::string translated;
+      if (Translator::Get(msg.text, translated) == Translator::State::Ready)
+      {
+        StrUtil::SanitizeMessageStr(translated);
+        if (!emojiEnabled)
+        {
+          translated = StrUtil::Textize(translated);
+        }
+
+        if (previewLines == 0) previewStart = wlines.size();
+        const std::wstring wtranslated = StrUtil::ToWString("[tr] " + translated);
+        for (const std::wstring& trLine : StrUtil::WordWrap(wtranslated, maxW - 4, false, false, false, 2))
+        {
+          wlines.push_back(L"  " + trLine);
+          ++previewLines;
+        }
       }
     }
 

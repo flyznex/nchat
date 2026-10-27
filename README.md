@@ -772,6 +772,9 @@ This configuration file holds general user interface settings. Default content:
     top_enabled=1
     top_show_version=0
     transfer_send_caption=1
+    translate_auto=0
+    translate_command=trans
+    translate_target=en
     typing_status_share=1
     undo_clear_input=1
     unread_indicator=*
@@ -1213,6 +1216,26 @@ Specifies whether to display nchat version in top bar.
 
 Specifies if entered text should be sent as caption when transferring a file.
 
+### translate_auto
+
+Set to `1` to show a gray translation below incoming text messages (needs
+[translate-shell](https://github.com/soimort/translate-shell), `brew install
+translate-shell`, which needs `gawk` and `curl`). Message text is sent to the
+translation engine (Google by default), so leave it at `0` if that is not
+acceptable. Without auto translation, `Alt-l` translates the selected message
+in a dialog. Default is `0`.
+
+### translate_command
+
+Command used for translation, default `trans`. It is called as
+`<command> -b -t <translate_target> -i <file>`. Set a full path or extra options
+here if needed, for example `trans -e bing`.
+
+### translate_target
+
+Target language code for translations, for example `en`, `vi`, `pt-BR`.
+Default is `en`.
+
 ### typing_status_share
 
 Specifies whether to share typing status with other user(s) in the
@@ -1313,6 +1336,7 @@ This configuration file holds user interface key bindings. Default content:
     toggle_list=KEY_CTRLL
     toggle_top=KEY_NONE
     transfer=KEY_CTRLT
+    translate=\33\154
     unread_chat=KEY_CTRLF
     up=KEY_UP
 

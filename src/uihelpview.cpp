@@ -145,6 +145,7 @@ void UiHelpView::Draw()
     AppendHelpItem("react", "AddReact", helpItems);
     AppendHelpItem("open_msg", "ExtView", helpItems);
     AppendHelpItem("forward_msg", "FwdMsg", helpItems);
+    AppendHelpItem("translate", "Transl", helpItems);
 
     helpItems.insert(std::end(helpItems), std::begin(mainPostHelpItems), std::end(mainPostHelpItems));
     return helpItems;

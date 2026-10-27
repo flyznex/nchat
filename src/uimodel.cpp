@@ -31,6 +31,7 @@
 #include "strutil.h"
 #include "sysutil.h"
 #include "timeutil.h"
+#include "translator.h"
 #include "uidialog.h"
 #include "uichatlistdialog.h"
 #include "uiconfig.h"
@@ -4194,6 +4195,13 @@ void UiModel::Impl::Cut()
   }
 }
 
+std::string UiModel::Impl::GetSelectedTextForTranslate()
+{
+  if (!GetSelectMessageActive()) return "";
+
+  return GetSelectedMessageText();
+}
+
 void UiModel::Impl::Copy()
 {
   AnyUserKeyInput();
@@ -5257,10 +5265,18 @@ void UiModel::Init()
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
   GetImpl().Init();
+  Translator::Init(UiConfig::GetStr("translate_command"), UiConfig::GetStr("translate_target"),
+                   [this]()
+  {
+    std::unique_lock<owned_mutex> modelLock(m_ModelMutex);
+    GetImpl().UpdateHistory();
+  });
 }
 
 void UiModel::Cleanup()
 {
+  // join the translator worker before taking the model mutex: its update callback locks it
+  Translator::Cleanup();
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
   GetImpl().Cleanup();
 }
@@ -5351,6 +5367,7 @@ void UiModel::KeyHandler(wint_t p_Key)
 
   static wint_t keyExtEdit = UiKeyConfig::GetKey("ext_edit");
   static wint_t keyExtCall = UiKeyConfig::GetKey("ext_call");
+  static wint_t keyTranslate = UiKeyConfig::GetKey("translate");
 
   static wint_t keyOtherCommandsHelp = UiKeyConfig::GetKey("other_commands_help");
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
@@ -5609,6 +5626,10 @@ void UiModel::KeyHandler(wint_t p_Key)
   else if (p_Key == keyExtCall)
   {
     OnKeyExtCall();
+  }
+  else if (p_Key == keyTranslate)
+  {
+    OnKeyTranslate();
   }
   else if (p_Key == keyJumpQuoted)
   {
@@ -6690,6 +6711,23 @@ void UiModel::OnKeyCopy()
 {
   std::unique_lock<owned_mutex> lock(m_ModelMutex);
   GetImpl().Copy();
+}
+
+void UiModel::OnKeyTranslate()
+{
+  std::string text;
+  {
+    std::unique_lock<owned_mutex> lock(m_ModelMutex);
+    text = GetImpl().GetSelectedTextForTranslate();
+  }
+
+  if (text.empty()) return;
+
+  // Run translate-shell and open the modal dialog without the model mutex held
+  std::string translated;
+  std::string error;
+  const bool ok = Translator::TranslateNow(text, translated, error);
+  MessageDialog("Translation (" + UiConfig::GetStr("translate_target") + ")", ok ? translated : error, 0.8, 12);
 }
 
 void UiModel::OnKeyPaste()
