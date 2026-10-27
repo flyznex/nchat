@@ -167,3 +167,32 @@ std::string ProtocolUtil::FileInfoToHex(const FileInfo& p_FileInfo)
     StrUtil::StrToHex(p_FileInfo.fileType) + "\n";
   return hexStr;
 }
+
+static std::string FlattenPreviewField(std::string p_Str)
+{
+  for (char& c : p_Str)
+  {
+    if ((c == '\n') || (c == '\r') || (c == '\t')) c = ' ';
+  }
+
+  const size_t begin = p_Str.find_first_not_of(' ');
+  if (begin == std::string::npos) return "";
+
+  return p_Str.substr(begin, p_Str.find_last_not_of(' ') - begin + 1);
+}
+
+std::string ProtocolUtil::FormatLinkPreview(const std::string& p_Site, const std::string& p_Title,
+                                            const std::string& p_Description, const std::string& p_DisplayUrl)
+{
+  const std::string site = FlattenPreviewField(p_Site);
+  const std::string title = FlattenPreviewField(p_Title);
+  std::string head = site;
+  if (!site.empty() && !title.empty()) head += ": ";
+  head += title;
+  if (head.empty()) head = FlattenPreviewField(p_DisplayUrl);
+
+  const std::string description = FlattenPreviewField(p_Description);
+  if (head.empty()) return description;
+
+  return description.empty() ? head : (head + "\n" + description);
+}

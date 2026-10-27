@@ -16,4 +16,6 @@ public:
   static std::string FileInfoToHex(const FileInfo& p_FileInfo);
   static std::vector<ContactInfo> ContactInfosFromJson(const std::string& p_Json);
   static std::string MentionsToJson(const std::map<std::string, std::string>& p_Mentions);
+  static std::string FormatLinkPreview(const std::string& p_Site, const std::string& p_Title,
+                                       const std::string& p_Description, const std::string& p_DisplayUrl);
 };
