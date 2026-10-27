@@ -260,7 +260,7 @@ void UiKeyConfig::Init(bool p_MapKeys)
     { "select_sticker", "\\33\\147" }, // alt/opt-g
     { "select_contact", "\\33\\156" }, // alt/opt-n
     { "forward_msg", "\\33\\162" }, // alt/opt-r
-    { "translate", "\\33\\154" }, // alt/opt-l
+    { "translate", "\\33\\171" }, // alt/opt-y
     { "goto_chat", "KEY_CTRLN" },
     { "other_commands_help", "KEY_CTRLO" },
     { "decrease_list_width", "\\33\\54" }, // alt/opt-,

@@ -94,7 +94,7 @@ Interactive Commands for Selected Message:
     Ctrl-x      send reply to selected message
     Ctrl-z      edit selected message
     Alt-c       copy selected message to clipboard
-    Alt-l       translate selected message
+    Alt-y       translate selected message
     Alt-u       open link
     Alt-q       jump to quoted/replied message
     Alt-r       forward selected message
@@ -1224,7 +1224,7 @@ Set to `1` to show a gray translation below incoming text messages (needs
 [translate-shell](https://github.com/soimort/translate-shell), `brew install
 translate-shell`, which needs `gawk` and `curl`). Message text is sent to the
 translation engine (Bing by default), so leave it at `0` if that is not
-acceptable. Without auto translation, `Alt-l` translates the selected message
+acceptable. Without auto translation, `Alt-y` translates the selected message
 in a dialog. Default is `0`.
 
 ### translate_command
