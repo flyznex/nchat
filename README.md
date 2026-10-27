@@ -575,6 +575,7 @@ This configuration file holds general application settings. Default content:
     proxy_host=
     proxy_pass=
     proxy_port=
+    proxy_secret=
     proxy_user=
     timestamp_iso=0
     use_pairing_code=0
@@ -657,7 +658,10 @@ setting. Deleting messages already marked deleted erases them locally.
 
 SOCKS5 proxy server details. To enable proxy usage the parameters `host` and
 `port` are required, while `user` and `pass` are optional (depending on the
-SOCKS server). Note: In order to use a proxy while setting up nchat the first
+SOCKS server). Setting `secret` (hex or base64url) turns the proxy into a
+Telegram MTProxy using the same `host` and `port`; `user` and `pass` are then
+ignored, and WhatsApp and Signal connect without a proxy. Note: In order to use
+a proxy while setting up nchat the first
 time, it is recommended to first run nchat without arguments (`nchat`) for its
 config dir to be created, and then edit proxy settings in
 `~/.config/nchat/app.conf` as needed, before running `nchat -s` to setup an

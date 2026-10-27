@@ -37,6 +37,7 @@ void AppConfig::Init()
     { "proxy_host", "" },
     { "proxy_pass", "" },
     { "proxy_port", "" },
+    { "proxy_secret", "" },
     { "proxy_user", "" },
     { "timestamp_iso", "0" },
     { "use_pairing_code", "0" },

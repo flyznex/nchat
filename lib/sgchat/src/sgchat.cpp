@@ -728,7 +728,8 @@ std::string SgChat::GetProxyUrl() const
   // Not supported, consider removing code.
   const std::string proxyHost = AppConfig::GetStr("proxy_host");
   const int proxyPort = AppConfig::GetNum("proxy_port");
-  if (!proxyHost.empty() && (proxyPort != 0))
+  const bool isMtproto = !AppConfig::GetStr("proxy_secret").empty(); // telegram only, not socks5
+  if (!proxyHost.empty() && (proxyPort != 0) && !isMtproto)
   {
     std::string proxyUrl = "socks5://";
     const std::string proxyUser = AppConfig::GetStr("proxy_user");

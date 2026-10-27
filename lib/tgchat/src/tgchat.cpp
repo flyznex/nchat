@@ -2063,9 +2063,22 @@ void TgChat::Impl::InitProxy()
     {
       const std::string proxyUser = AppConfig::GetStr("proxy_user");
       const std::string proxyPass = AppConfig::GetStr("proxy_pass");
+      const std::string proxySecret = AppConfig::GetStr("proxy_secret");
       const bool proxyEnable = true;
-      auto proxyType = (!proxyUser.empty()) ? td::make_tl_object<td::td_api::proxyTypeSocks5>(proxyUser, proxyPass)
-                                            : td::td_api::make_object<td::td_api::proxyTypeSocks5>();
+      td::td_api::object_ptr<td::td_api::ProxyType> proxyType;
+      if (!proxySecret.empty())
+      {
+        proxyType = td::td_api::make_object<td::td_api::proxyTypeMtproto>(proxySecret);
+      }
+      else if (!proxyUser.empty())
+      {
+        proxyType = td::td_api::make_object<td::td_api::proxyTypeSocks5>(proxyUser, proxyPass);
+      }
+      else
+      {
+        proxyType = td::td_api::make_object<td::td_api::proxyTypeSocks5>();
+      }
+
       SendQuery(td::td_api::make_object<td::td_api::addProxy>(
                   td::td_api::make_object<td::td_api::proxy>(proxyHost, proxyPort, std::move(proxyType)), proxyEnable,
                   std::string()),
