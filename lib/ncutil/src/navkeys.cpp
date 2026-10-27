@@ -24,20 +24,20 @@ static const char* s_Defaults =
   "map list,history i focusentry\n"
   "map list,history / search\n"
   "map list,history gg first\n"
-  "map list l open\n"
+  "map list,history h focusleft\n"
+  "map list,history l focusright\n"
   "map list n foldernext\n"
   "map list b folderprev\n"
   "map list u unreadonly\n"
   "map list z togglegroup\n"
-  "map history h focuslist\n"
   "map history n findnext\n"
   "map history r reply\n"
   "map history e edit\n"
   "map history y copy\n"
   "map history x delete\n"
   "map all <Pane>a selectcontact\n"
-  "map history,entry <Pane>h focuslist\n"
-  "map list <Pane>l focushistory\n"
+  "map all <Pane>h focusleft\n"
+  "map all <Pane>l focusright\n"
   "map history <Pane>j focusentry\n"
   "map entry <Pane>k focushistory\n";
 
@@ -48,6 +48,8 @@ static const struct { const char* name; NavAction action; } s_Actions[] = {
   { "focusentry", NavAction::FocusEntry },
   { "focuslist", NavAction::FocusList },
   { "focushistory", NavAction::FocusHistory },
+  { "focusleft", NavAction::FocusLeft },
+  { "focusright", NavAction::FocusRight },
   { "up", NavAction::Up },
   { "down", NavAction::Down },
   { "first", NavAction::First },
@@ -276,21 +278,23 @@ bool NavKeyMap::FirstKeys(NavFocus p_Focus, NavAction p_Action, bool p_Vim, std:
   return false;
 }
 
-static wint_t SwapLeftRight(wint_t p_Key)
+// A direction with nothing on that side gives Pending, so the key is consumed.
+static NavAction ResolveDirection(NavFocus p_Focus, NavAction p_Action, bool p_ListRight)
 {
-  if (p_Key == L'h') return L'l';
-  if (p_Key == L'l') return L'h';
-  return p_Key;
+  if ((p_Action != NavAction::FocusLeft) && (p_Action != NavAction::FocusRight)) return p_Action;
+
+  const bool towardsList = ((p_Action == NavAction::FocusRight) == p_ListRight);
+  if (p_Focus == NavFocus::List) return towardsList ? NavAction::Pending : NavAction::FocusHistory;
+  return towardsList ? NavAction::FocusList : NavAction::Pending;
 }
 
 std::vector<NavHint> NavKeyResolver::Continuations(NavFocus p_Focus, const NavKeys& p_Keys, bool p_Vim) const
 {
   std::vector<NavHint> hints = m_Map.Continuations(p_Focus, m_Seq, p_Keys, p_Vim);
-  if (m_ListRight && (m_Seq.size() == 1) && (m_Seq[0] == p_Keys.panePrefix))
-  {
-    for (NavHint& hint : hints) hint.keys[0] = SwapLeftRight(hint.keys[0]);
-  }
-
+  hints.erase(std::remove_if(hints.begin(), hints.end(),
+                             [&](const NavHint& hint)
+                             { return ResolveDirection(p_Focus, hint.action, m_ListRight) == NavAction::Pending; }),
+              hints.end());
   return hints;
 }
 
@@ -300,13 +304,12 @@ NavAction NavKeyResolver::Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys&
   seq.swap(m_Seq);
   // a failed Ctrl-W sequence is swallowed so the stray key cannot type into the entry
   const bool swallow = !seq.empty() && (seq[0] == p_Keys.panePrefix);
-  if (m_ListRight && swallow && (seq.size() == 1)) p_Key = SwapLeftRight(p_Key);
   seq.push_back(p_Key);
   for (;;)
   {
     bool prefix = false;
     const NavBinding* binding = m_Map.Find(p_Focus, seq, p_Keys, p_Vim, prefix);
-    if (binding) return binding->action;
+    if (binding) return ResolveDirection(p_Focus, binding->action, m_ListRight);
     if (prefix)
     {
       m_Seq = seq;

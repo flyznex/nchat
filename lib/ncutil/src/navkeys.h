@@ -16,7 +16,7 @@ enum class NavFocus { List, History, Entry };
 enum class NavAction
 {
   None, Pending,
-  FocusNext, FocusPrev, FocusEntry, FocusList, FocusHistory,
+  FocusNext, FocusPrev, FocusEntry, FocusList, FocusHistory, FocusLeft, FocusRight,
   Up, Down, First, Last, HalfUp, HalfDown,
   Open, Reply, Edit, Copy, Delete,
   Search, FindNext, UnreadOnly, ToggleGroup, FolderNext, FolderPrev, SelectContact
@@ -75,7 +75,7 @@ class NavKeyResolver
 {
 public:
   NavAction Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys& p_Keys, bool p_Vim);
-  // Hints for the keys pending now; after the pane prefix h/l are swapped when the list is on the right.
+  // Hints for the keys pending now; FocusLeft/FocusRight hints without a target from p_Focus are dropped.
   std::vector<NavHint> Continuations(NavFocus p_Focus, const NavKeys& p_Keys, bool p_Vim) const;
   void SetListRight(bool p_ListRight) { m_ListRight = p_ListRight; }
   NavKeyMap& Map() { return m_Map; }

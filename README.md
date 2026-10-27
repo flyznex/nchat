@@ -133,8 +133,7 @@ in list and history focus:
     Ctrl-d/u    half page down / up
     /           search (filter in list, find in history)
     i           focus text entry
-    l           list: open chat
-    h           history: focus list
+    h / l       focus the panel to the left / right (list <-> history, follows list_position)
     u           list: toggle unread-only
     z           list: expand all groups if any collapsed, otherwise
                 collapse the group of the selected chat
@@ -146,10 +145,11 @@ in list and history focus:
     x           history: delete selected message
 
 With `vim_keys=1` Ctrl-w followed by h / j / k / l also moves between panes from any
-focus, including the text entry: h list, l history (from the list), j entry (from
-history), k history (from the entry). Ctrl-w a opens the contact dialog (same as
+focus, including the text entry: h / l move to the panel on the left / right (the list
+and the chat column, according to `list_position`), j entry (from history), k history
+(from the entry). Ctrl-w a opens the contact dialog (same as
 Alt-n), where a Telegram `@username` or phone number can be typed to open a chat.
-Any other key after Ctrl-w is ignored.
+Any other key after Ctrl-w is ignored. Enter opens the selected chat in the list.
 
 With `vim_keys=1` Ctrl-d / Ctrl-u are half-page keys in list and history focus,
 so use `x` to delete a message there. With `vim_keys=0` these letters type into
@@ -175,7 +175,8 @@ in `nav.conf` are active regardless of `vim_keys`.
   Ctrl-w by default, `pane_prefix` in `key.conf`). Keys cannot contain spaces.
 - `action`: `up down first last halfup halfdown open reply edit copy delete search
   findnext unreadonly togglegroup foldernext folderprev selectcontact focusentry
-  focuslist focushistory focusnext focusprev none` (`none` disables a key).
+  focuslist focushistory focusleft focusright focusnext focusprev none` (`none`
+  disables a key).
 - Later lines override earlier ones and the built-in defaults. `unmap` removes a
   binding, `mapclear` removes all defaults.
 - If a key is bound on its own and also starts a longer sequence, the single key
@@ -1050,8 +1051,9 @@ Specifies whether to display chat list. Controlled by Ctrl-l in run-time.
 ### list_position
 
 Specifies on which side the chat list is shown, `left` (default) or `right`.
-Read at startup. With `right`, the pane keys `Ctrl-W` `h` and `Ctrl-W` `l` swap
-so that they still move in the direction of the panes on screen.
+Read at startup. The pane keys `Ctrl-W` `h` / `l` and the vim keys `h` / `l` move to
+the panel on the left / right of the focused one (`focusleft` / `focusright` in
+`nav.conf`), so with `right` the list is reached with `l` from the history.
 
 ### list_width
 
