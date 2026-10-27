@@ -74,6 +74,8 @@ void UiColorConfig::Init()
     { "history_text_recv_color_fg", "" },
     { "history_text_quoted_color_bg", "" },
     { "history_text_quoted_color_fg", defaultQuotedColor },
+    { "history_text_preview_color_bg", "" },
+    { "history_text_preview_color_fg", defaultQuotedColor },
     { "history_text_attachment_color_bg", "" },
     { "history_text_attachment_color_fg", defaultAttachmentColor },
     { "history_text_recv_group_color_bg", "" },

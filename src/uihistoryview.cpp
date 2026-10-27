@@ -112,6 +112,7 @@ void UiHistoryView::Draw()
   static int colorPairTextRecv = UiColorConfig::GetColorPair("history_text_recv_color");
   static int colorPairTextQuoted = UiColorConfig::GetColorPair("history_text_quoted_color");
   static int colorPairTextReaction = UiColorConfig::GetColorPair("history_text_reaction_color");
+  static int colorPairTextPreview = UiColorConfig::GetColorPair("history_text_preview_color");
   static int colorPairTextAttachment = UiColorConfig::GetColorPair("history_text_attachment_color");
   static int attributeTextNormal = UiColorConfig::GetAttribute("history_text_attr");
   static int attributeTextSelected = UiColorConfig::GetAttribute("history_text_attr_selected");
@@ -341,6 +342,32 @@ void UiHistoryView::Draw()
       }
     }
 
+    // Link preview
+    size_t previewStart = 0;
+    size_t previewLines = 0;
+    static const bool linkPreviewEnabled = UiConfig::GetBool("link_preview_enabled");
+    if (linkPreviewEnabled && !msg.linkPreview.empty())
+    {
+      std::string preview = msg.linkPreview;
+      if (!emojiEnabled)
+      {
+        preview = StrUtil::Textize(preview);
+      }
+
+      previewStart = wlines.size();
+      for (const std::string& previewLine : StrUtil::Split(preview, '\n'))
+      {
+        std::wstring wpreview = L"  " + StrUtil::ToWString(previewLine);
+        if (StrUtil::WStringWidth(wpreview) > (maxW - 3))
+        {
+          wpreview = StrUtil::TrimPadWString(wpreview, maxW - 3) + L"...";
+        }
+
+        wlines.push_back(wpreview);
+        ++previewLines;
+      }
+    }
+
     // Reactions
     int reactionLines = 0;
     static bool reactionsEnabled = UiConfig::GetBool("reactions_enabled");
@@ -430,6 +457,7 @@ void UiHistoryView::Draw()
       wlines.push_back(L"[...]");
       wstyles.resize(std::max(0, maxMessageLines - 1 - static_cast<int>(textOffset)));
       reactionLines = 0;
+      previewLines = 0;
     }
 
     std::string name = m_Model->GetContactNameLocked(currentChat.first, msg.senderId);
@@ -503,6 +531,8 @@ void UiHistoryView::Draw()
         continue;
       }
 
+      const size_t lineIdx = static_cast<size_t>(std::distance(wline, wlines.rend())) - 1;
+      bool isPreview = (previewLines > 0) && (lineIdx >= previewStart) && (lineIdx < (previewStart + previewLines));
       bool isAttachment = (wline->rfind(attachmentIndicator, 0) == 0);
       bool isQuote = (wline->rfind(quoteIndicator, 0) == 0);
       bool isReaction = (reactionLines == 1) && (std::distance(wline, wlines.rbegin()) == 0);
@@ -515,6 +545,10 @@ void UiHistoryView::Draw()
       {
         wattron(m_PaddedWin, attributeText | colorPairTextQuoted);
       }
+      else if (isPreview)
+      {
+        wattron(m_PaddedWin, attributeText | colorPairTextPreview);
+      }
       else if (isReaction)
       {
         wattron(m_PaddedWin, attributeTextNormal | colorPairTextReaction);
@@ -525,8 +559,7 @@ void UiHistoryView::Draw()
       }
 
       const std::wstring wdisp = isReaction ? *wline : StrUtil::TrimPadWString(*wline, blockW);
-      const size_t lineIdx = static_cast<size_t>(std::distance(wline, wlines.rend())) - 1;
-      const bool isStyledText = !isAttachment && !isQuote && !isReaction &&
+      const bool isStyledText = !isAttachment && !isQuote && !isPreview && !isReaction &&
         (lineIdx >= textOffset) && (lineIdx - textOffset < wstyles.size());
       if (isStyledText)
       {
@@ -544,6 +577,10 @@ void UiHistoryView::Draw()
       else if (isQuote)
       {
         wattroff(m_PaddedWin, attributeText | colorPairTextQuoted);
+      }
+      else if (isPreview)
+      {
+        wattroff(m_PaddedWin, attributeText | colorPairTextPreview);
       }
       else if (isReaction)
       {

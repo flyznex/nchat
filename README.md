@@ -732,6 +732,7 @@ This configuration file holds general user interface settings. Default content:
     inline_sticker_max_rows=6
     linefeed_on_enter=1
     link_open_command=
+    link_preview_enabled=1
     list_enabled=1
     list_width=30
     listdialog_show_filter=1
@@ -1025,6 +1026,13 @@ macOS: `open '%1' &`
 
 Note: Omit the trailing `&` for commands taking over the terminal, for
 example `w3m -o confirm_qq=false '%1'` and `see '%1'`.
+
+### link_preview_enabled
+
+Specifies whether to show a preview (site, title and description) below
+messages containing a link, when the protocol provides one (Telegram). Set to
+`0` to hide it. Colors are set with `history_text_preview_color_*` in
+`color.conf`. Default is `1`.
 
 ### list_enabled
 
@@ -1334,6 +1342,8 @@ This configuration file holds user interface color settings. Default content:
     history_text_quoted_color_fg=gray
     history_text_reaction_color_bg=
     history_text_reaction_color_fg=gray
+    history_text_preview_color_bg=
+    history_text_preview_color_fg=gray
     history_text_recv_color_bg=
     history_text_recv_color_fg=
     history_text_recv_group_color_bg=

@@ -55,6 +55,7 @@ void UiConfig::Init()
     { "inline_sticker_max_rows", "6" },
     { "linefeed_on_enter", "1" },
     { "link_open_command", "" },
+    { "link_preview_enabled", "1" },
     { "list_enabled", "1" },
     { "list_width", "30" },
     { "listdialog_show_filter", "1" },
