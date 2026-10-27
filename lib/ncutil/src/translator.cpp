@@ -90,6 +90,13 @@ namespace
     std::string dst = StrUtil::ToLower(p_Out);
     StrUtil::Trim(src);
     StrUtil::Trim(dst);
+    // a blocked engine (captcha/redirect) can yield a bare link instead of a translation
+    if (StrUtil::StartsWith(dst, "http") && !StrUtil::StartsWith(src, "http"))
+    {
+      p_Out.clear();
+      return Translator::State::Failed;
+    }
+
     return (src == dst) ? Translator::State::Unchanged : Translator::State::Ready;
   }
 

@@ -775,7 +775,7 @@ This configuration file holds general user interface settings. Default content:
     top_show_version=0
     transfer_send_caption=1
     translate_auto=0
-    translate_command=trans
+    translate_command=trans -e bing
     translate_target=en
     typing_status_share=1
     undo_clear_input=1
@@ -1223,15 +1223,16 @@ Specifies if entered text should be sent as caption when transferring a file.
 Set to `1` to show a gray translation below incoming text messages (needs
 [translate-shell](https://github.com/soimort/translate-shell), `brew install
 translate-shell`, which needs `gawk` and `curl`). Message text is sent to the
-translation engine (Google by default), so leave it at `0` if that is not
+translation engine (Bing by default), so leave it at `0` if that is not
 acceptable. Without auto translation, `Alt-l` translates the selected message
 in a dialog. Default is `0`.
 
 ### translate_command
 
-Command used for translation, default `trans`. It is called as
-`<command> -b -t <translate_target> -i <file>`. Set a full path or extra options
-here if needed, for example `trans -e bing`.
+Command used for translation, default `trans -e bing` (the Google engine often
+answers with a captcha page). It is called as
+`<command> -b -no-browser -t <translate_target> -i <file>`. Set a full path or
+other options here if needed, for example `trans -e google`.
 
 ### translate_target
 

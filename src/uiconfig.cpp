@@ -91,7 +91,7 @@ void UiConfig::Init()
     { "top_show_version", "0" },
     { "transfer_send_caption", "1" },
     { "translate_auto", "0" },
-    { "translate_command", "trans" },
+    { "translate_command", "trans -e bing" }, // google rate-limits with a captcha
     { "translate_target", "en" },
     { "typing_status_share", "1" },
     { "undo_clear_input", "1" },
