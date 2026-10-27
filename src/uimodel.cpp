@@ -8,6 +8,7 @@
 #include "uimodel.h"
 
 #include <algorithm>
+#include <chrono>
 
 #include <ncurses.h>
 #include <sys/ioctl.h>
@@ -3713,7 +3714,19 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
       }
       else if (m_Focus == NavFocus::Entry)
       {
-        if (GetEditMessageActive() || GetSelectMessageActive()) OnKeyCancel(); // drop the edit or reply
+        static auto lastEsc = std::chrono::steady_clock::time_point();
+        const auto now = std::chrono::steady_clock::now();
+        const bool doubleEsc = (now - lastEsc) < std::chrono::milliseconds(500);
+        lastEsc = now;
+        if (GetEditMessageActive() || GetSelectMessageActive())
+        {
+          OnKeyCancel(); // drop the edit or reply
+        }
+        else if (doubleEsc)
+        {
+          Clear(true /*p_AllowUndo*/); // double Esc clears the draft, same as Ctrl-c
+          lastEsc = std::chrono::steady_clock::time_point(); // a third Esc must not undo
+        }
       }
       else
       {

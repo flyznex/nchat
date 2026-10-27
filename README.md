@@ -55,6 +55,7 @@ Interactive Commands:
     Tab         next pane (list, history, entry)
     Sh-Tab      previous pane
     Esc         focus text entry
+    Esc Esc     clear input (twice within 0.5 s, in the entry; undo with Ctrl-c)
     Enter       send message (see `enter_sends`)
     Alt-Enter   insert linebreak
     Ctrl-f      jump to unread chat
