@@ -4100,6 +4100,18 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
   const int64_t senderId = GetSenderId(td::move_tl_object_as<td::td_api::MessageSender>(p_TdMessage.sender_id_));
   TdMessageContentConvert(*p_TdMessage.content_, senderId, p_ChatMessage.text, p_ChatMessage.fileInfo);
 
+  if (p_TdMessage.content_->get_id() == td::td_api::messageText::ID)
+  {
+    const auto& messageText = static_cast<const td::td_api::messageText&>(*p_TdMessage.content_);
+    if (messageText.link_preview_)
+    {
+      const td::td_api::linkPreview& preview = *messageText.link_preview_;
+      p_ChatMessage.linkPreview = ProtocolUtil::FormatLinkPreview(
+        preview.site_name_, preview.title_, preview.description_ ? preview.description_->text_ : "",
+        preview.display_url_);
+    }
+  }
+
   p_ChatMessage.id = StrUtil::NumToHex(p_TdMessage.id_);
   p_ChatMessage.senderId = StrUtil::NumToHex(senderId);
   p_ChatMessage.isOutgoing = p_TdMessage.is_outgoing_;
