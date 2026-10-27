@@ -23,4 +23,5 @@ private:
 
   static bool m_Enabled;
   static bool m_InTmux;
+  static bool m_LocalFiles;
 };

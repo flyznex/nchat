@@ -79,6 +79,13 @@ static void TestEncodeUploadExactChunkBoundary()
   unittest::ExpectEqual(std::string, seqs[0].substr(0, 40), "\033_Ga=T,U=1,f=100,i=1,c=2,r=2,q=2,m=0;AAA");
 }
 
+static void TestEncodeUploadFile()
+{
+  // path transmission: the terminal reads the file itself, payload is the base64 path
+  unittest::ExpectEqual(std::string, KittyEncoder::EncodeUploadFile(7, 20, 5, "foo"),
+                        "\033_Ga=T,U=1,f=100,t=f,i=7,c=20,r=5,q=2;Zm9v\033\\");
+}
+
 static void TestEncodeDelete()
 {
   unittest::ExpectEqual(std::string, KittyEncoder::EncodeDelete(5), "\033_Ga=d,d=I,i=5,q=2\033\\");
@@ -114,6 +121,7 @@ int main()
     TestEncodeUploadSingleChunk();
     TestEncodeUploadChunked();
     TestEncodeUploadExactChunkBoundary();
+    TestEncodeUploadFile();
     TestEncodeDelete();
     TestWrapTmux();
     TestIsSupportedTerm();

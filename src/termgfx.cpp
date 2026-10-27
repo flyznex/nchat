@@ -23,6 +23,7 @@
 
 bool TermGfx::m_Enabled = false;
 bool TermGfx::m_InTmux = false;
+bool TermGfx::m_LocalFiles = false;
 
 void TermGfx::Init()
 {
@@ -50,6 +51,8 @@ void TermGfx::Init()
     }
   }
 
+  // terminal reads the png itself (t=f) unless it may be on another machine, which would stream 1 MB per image
+  m_LocalFiles = (getenv("SSH_CONNECTION") == nullptr) && (getenv("SSH_TTY") == nullptr);
   m_InTmux = (getenv("TMUX") != nullptr);
   if (m_InTmux)
   {
@@ -88,6 +91,18 @@ void TermGfx::GetCellPixelSize(int& p_Width, int& p_Height)
 bool TermGfx::Upload(int p_Id, int p_Cols, int p_Rows, const std::string& p_PngPath)
 {
   if (!m_Enabled) return false;
+
+  if (m_LocalFiles)
+  {
+    if (!FileUtil::Exists(p_PngPath))
+    {
+      LOG_WARNING("inline image upload failed: cannot find %s", p_PngPath.c_str());
+      return false;
+    }
+
+    Write(KittyEncoder::EncodeUploadFile(p_Id, p_Cols, p_Rows, p_PngPath));
+    return true;
+  }
 
   const std::string png = FileUtil::ReadFile(p_PngPath);
   if (png.empty())

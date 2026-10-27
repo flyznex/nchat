@@ -92,6 +92,12 @@ std::vector<std::string> KittyEncoder::EncodeUpload(int p_Id, int p_Cols, int p_
   return seqs;
 }
 
+std::string KittyEncoder::EncodeUploadFile(int p_Id, int p_Cols, int p_Rows, const std::string& p_PngPath)
+{
+  return "\033_Ga=T,U=1,f=100,t=f,i=" + std::to_string(p_Id) + ",c=" + std::to_string(p_Cols) +
+    ",r=" + std::to_string(p_Rows) + ",q=2;" + Base64(p_PngPath) + "\033\\";
+}
+
 std::string KittyEncoder::EncodeDelete(int p_Id)
 {
   return "\033_Ga=d,d=I,i=" + std::to_string(p_Id) + ",q=2\033\\";
