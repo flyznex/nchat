@@ -28,6 +28,8 @@ struct LayoutIn
   int listWidth;
   int entryMin;
   int entryLines;
+  bool sidebar = false;
+  bool listRight = false;
 };
 
 struct LayoutOut
