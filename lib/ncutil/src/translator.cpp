@@ -64,7 +64,7 @@ namespace
     const std::string outPath = base + ".out";
     FileUtil::WriteFile(inPath, p_Text);
     const std::string cmd = p_Cmd + " -b -t " + p_Target + " -i '" + StrUtil::EscapeSingleQuote(inPath) + "' >'" +
-      StrUtil::EscapeSingleQuote(outPath) + "' 2>/dev/null";
+      StrUtil::EscapeSingleQuote(outPath) + "' 2>/dev/null </dev/null";
     int status = SysUtil::System(cmd); // non-const: macOS WEXITSTATUS casts away const (-Wcast-qual)
     p_Out = FileUtil::ReadFile(outPath);
     FileUtil::RmFile(inPath);
@@ -176,10 +176,16 @@ Translator::State Translator::Get(const std::string& p_Text, std::string& p_Tran
     return it->second.state;
   }
 
-  // ponytail: FIFO queue, fast scrolling queues stale requests; make it LIFO if that gets noticeable
+  // ponytail: LIFO queue capped at 64, newest (visible) first and stale scrolled-past requests dropped; no re-prioritising
   if (s_Queued.insert(p_Text).second)
   {
-    s_Queue.push_back(p_Text);
+    s_Queue.push_front(p_Text);
+    if (s_Queue.size() > 64)
+    {
+      s_Queued.erase(s_Queue.back());
+      s_Queue.pop_back();
+    }
+
     s_Cv.notify_one();
   }
 

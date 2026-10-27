@@ -6731,7 +6731,12 @@ void UiModel::OnKeyTranslate()
   std::string translated;
   std::string error;
   const bool ok = Translator::TranslateNow(text, translated, error);
-  MessageDialog("Translation (" + UiConfig::GetStr("translate_target") + ")", ok ? translated : error, 0.8, 12);
+  // Dialog shows height-3 lines (border + top pad), wrapped at 0.8 * screen width - 4; grow to fit, min 12
+  const std::string& msg = ok ? translated : error;
+  const int cols = std::max(1, (int)(0.8 * GetScreenWidth()) - 4);
+  const int lines = ((int)msg.size() + cols - 1) / cols + (int)std::count(msg.begin(), msg.end(), '\n');
+  const int height = std::max(12, std::min(lines + 5, GetScreenHeight() - 2));
+  MessageDialog("Translation (" + UiConfig::GetStr("translate_target") + ")", msg, 0.8, height);
 }
 
 void UiModel::OnKeyPaste()

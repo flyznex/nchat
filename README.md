@@ -94,6 +94,7 @@ Interactive Commands for Selected Message:
     Ctrl-x      send reply to selected message
     Ctrl-z      edit selected message
     Alt-c       copy selected message to clipboard
+    Alt-l       translate selected message
     Alt-u       open link
     Alt-q       jump to quoted/replied message
     Alt-r       forward selected message
