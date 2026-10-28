@@ -79,6 +79,11 @@ bool UiView::GetListRowAt(int p_ScreenY, ListRow& p_Row)
   return m_UiListView && m_UiListView->RowAt(p_ScreenY, p_Row);
 }
 
+int UiView::GetHistoryMsgAt(int p_ScreenY)
+{
+  return m_UiHistoryView ? m_UiHistoryView->MsgAt(p_ScreenY) : -1;
+}
+
 bool UiView::SetEntryLines(int p_Lines)
 {
   const int termH = m_UiScreen ? m_UiScreen->H() : 24;

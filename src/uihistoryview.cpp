@@ -79,6 +79,7 @@ UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
     int hpad = (m_X == 0) ? 0 : 1;
     int vpad = 1;
     int paddedY = m_Y + vpad;
+    m_PaddedY = paddedY;
     int paddedX = m_X + hpad;
     m_PaddedH = m_H - (vpad * 2);
     m_PaddedW = m_W - (hpad * 2);
@@ -149,11 +150,15 @@ void UiHistoryView::Draw()
   wbkgd(m_PaddedWin, attributeTextNormal | colorPairTextRecv | ' ');
 
   m_HistoryShowCount = 0;
+  m_RowMsg.assign(m_PaddedH, -1);
 
   bool firstMessage = true;
   int y = m_PaddedH - 1;
   for (auto it = std::next(messageVec.begin(), messageOffset); it != messageVec.end(); ++it)
   {
+    const int yStart = y;
+    const int msgIndex = static_cast<int>(std::distance(messageVec.begin(), it));
+    auto markRows = [&](int p_From) { for (int r = std::max(p_From, 0); r <= yStart; ++r) m_RowMsg[r] = msgIndex; };
     bool isSelectedMessage = firstMessage && m_Model->GetSelectMessageActiveLocked();
 
     auto msgIt = messages.find(*it);
@@ -618,7 +623,11 @@ void UiHistoryView::Draw()
       if (--y < 0) break;
     }
 
-    if (y < 0) break;
+    if (y < 0)
+    {
+      markRows(0);
+      break;
+    }
 
     int attributeName = isSelectedMessage ? attributeNameSelected : attributeNameNormal;
     int colorPairName = [&]()
@@ -664,6 +673,7 @@ void UiHistoryView::Draw()
     wattroff(m_PaddedWin, headerAttr | colorPairName);
 
     ++m_HistoryShowCount;
+    markRows(y);
 
     if (--y < 0) break;
 
@@ -678,4 +688,10 @@ void UiHistoryView::Draw()
 int UiHistoryView::GetHistoryShowCount()
 {
   return m_HistoryShowCount;
+}
+
+int UiHistoryView::MsgAt(int p_ScreenY) const
+{
+  const int i = p_ScreenY - m_PaddedY;
+  return ((i >= 0) && (i < static_cast<int>(m_RowMsg.size()))) ? m_RowMsg[i] : -1;
 }

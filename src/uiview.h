@@ -54,6 +54,7 @@ public:
   bool SetEntryLines(int p_Lines);
   const LayoutOut& GetLayout() const { return m_Layout; }
   bool GetListRowAt(int p_ScreenY, ListRow& p_Row);
+  int GetHistoryMsgAt(int p_ScreenY);
 
 protected:
   void Init();

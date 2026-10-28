@@ -3880,9 +3880,21 @@ void UiModel::Impl::HandleMouse(int p_X, int p_Y, unsigned long p_State)
 
     SetFocus(NavFocus::List);
   }
+  else if (pane == Pane::History)
+  {
+    int& offset = m_MessageOffset[m_CurrentChat.first][m_CurrentChat.second];
+    const int saved = offset;
+    SetFocus(NavFocus::History);
+    if (m_Focus == NavFocus::History)
+    {
+      const int msg = m_View->GetHistoryMsgAt(p_Y);
+      offset = (msg >= 0) ? msg : saved;
+      UpdateHistory();
+    }
+  }
   else
   {
-    SetFocus((pane == Pane::History) ? NavFocus::History : NavFocus::Entry);
+    SetFocus(NavFocus::Entry);
   }
 }
 

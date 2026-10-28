@@ -8,6 +8,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "uiviewbase.h"
 
@@ -19,6 +20,7 @@ public:
 
   virtual void Draw();
   int GetHistoryShowCount();
+  int MsgAt(int p_ScreenY) const;
 
 private:
   std::string GetTimeString(int64_t p_TimeSent);
@@ -27,5 +29,7 @@ private:
   WINDOW* m_PaddedWin = nullptr;
   int m_PaddedH = 0;
   int m_PaddedW = 0;
+  int m_PaddedY = 0;
   int m_HistoryShowCount = 0;
+  std::vector<int> m_RowMsg;
 };
