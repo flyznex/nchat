@@ -88,6 +88,7 @@ void Ui::Cleanup()
   mousemask(0, nullptr);
   wclear(stdscr);
   endwin();
+  flushinp();
 
   printf("\033[?1004l"); // disable terminal focus in/out event
 
@@ -132,6 +133,10 @@ void Ui::Run()
   }
 
   LOG_INFO("ui loop end");
+
+  // nobody reads input while the protocols shut down, so stop mouse reports now or clicks pile up for the shell
+  mousemask(0, nullptr);
+  flushinp();
 
   // set as offline before logging off
   for (auto& protocol : protocols)
