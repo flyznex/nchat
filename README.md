@@ -738,6 +738,7 @@ This configuration file holds general user interface settings. Default content:
     help_prefix_meta=M-
     home_fetch_all=0
     image_cache_days=30
+    inline_image_glyphs=quadrant
     inline_image_max_rows=10
     inline_images=auto
     inline_sticker_max_rows=6
@@ -991,6 +992,12 @@ Specifies after how many days without use the inline image previews in the
 `images` directory below the nchat data directory are deleted. They are
 checked when the first inline image is requested after startup, and are
 recreated on demand. Set to `0` to never delete them. Default is `30`.
+
+### inline_image_glyphs
+
+Specifies the characters used for block character images (see
+`inline_images`): `quadrant` (2x2 pixels per cell, works in every font) or
+`braille` (2x4 pixels per cell, finer detail but looks dotted). Read at startup.
 
 ### inline_image_max_rows
 

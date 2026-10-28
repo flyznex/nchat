@@ -20,6 +20,9 @@ namespace
   const wchar_t s_Glyphs[16] = { L' ',      L'▘', L'▝', L'▀', L'▖', L'▌', L'▞', L'▛',
                                  L'▗', L'▚', L'▐', L'▜', L'▄', L'▙', L'▟', L'█' };
 
+  // braille dot bit by pixel index (row * 2 + column) in a 2x4 cell
+  const int s_BrailleBits[8] = { 0x01, 0x08, 0x02, 0x10, 0x04, 0x20, 0x40, 0x80 };
+
   struct Pixel
   {
     bool opaque = false;
@@ -52,7 +55,7 @@ namespace
   Group Summarize(const Pixel* p_Px, int p_Mask)
   {
     Group g;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 8; ++i)
     {
       if ((p_Mask & (1 << i)) == 0) continue;
       for (int c = 0; c < 3; ++c) g.mean[c] += p_Px[i].rgb[c];
@@ -62,7 +65,7 @@ namespace
     if (g.count == 0) return g;
 
     for (int c = 0; c < 3; ++c) g.mean[c] /= g.count;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < 8; ++i)
     {
       if ((p_Mask & (1 << i)) == 0) continue;
       for (int c = 0; c < 3; ++c) g.err += (p_Px[i].rgb[c] - g.mean[c]) * (p_Px[i].rgb[c] - g.mean[c]);
@@ -122,6 +125,73 @@ namespace
     paint.bg = bg;
     return paint;
   }
+
+  BlockPaint PaintBrailleCell(const Pixel* p_Px)
+  {
+    BlockPaint paint;
+    int opaqueMask = 0;
+    for (int i = 0; i < 8; ++i)
+    {
+      if (p_Px[i].opaque) opaqueMask |= (1 << i);
+    }
+
+    if (opaqueMask == 0) return paint;
+
+    auto dotBits = [](int p_Mask)
+    {
+      int bits = 0;
+      for (int i = 0; i < 8; ++i)
+      {
+        if (p_Mask & (1 << i)) bits |= s_BrailleBits[i];
+      }
+
+      return bits;
+    };
+
+    if (opaqueMask != 255)
+    {
+      paint.ch = static_cast<wchar_t>(0x2800 + dotBits(opaqueMask));
+      paint.fg = ToPalette(Summarize(p_Px, opaqueMask));
+      return paint;
+    }
+
+    // split the pixels by luminance into a dark and a bright group, the smaller one (bright on a tie) gets the dots
+    int order[8] = { 0, 1, 2, 3, 4, 5, 6, 7 };
+    auto luma = [&](int p_I) { return 0.299 * p_Px[p_I].rgb[0] + 0.587 * p_Px[p_I].rgb[1] + 0.114 * p_Px[p_I].rgb[2]; };
+    std::sort(order, order + 8, [&](int p_A, int p_B) { return luma(p_A) < luma(p_B); });
+
+    int bestDots = 0;
+    int bestRest = 0;
+    double bestErr = -1;
+    int darkMask = 0;
+    for (int k = 1; k < 8; ++k)
+    {
+      darkMask |= (1 << order[k - 1]);
+      const int brightMask = 255 & ~darkMask;
+      const double err = Summarize(p_Px, darkMask).err + Summarize(p_Px, brightMask).err;
+      if ((bestErr < 0) || (err < bestErr))
+      {
+        bestErr = err;
+        const bool dotsDark = (k < 8 - k);
+        bestDots = dotsDark ? darkMask : brightMask;
+        bestRest = dotsDark ? brightMask : darkMask;
+      }
+    }
+
+    const int fg = ToPalette(Summarize(p_Px, bestDots));
+    const int bg = ToPalette(Summarize(p_Px, bestRest));
+    if (fg == bg)
+    {
+      paint.ch = s_Glyphs[15];
+      paint.fg = fg;
+      return paint;
+    }
+
+    paint.ch = static_cast<wchar_t>(0x2800 + dotBits(bestDots));
+    paint.fg = fg;
+    paint.bg = bg;
+    return paint;
+  }
 }
 
 int BlockImage::NearestPalette(int p_R, int p_G, int p_B)
@@ -142,7 +212,8 @@ int BlockImage::NearestPalette(int p_R, int p_G, int p_B)
   return (greyDist < cubeDist) ? (232 + greyIdx) : (16 + 36 * ri + 6 * gi + bi);
 }
 
-BlockGrid BlockImage::Render(const unsigned char* p_Rgba, int p_Width, int p_Height, int p_Cols, int p_Rows)
+BlockGrid BlockImage::Render(const unsigned char* p_Rgba, int p_Width, int p_Height, int p_Cols, int p_Rows,
+                             BlockStyle p_Style)
 {
   BlockGrid grid;
   if ((p_Rgba == nullptr) || (p_Width <= 0) || (p_Height <= 0) || (p_Cols <= 0) || (p_Rows <= 0)) return grid;
@@ -151,8 +222,10 @@ BlockGrid BlockImage::Render(const unsigned char* p_Rgba, int p_Width, int p_Hei
   grid.rows = p_Rows;
   grid.cells.resize(static_cast<size_t>(p_Cols * p_Rows));
 
+  const bool braille = (p_Style == BlockStyle::Braille);
+  const int subRows = braille ? 4 : 2;
   const int pxCols = p_Cols * 2;
-  const int pxRows = p_Rows * 2;
+  const int pxRows = p_Rows * subRows;
   auto sample = [&](int p_Ox, int p_Oy) -> Pixel
   {
     const int x0 = static_cast<int>(static_cast<long long>(p_Ox) * p_Width / pxCols);
@@ -192,16 +265,20 @@ BlockGrid BlockImage::Render(const unsigned char* p_Rgba, int p_Width, int p_Hei
   {
     for (int col = 0; col < p_Cols; ++col)
     {
-      const Pixel px[4] = { sample(col * 2, row * 2), sample(col * 2 + 1, row * 2),
-                            sample(col * 2, row * 2 + 1), sample(col * 2 + 1, row * 2 + 1) };
-      grid.cells[static_cast<size_t>(row * p_Cols + col)] = PaintCell(px);
+      Pixel px[8];
+      for (int sy = 0; sy < subRows; ++sy)
+      {
+        for (int sx = 0; sx < 2; ++sx) px[sy * 2 + sx] = sample(col * 2 + sx, row * subRows + sy);
+      }
+
+      grid.cells[static_cast<size_t>(row * p_Cols + col)] = braille ? PaintBrailleCell(px) : PaintCell(px);
     }
   }
 
   return grid;
 }
 
-bool BlockImage::RenderPng(const std::string& p_Path, int p_Cols, int p_Rows, BlockGrid& p_Grid)
+bool BlockImage::RenderPng(const std::string& p_Path, int p_Cols, int p_Rows, BlockGrid& p_Grid, BlockStyle p_Style)
 {
   int w = 0;
   int h = 0;
@@ -209,7 +286,7 @@ bool BlockImage::RenderPng(const std::string& p_Path, int p_Cols, int p_Rows, Bl
   unsigned char* data = stbi_load(p_Path.c_str(), &w, &h, &n, 4);
   if (data == nullptr) return false;
 
-  p_Grid = Render(data, w, h, p_Cols, p_Rows);
+  p_Grid = Render(data, w, h, p_Cols, p_Rows, p_Style);
   stbi_image_free(data);
   return !p_Grid.cells.empty();
 }

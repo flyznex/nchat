@@ -50,6 +50,7 @@ void UiConfig::Init()
     { "help_prefix_meta", "M-" },
     { "home_fetch_all", "0" },
     { "image_cache_days", "30" },
+    { "inline_image_glyphs", "quadrant" },
     { "inline_image_max_rows", "10" },
     { "inline_images", "auto" },
     { "inline_sticker_max_rows", "6" },

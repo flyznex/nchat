@@ -152,6 +152,55 @@ static void TestRenderGridSize()
   unittest::ExpectEqual(int, g.At(2, 3).fg, 46);
 }
 
+static BlockPaint Braille(const std::vector<unsigned char>& p_Img)
+{
+  return BlockImage::Render(p_Img.data(), 2, 4, 1, 1, BlockStyle::Braille).At(0, 0);
+}
+
+static void TestRenderBraille()
+{
+  // solid: full block
+  BlockPaint p = Braille(Solid(2, 4, 255, 0, 0));
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2588);
+  unittest::ExpectEqual(int, p.fg, 196);
+
+  // one white pixel at the top left on black: dot 1
+  std::vector<unsigned char> img = Solid(2, 4, 0, 0, 0);
+  Put(img, 2, 0, 0, 255, 255, 255);
+  p = Braille(img);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2801);
+  unittest::ExpectEqual(int, p.fg, 231);
+  unittest::ExpectEqual(int, p.bg, 16);
+
+  // white top half on black: dots 1, 2, 4, 5
+  img = Solid(2, 4, 0, 0, 0);
+  for (int y = 0; y < 2; ++y)
+  {
+    for (int x = 0; x < 2; ++x) Put(img, 2, x, y, 255, 255, 255);
+  }
+
+  p = Braille(img);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x281B);
+  unittest::ExpectEqual(int, p.fg, 231);
+  unittest::ExpectEqual(int, p.bg, 16);
+
+  // transparent bottom half: dots of the opaque top half, history background
+  img = Solid(2, 4, 255, 0, 0);
+  for (int y = 2; y < 4; ++y)
+  {
+    for (int x = 0; x < 2; ++x) Put(img, 2, x, y, 255, 0, 0, 0);
+  }
+
+  p = Braille(img);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x281B);
+  unittest::ExpectEqual(int, p.fg, 196);
+  unittest::ExpectEqual(int, p.bg, -1);
+
+  // fully transparent: blank
+  p = Braille(Solid(2, 4, 255, 0, 0, 0));
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x20);
+}
+
 static void TestRenderInvalid()
 {
   BlockGrid g = BlockImage::Render(nullptr, 2, 2, 1, 1);
@@ -178,6 +227,7 @@ int main()
     TestRenderTransparent();
     TestRenderAverage();
     TestRenderGridSize();
+    TestRenderBraille();
     TestRenderInvalid();
     TestRenderPngMissing();
   }
