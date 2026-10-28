@@ -3610,7 +3610,9 @@ bool UiModel::Impl::FilterTextKey(wint_t p_Key)
     return false;
   }
 
-  SnapSelectionToRows();
+  // a search starts at its first match; an emptied filter keeps the current chat
+  if (m_ListFilter.text.empty()) SnapSelectionToRows();
+  else SelectChatIndex(ChatList::Edge(BuildListRows(), false));
   UpdateList();
   return true;
 }
