@@ -48,6 +48,9 @@ public:
   void SetDirty(bool p_Dirty);
 
 protected:
+  static void DrawScrollBar(WINDOW* p_Win, int p_Bkgd, int p_Attr, int p_Row0, int p_Track, int p_Total,
+                            int p_First, int p_Visible);
+
   int m_X = 0;
   int m_Y = 0;
   int m_W = 0;

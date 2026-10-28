@@ -25,6 +25,7 @@ UiListView::UiListView(const UiViewParams& p_Params)
     m_PaddedH = m_H - 2;
     m_PaddedW = m_W - 2;
     m_PaddedWin = newwin(m_PaddedH, m_PaddedW, paddedY, paddedX);
+    m_BarWin = (m_PaddedH > 0) ? newwin(m_PaddedH, 1, paddedY, m_X + m_W - 1) : nullptr;
 
     static int colorPair = UiColorConfig::GetColorPair("list_color");
     static int attribute = UiColorConfig::GetAttribute("list_attr");
@@ -41,6 +42,12 @@ UiListView::~UiListView()
   {
     delwin(m_PaddedWin);
     m_PaddedWin = nullptr;
+  }
+
+  if (m_BarWin != nullptr)
+  {
+    delwin(m_BarWin);
+    m_BarWin = nullptr;
   }
 }
 
@@ -106,6 +113,8 @@ void UiListView::Draw()
   static int dimAttr = UiColorConfig::GetAttribute("dim_attr");
   static int focusColorPair = UiColorConfig::GetColorPair("focus_color");
   static int focusAttr = UiColorConfig::GetAttribute("focus_attr");
+  static int borderColorPair = UiColorConfig::GetColorPair("listborder_color");
+  static int borderAttr = UiColorConfig::GetAttribute("listborder_attr");
   static const std::string unreadIndicator = UiConfig::GetStr("unread_indicator");
   // ponytail: two-line rows need room; narrower lists or terminals fall back to the old one-line rows
   const bool twoLines = (m_W >= 20) && (COLS >= 60) && (m_PaddedH >= 4);
@@ -204,6 +213,14 @@ void UiListView::Draw()
   for (const ListRow& row : rows) lineCounts.push_back(linesOf(row));
   m_First = ChatList::ScrollFirst(lineCounts, m_First, sel, height, m_FreeScroll);
 
+  int totalLines = 0;
+  int firstLine = 0;
+  for (int i = 0; i < static_cast<int>(lineCounts.size()); ++i)
+  {
+    totalLines += lineCounts[i];
+    if (i < m_First) firstLine += lineCounts[i];
+  }
+
   int y = top;
   for (int i = m_First; (i < (int)rows.size()) && (y < m_PaddedH); ++i)
   {
@@ -285,4 +302,8 @@ void UiListView::Draw()
 
   wattroff(m_PaddedWin, base | colorPair);
   wrefresh(m_PaddedWin);
+
+  DrawScrollBar(m_BarWin, base | colorPair | ' ',
+                focused ? (focusAttr | focusColorPair) : (borderAttr | borderColorPair), top, height, totalLines,
+                firstLine, height);
 }

@@ -32,6 +32,7 @@ private:
   int m_PendingScroll = 0;
   std::vector<ListRow> m_Hits; // per padded-window line, chat == -2 means not a row
   WINDOW* m_PaddedWin = nullptr;
+  WINDOW* m_BarWin = nullptr;
   int m_PaddedH = 0;
   int m_PaddedW = 0;
   int m_First = 0; // first visible row, kept between draws so the list scrolls only when the selection leaves it

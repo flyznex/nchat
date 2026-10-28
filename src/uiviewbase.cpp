@@ -7,6 +7,8 @@
 
 #include "uiviewbase.h"
 
+#include "scrollbar.h"
+
 UiViewBase::UiViewBase(const UiViewParams& p_Params)
   : m_X(p_Params.x)
   , m_Y(p_Params.y)
@@ -52,4 +54,24 @@ int UiViewBase::Y()
 void UiViewBase::SetDirty(bool p_Dirty)
 {
   m_Dirty = p_Dirty;
+}
+
+void UiViewBase::DrawScrollBar(WINDOW* p_Win, int p_Bkgd, int p_Attr, int p_Row0, int p_Track, int p_Total,
+                               int p_First, int p_Visible)
+{
+  if (p_Win == nullptr) return;
+
+  werase(p_Win);
+  wbkgd(p_Win, p_Bkgd);
+
+  int pos = 0;
+  int len = 0;
+  if (ScrollThumb(p_Total, p_First, p_Visible, p_Track, pos, len))
+  {
+    wattron(p_Win, p_Attr | A_REVERSE);
+    for (int i = 0; i < len; ++i) mvwaddch(p_Win, p_Row0 + pos + i, 0, ' ');
+    wattroff(p_Win, p_Attr | A_REVERSE);
+  }
+
+  wrefresh(p_Win);
 }
