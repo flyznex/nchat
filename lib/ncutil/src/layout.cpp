@@ -47,3 +47,17 @@ LayoutOut ComputeLayout(const LayoutIn& p_In)
   out.history = { colX, topH, colW, midH };
   return out;
 }
+
+static bool Contains(const LayoutRect& p_Rect, int p_X, int p_Y)
+{
+  return (p_Rect.w > 0) && (p_Rect.h > 0) && (p_X >= p_Rect.x) && (p_X < (p_Rect.x + p_Rect.w)) &&
+         (p_Y >= p_Rect.y) && (p_Y < (p_Rect.y + p_Rect.h));
+}
+
+Pane PaneAt(const LayoutOut& p_Layout, int p_X, int p_Y)
+{
+  if (Contains(p_Layout.list, p_X, p_Y)) return Pane::List;
+  if (Contains(p_Layout.history, p_X, p_Y)) return Pane::History;
+  if (Contains(p_Layout.entry, p_X, p_Y)) return Pane::Entry;
+  return Pane::None;
+}

@@ -43,5 +43,8 @@ struct LayoutOut
   LayoutRect history;
 };
 
+enum class Pane { None, List, History, Entry };
+
 int EntryContentHeight(int p_EntryMin, int p_EntryLines, int p_TermH);
 LayoutOut ComputeLayout(const LayoutIn& p_In);
+Pane PaneAt(const LayoutOut& p_Layout, int p_X, int p_Y);
