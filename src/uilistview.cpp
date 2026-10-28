@@ -70,6 +70,15 @@ static std::wstring FitWidth(const std::wstring& p_Str, int p_Width)
   return StrUtil::TrimPadWString(p_Str, p_Width);
 }
 
+bool UiListView::RowAt(int p_ScreenY, ListRow& p_Row) const
+{
+  const int i = p_ScreenY - (m_Y + 1); // padded window starts one line below the border
+  if ((i < 0) || (i >= static_cast<int>(m_Hits.size())) || (m_Hits[i].chat == -2)) return false;
+
+  p_Row = m_Hits[i];
+  return true;
+}
+
 void UiListView::Draw()
 {
   if (!m_Enabled || !m_Dirty) return;
@@ -78,6 +87,8 @@ void UiListView::Draw()
   curs_set(0);
 
   if ((m_PaddedWin == nullptr) || (m_PaddedH <= 0) || (m_PaddedW <= 0)) return; // tiny terminal
+
+  m_Hits.assign(m_PaddedH, ListRow{ -2, "" });
 
   static int colorPair = UiColorConfig::GetColorPair("list_color");
   static int attribute = UiColorConfig::GetAttribute("list_attr");
@@ -171,6 +182,8 @@ void UiListView::Draw()
   for (int i = m_First; (i < (int)rows.size()) && (y < m_PaddedH); ++i)
   {
     const ListRow& row = rows[i];
+    for (int l = 0; (l < ((row.chat < 0) ? 1 : rowLines)) && ((y + l) < m_PaddedH); ++l) m_Hits[y + l] = row;
+
     if (row.chat < 0)
     {
       std::string header = m_Model->GetProfileDisplayNameLocked(row.header);

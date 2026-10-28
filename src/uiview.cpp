@@ -62,6 +62,7 @@ void UiView::Init()
   in.entryMin = m_EntryHeight;
   in.entryLines = m_EntryLines;
   const LayoutOut lo = ComputeLayout(in);
+  m_Layout = lo;
 
   auto params = [this](const LayoutRect& r, bool enabled) { return UiViewParams(r.x, r.y, r.w, r.h, enabled, m_UiModel); };
   m_UiTopView = std::make_shared<UiTopView>(params(lo.top, m_TopEnabled));
@@ -71,6 +72,11 @@ void UiView::Init()
   m_UiListView = std::make_shared<UiListView>(params(lo.list, m_ListEnabled));
   m_UiListBorderView = std::make_shared<UiListBorderView>(params(lo.border, m_ListEnabled && (m_ListWidth > 0)));
   m_UiHistoryView = std::make_shared<UiHistoryView>(params(lo.history, m_HistoryEnabled));
+}
+
+bool UiView::GetListRowAt(int p_ScreenY, ListRow& p_Row)
+{
+  return m_UiListView && m_UiListView->RowAt(p_ScreenY, p_Row);
 }
 
 bool UiView::SetEntryLines(int p_Lines)

@@ -173,6 +173,7 @@ void UiStickerDialog::KeyHandler(wint_t p_Key)
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
   static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
   static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
+  static const wint_t functionKeyOffset = UiKeyConfig::GetOffsettedKeyCode(0, true);
 
   const int count = static_cast<int>(m_Stickers.size());
   bool isDirty = true;
@@ -262,7 +263,7 @@ void UiStickerDialog::KeyHandler(wint_t p_Key)
       UpdateFooter();
     }
   }
-  else if (StrUtil::IsValidTextKey(p_Key)) // last, so named keys never type
+  else if (StrUtil::IsValidTextKey(p_Key) && (p_Key < functionKeyOffset)) // last, so named keys (incl. KEY_MOUSE) never type
   {
     m_Query += p_Key;
     m_QueryDirty = true;

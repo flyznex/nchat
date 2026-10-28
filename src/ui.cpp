@@ -25,6 +25,7 @@
 #include "uicontroller.h"
 #include "uikeyconfig.h"
 #include "uikeydump.h"
+#include "uikeyinput.h"
 #include "uimodel.h"
 
 Ui::Ui()
@@ -59,6 +60,12 @@ void Ui::Init()
   cbreak();
   UiConfig::GetBool("linefeed_on_enter") ? nl() : nonl();
   keypad(stdscr, TRUE);
+  if (UiConfig::GetBool("mouse_enabled"))
+  {
+    mouseinterval(0);
+    mousemask(kMouseClick | kMouseWheelUp | kMouseWheelDown, nullptr);
+  }
+
   curs_set(0);
   timeout(0);
   EmojiList::Init();
@@ -78,6 +85,7 @@ void Ui::Cleanup()
   UiKeyConfig::Cleanup();
   EmojiList::Cleanup();
 
+  mousemask(0, nullptr);
   wclear(stdscr);
   endwin();
 

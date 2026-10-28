@@ -66,6 +66,7 @@ void UiConfig::Init()
     { "mark_read_when_inactive", "0" },
     { "message_edit_command", "" },
     { "message_open_command", "" },
+    { "mouse_enabled", "0" },
     { "muted_indicate_unread", "1" },
     { "muted_notify_unread", "0" },
     { "muted_position_by_timestamp", "1" },

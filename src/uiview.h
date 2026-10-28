@@ -9,6 +9,7 @@
 
 #include <memory>
 
+#include "chatlist.h"
 #include "layout.h"
 
 class UiEntryView;
@@ -51,6 +52,8 @@ public:
   void DecreaseListWidth();
   void IncreaseListWidth();
   bool SetEntryLines(int p_Lines);
+  const LayoutOut& GetLayout() const { return m_Layout; }
+  bool GetListRowAt(int p_ScreenY, ListRow& p_Row);
 
 protected:
   void Init();
@@ -81,6 +84,7 @@ private:
   bool m_ListRight = false;
   int m_EntryHeight = 4;
   int m_EntryLines = 1;
+  LayoutOut m_Layout;
 
   friend class UiModel;
 };

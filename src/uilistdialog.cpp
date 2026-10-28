@@ -79,6 +79,7 @@ void UiListDialog::KeyHandler(wint_t p_Key)
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
   static wint_t keyTerminalFocusOut = UiKeyConfig::GetKey("terminal_focus_out");
   static wint_t keyTerminalResize = UiKeyConfig::GetKey("terminal_resize");
+  static const wint_t functionKeyOffset = UiKeyConfig::GetOffsettedKeyCode(0, true);
 
   bool isDirty = true;
   if (p_Key == keyTerminalResize)
@@ -156,7 +157,7 @@ void UiListDialog::KeyHandler(wint_t p_Key)
       UpdateFooter();
     }
   }
-  else if (StrUtil::IsValidTextKey(p_Key))
+  else if (StrUtil::IsValidTextKey(p_Key) && (p_Key < functionKeyOffset)) // function keys (KEY_MOUSE) never type
   {
     m_FilterStr += p_Key;
     UpdateList();

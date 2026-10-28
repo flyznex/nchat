@@ -153,6 +153,7 @@ void UiTextInputDialog::EntryKeyHandler(wint_t p_Key)
   static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
   static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
   static wint_t keyDelete = UiKeyConfig::GetKey("delete");
+  static const wint_t functionKeyOffset = UiKeyConfig::GetOffsettedKeyCode(0, true);
 
   std::wstring& entryStr = m_EntryStr;
   int& entryPos = m_EntryPos;
@@ -196,7 +197,7 @@ void UiTextInputDialog::EntryKeyHandler(wint_t p_Key)
       }
     }
   }
-  else if (StrUtil::IsValidTextKey(p_Key))
+  else if (StrUtil::IsValidTextKey(p_Key) && (p_Key < functionKeyOffset)) // function keys (KEY_MOUSE) never type
   {
     entryStr.insert(entryPos++, 1, p_Key);
   }
