@@ -873,7 +873,9 @@ or a chat.
 ### confirm_send_pasted_image
 
 Specifies whether to prompt the user for confirmation when pasting an image
-to a chat.
+to a chat. With the prompt enabled, pasting an image (Alt-v by default) opens a
+"Send pasted image?" dialog and nchat waits there: Enter sends the image, Esc
+cancels. Set to 0 to send the image right away.
 
 ### delivered_indicator
 
