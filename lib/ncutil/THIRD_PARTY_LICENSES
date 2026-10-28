@@ -146,7 +146,7 @@ SOFTWARE.
 
 
 --------------------------------------------------------------------------------
-stb (stb_image_write)  v1.16  (MIT OR Unlicense)
+stb (stb_image, stb_image_write)  (MIT OR Unlicense)
 https://github.com/nothings/stb
 --------------------------------------------------------------------------------
 

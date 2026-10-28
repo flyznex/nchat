@@ -42,6 +42,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/appconfig.h
   src/apputil.cpp
   src/apputil.h
+  src/blockimage.cpp
+  src/blockimage.h
   src/buildinfo.cpp
   src/cacheutil.cpp
   src/cacheutil.h
