@@ -70,6 +70,12 @@ static std::wstring FitWidth(const std::wstring& p_Str, int p_Width)
   return StrUtil::TrimPadWString(p_Str, p_Width);
 }
 
+void UiListView::Scroll(int p_Rows)
+{
+  m_PendingScroll += p_Rows;
+  SetDirty(true);
+}
+
 bool UiListView::RowAt(int p_ScreenY, ListRow& p_Row) const
 {
   const int i = p_ScreenY - (m_Y + 1); // padded window starts one line below the border
@@ -170,11 +176,36 @@ void UiListView::Draw()
     if (rows[i].chat == index) sel = i;
   }
 
-  m_First = std::min(m_First, std::max(0, (int)rows.size() - 1));
-  if (sel >= 0)
+  // a changed filter shows the result from the top, not from the old scroll position
+  const std::string filterKey = filter.text + '\n' + (filter.unreadOnly ? "1" : "0") + filter.folder;
+  if (filterKey != m_FilterKey)
+  {
+    m_FilterKey = filterKey;
+    m_First = 0;
+    m_FreeScroll = false;
+    m_PendingScroll = 0;
+  }
+
+  // wheel scroll moves the view only, until the selection changes
+  if (m_PendingScroll != 0)
+  {
+    m_FreeScroll = true;
+    m_FreeIndex = index;
+    m_First += m_PendingScroll;
+    m_PendingScroll = 0;
+  }
+
+  if (m_FreeScroll && (index != m_FreeIndex)) m_FreeScroll = false;
+
+  m_First = std::max(0, std::min(m_First, (int)rows.size() - 1));
+  auto span = [&](int a, int b) { int n = 0; for (int i = a; i <= b; ++i) n += linesOf(rows[i]); return n; };
+  if (m_FreeScroll)
+  {
+    while ((m_First > 0) && (span(m_First - 1, (int)rows.size() - 1) <= height)) --m_First;
+  }
+  else if (sel >= 0)
   {
     if (sel < m_First) m_First = sel;
-    auto span = [&](int a, int b) { int n = 0; for (int i = a; i <= b; ++i) n += linesOf(rows[i]); return n; };
     while ((m_First < sel) && (span(m_First, sel) > height)) ++m_First;
   }
 

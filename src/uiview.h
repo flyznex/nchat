@@ -55,6 +55,7 @@ public:
   const LayoutOut& GetLayout() const { return m_Layout; }
   bool GetListRowAt(int p_ScreenY, ListRow& p_Row);
   int GetHistoryMsgAt(int p_ScreenY);
+  void ScrollList(int p_Rows);
 
 protected:
   void Init();

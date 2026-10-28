@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <string>
 #include <vector>
 
 #include <ncurses.h>
@@ -22,8 +23,13 @@ public:
 
   virtual void Draw();
   bool RowAt(int p_ScreenY, ListRow& p_Row) const;
+  void Scroll(int p_Rows);
 
 private:
+  std::string m_FilterKey;
+  bool m_FreeScroll = false; // view scrolled by wheel, selection need not be visible
+  int m_FreeIndex = -1;
+  int m_PendingScroll = 0;
   std::vector<ListRow> m_Hits; // per padded-window line, chat == -2 means not a row
   WINDOW* m_PaddedWin = nullptr;
   int m_PaddedH = 0;

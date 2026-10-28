@@ -3853,7 +3853,7 @@ void UiModel::Impl::HandleMouse(int p_X, int p_Y, unsigned long p_State)
   if (wheelUp || wheelDown)
   {
     const int delta = wheelUp ? -kWheelStep : kWheelStep;
-    if (pane == Pane::List) ListMove(delta);
+    if (pane == Pane::List) m_View->ScrollList(delta);
     else if (pane == Pane::History) HistoryScroll(-delta);
     return;
   }

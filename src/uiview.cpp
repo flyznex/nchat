@@ -79,6 +79,11 @@ bool UiView::GetListRowAt(int p_ScreenY, ListRow& p_Row)
   return m_UiListView && m_UiListView->RowAt(p_ScreenY, p_Row);
 }
 
+void UiView::ScrollList(int p_Rows)
+{
+  if (m_UiListView) m_UiListView->Scroll(p_Rows);
+}
+
 int UiView::GetHistoryMsgAt(int p_ScreenY)
 {
   return m_UiHistoryView ? m_UiHistoryView->MsgAt(p_ScreenY) : -1;
