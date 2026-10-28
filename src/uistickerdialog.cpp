@@ -55,7 +55,7 @@ bool UiStickerDialog::Run()
   while (m_Running && !AppUtil::IsTerminateRequested())
   {
     wint_t key = UiController::GetKey(50);
-    if (key != 0)
+    if (key != WEOF)
     {
       KeyHandler(key);
     }
