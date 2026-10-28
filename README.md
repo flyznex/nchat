@@ -124,7 +124,8 @@ in the entry. Tab / Sh-Tab cycle the focus, Esc returns to the entry, and
 the focused pane is highlighted (see `focus_*` and `dim_attr` in `color.conf`).
 In list or history focus, typing a letter that is not a navigation key jumps to
 the entry. Up/Down/Home/End navigate in both panes, Enter opens the selected
-chat (list) or replies to the selected message (history).
+chat (list) or replies to the selected message (history). With `mouse_enabled=1`
+a click focuses a pane and the wheel scrolls the pane under the pointer.
 
 With `vim_keys=1` (default in `ui.conf`) the following keys are also available
 in list and history focus:
@@ -750,6 +751,7 @@ This configuration file holds general user interface settings. Default content:
     mark_read_when_inactive=0
     message_edit_command=
     message_open_command=
+    mouse_enabled=0
     muted_indicate_unread=1
     muted_notify_unread=0
     muted_position_by_timestamp=1
@@ -1100,6 +1102,15 @@ otherwise use `nano`.
 Specifies a custom command to use for opening/viewing message text part. If
 not specified, nchat will use `PAGER` environment variable if set, or
 otherwise use `less`.
+
+### mouse_enabled
+
+Specifies whether to enable mouse support, read at startup. With `1` a left click
+focuses the pane under the pointer and selects a clicked chat (a click on a group
+header collapses or expands it), and the wheel scrolls the pane under the pointer
+without changing focus. Clicks are ignored while the chat list filter or a message
+edit is active. With mouse reporting on, the terminal no longer selects text on a
+plain drag: hold Shift (Option on iTerm2 and Terminal.app) to select. Default is `0`.
 
 ### muted_indicate_unread
 

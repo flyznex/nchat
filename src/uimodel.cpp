@@ -3569,6 +3569,18 @@ void UiModel::Impl::HistoryMove(int p_Delta)
   UpdateHistory();
 }
 
+// positive delta = older; unlike HistoryMove it never leaves select mode
+void UiModel::Impl::HistoryScroll(int p_Delta)
+{
+  const std::string profileId = m_CurrentChat.first;
+  const std::string chatId = m_CurrentChat.second;
+  const int messageCount = m_Messages[profileId][chatId].size();
+  int& messageOffset = m_MessageOffset[profileId][chatId];
+  messageOffset = NumUtil::Bound(0, messageOffset + p_Delta, std::max(0, messageCount - 1));
+  if (p_Delta > 0) RequestMessagesCurrentChat();
+  UpdateHistory();
+}
+
 void UiModel::Impl::HistoryJump(bool p_Oldest)
 {
   const std::string profileId = m_CurrentChat.first;
@@ -3825,6 +3837,53 @@ bool UiModel::Impl::HandleFocusKey(wint_t p_Key, NavAction& p_Deferred)
   }
 
   return true;
+}
+
+void UiModel::Impl::HandleMouse(int p_X, int p_Y, unsigned long p_State)
+{
+  if (m_ListFilterEditing || GetEditMessageActive()) return;
+
+  const Pane pane = PaneAt(m_View->GetLayout(), p_X, p_Y);
+  if (pane == Pane::None) return;
+
+  const bool click = (p_State & kMouseClick) != 0;
+  const bool wheelUp = (p_State & kMouseWheelUp) != 0;
+  const bool wheelDown = (p_State & kMouseWheelDown) != 0;
+  static const int kWheelStep = 3; // ponytail: fixed step, no config
+  if (wheelUp || wheelDown)
+  {
+    const int delta = wheelUp ? -kWheelStep : kWheelStep;
+    if (pane == Pane::List) ListMove(delta);
+    else if (pane == Pane::History) HistoryScroll(-delta);
+    return;
+  }
+
+  if (!click) return;
+  AnyUserKeyInput();
+  if (pane == Pane::List)
+  {
+    ListRow row;
+    if (m_View->GetListRowAt(p_Y, row))
+    {
+      if (row.chat >= 0)
+      {
+        SelectChatIndex(row.chat);
+      }
+      else if (!m_CollapsedGroups.erase(row.header))
+      {
+        m_CollapsedGroups.insert(row.header);
+        SnapSelectionToRows();
+      }
+
+      UpdateList();
+    }
+
+    SetFocus(NavFocus::List);
+  }
+  else
+  {
+    SetFocus((pane == Pane::History) ? NavFocus::History : NavFocus::Entry);
+  }
 }
 
 bool UiModel::Impl::GetListDialogActive()
@@ -5380,6 +5439,21 @@ void UiModel::KeyHandler(wint_t p_Key)
 
   static const bool enterSends = UiConfig::GetBool("enter_sends");
   static wint_t keySendEnter = UiKeyConfig::GetKey("send_enter");
+
+  static const wint_t keyMouse = UiKeyConfig::GetOffsettedKeyCode(KEY_MOUSE, true);
+  if (p_Key == keyMouse)
+  {
+    int x = 0;
+    int y = 0;
+    unsigned long state = 0;
+    if (UiKeyInput::GetLastMouse(x, y, state))
+    {
+      std::unique_lock<owned_mutex> lock(m_ModelMutex);
+      GetImpl().HandleMouse(x, y, state);
+    }
+
+    return;
+  }
 
   {
     NavAction deferred = NavAction::None;

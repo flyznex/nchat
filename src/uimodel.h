@@ -162,6 +162,8 @@ private:
     void ListMove(int p_Delta);
     void ListEdge(bool p_Last);
     void HistoryMove(int p_Delta);
+    void HistoryScroll(int p_Delta);
+    void HandleMouse(int p_X, int p_Y, unsigned long p_State);
     void HistoryJump(bool p_Oldest);
     bool FilterTextKey(wint_t p_Key);
 
