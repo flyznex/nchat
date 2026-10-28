@@ -19,6 +19,8 @@ public:
   static void Cleanup();
   static int GetColorPair(const std::string& p_Param); // ex: "top_color"
   static int GetImageIdPair(int p_Id); // raw pair number, fg color index = image id
+  static int GetBlockPair(int p_Fg, int p_Bg); // p_Bg -1 = history background; both are 0..255 palette indices
+  static void ResetBlockPairs();
   static int GetUserColorPair(const std::string& p_Param, const std::string& p_UserId);
   static bool IsUserColor(const std::string& p_Param); // ex: "top_color"
   static int GetAttribute(const std::string& p_Param); // ex: "top_attr"

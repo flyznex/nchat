@@ -226,7 +226,8 @@ Inline Images
 =============
 Photos and stickers can be shown inline in the message history (and sticker
 previews in the Telegram sticker picker, Alt-g / Opt-g). nchat draws them with
-the kitty graphics protocol, so it needs a terminal that supports it, and it
+the kitty graphics protocol in terminals that support it, and with half-block
+characters (256 colors, coarser) in all other terminals such as Alacritty. It
 needs a tool to convert the downloaded file to PNG. Nothing else has to be
 configured on the nchat side, `inline_images=auto` is the default.
 
@@ -289,8 +290,10 @@ See the descriptions of `inline_images`, `inline_image_max_rows` and
   `-e` for verbose logging, which also logs when no supported terminal is detected).
 - Photos and stickers are downloaded when they become visible, so they can appear
   a moment after scrolling to them.
-- Other terminals (Terminal.app, iTerm2, Alacritty, ...) are not supported and
-  always fall back to text lines.
+- Other terminals (Terminal.app, iTerm2, Alacritty, ...) show images with
+  half-block characters, which is coarser than kitty graphics. Set
+  `inline_images=blocks` to use this mode even in kitty or Ghostty, and raise
+  `inline_image_max_rows` for a larger picture.
 
 
 Supported Platforms
@@ -1002,13 +1005,13 @@ kitty, also inside tmux with `set -g allow-passthrough on`, see "Inline
 Images" above for the full setup). Animated
 stickers are shown as a still first frame, and Lottie (`.tgs`) stickers
 keep the text line.
-Supported values are `auto` (enabled when a supporting terminal is
-detected), `on` and `off`. Images are converted with the first available
+Supported values are `auto` (kitty graphics when a supporting terminal is
+detected, half-block characters otherwise), `on` (force kitty graphics),
+`blocks` (force half-block characters) and `off`. Images are converted with the first available
 of `magick`, `sips`, `dwebp` and `ffmpeg` (needed for video stickers), and
 cached in the `images` directory below the nchat data directory. Photos
 and stickers are downloaded automatically when they become visible.
-Unsupported terminals, missing tools and other file types keep the text
-line. The Telegram sticker picker (Alt-g / Opt-g) shows sticker previews
+Missing tools and other file types keep the text line. The Telegram sticker picker (Alt-g / Opt-g) shows sticker previews
 when inline images are available, otherwise emoji captions only. Tab /
 Shift-Tab switches between recent stickers and installed sticker sets,
 typing an emoji or a keyword searches the installed sets, and Backspace

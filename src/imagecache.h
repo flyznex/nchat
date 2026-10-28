@@ -9,6 +9,8 @@
 
 #include <string>
 
+struct BlockGrid;
+
 struct ImageInfo
 {
   std::string pngPath;
@@ -30,6 +32,7 @@ public:
   static bool TakeCompleted();
   static void BeginDrawPass();
   static int Acquire(const std::string& p_SrcPath, const ImageInfo& p_Info, int p_Cols, int p_Rows);
+  static const BlockGrid* GetBlocks(int p_Id); // blocks mode only, null if unknown
   static void InvalidateAll();
   static void Shutdown();
 };

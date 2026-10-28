@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <map>
 #include <string>
+#include <utility>
 
 #include <ncurses.h>
 
@@ -155,6 +156,66 @@ int UiColorConfig::GetImageIdPair(int p_Id)
 
   imagePairs[p_Id] = id;
   return id;
+}
+
+static const int blockReserved = 256; // (c, history bg) for each palette colour
+static const int blockDynMax = 2048;  // (fg, bg) combinations
+static int blockBase = 0;
+static int blockDynCap = 0;
+static int blockDynUsed = 0;
+static std::map<std::pair<int, int>, int> blockDyn;
+
+static bool InitBlockPairs(int p_Bg)
+{
+  static bool tried = false;
+  if (blockBase != 0) return true;
+  if (tried) return false;
+  tried = true;
+
+  const int avail = std::min(COLOR_PAIRS, 32767) - 1 - colorPairId - 64;
+  if (avail <= blockReserved) return false;
+
+  blockDynCap = std::min(blockDynMax, avail - blockReserved);
+  blockBase = colorPairId + 1;
+  colorPairId += blockReserved + blockDynCap;
+  for (int c = 0; c < blockReserved; ++c)
+  {
+    init_pair(static_cast<short>(blockBase + c), static_cast<short>(c), static_cast<short>(p_Bg));
+  }
+
+  return true;
+}
+
+int UiColorConfig::GetBlockPair(int p_Fg, int p_Bg)
+{
+  if (!has_colors()) return 0;
+
+  static const int bg = GetColorId(m_Config.Get("history_text_recv_color_bg"));
+  if (!InitBlockPairs(bg)) return 0;
+
+  if (p_Fg < 0) p_Fg = 0;
+  if (p_Bg < 0) return blockBase + p_Fg;
+
+  const std::pair<int, int> key(p_Fg, p_Bg);
+  auto it = blockDyn.find(key);
+  if (it != blockDyn.end()) return it->second;
+
+  if (blockDynUsed >= blockDynCap) return blockBase + p_Fg;
+
+  const int id = blockBase + blockReserved + blockDynUsed;
+  ++blockDynUsed;
+  init_pair(static_cast<short>(id), static_cast<short>(p_Fg), static_cast<short>(p_Bg));
+  blockDyn[key] = id;
+  return id;
+}
+
+void UiColorConfig::ResetBlockPairs()
+{
+  if ((blockDynCap > 0) && (blockDynUsed * 2 >= blockDynCap))
+  {
+    blockDyn.clear();
+    blockDynUsed = 0;
+  }
 }
 
 int UiColorConfig::GetUserColorPair(const std::string& p_Param, const std::string& p_UserId)

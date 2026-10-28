@@ -17,16 +17,19 @@
 #include <mutex>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <sys/stat.h>
 #include <sys/time.h>
 
+#include "blockimage.h"
 #include "fileutil.h"
 #include "imageconverter.h"
 #include "imagegeom.h"
 #include "log.h"
 #include "termgfx.h"
+#include "uicolorconfig.h"
 #include "uiconfig.h"
 
 namespace
@@ -55,6 +58,8 @@ namespace
 
   // UI thread only
   std::unordered_map<std::string, Placement> s_Placements;
+  std::unordered_map<int, BlockGrid> s_Blocks;
+  std::unordered_set<std::string> s_BlockFailed;
   std::vector<int> s_FreeIds;
   uint64_t s_Pass = 0;
 
@@ -167,6 +172,7 @@ bool ImageCache::TakeCompleted()
 void ImageCache::BeginDrawPass()
 {
   ++s_Pass;
+  UiColorConfig::ResetBlockPairs();
 }
 
 int ImageCache::Acquire(const std::string& p_SrcPath, const ImageInfo& p_Info, int p_Cols, int p_Rows)
@@ -180,6 +186,8 @@ int ImageCache::Acquire(const std::string& p_SrcPath, const ImageInfo& p_Info, i
     it->second.lastPass = s_Pass;
     return it->second.id;
   }
+
+  if (s_BlockFailed.count(key) > 0) return 0;
 
   int id = 0;
   if (!s_FreeIds.empty())
@@ -203,10 +211,24 @@ int ImageCache::Acquire(const std::string& p_SrcPath, const ImageInfo& p_Info, i
 
     id = victim->second.id;
     TermGfx::Delete(id);
+    s_Blocks.erase(id);
     s_Placements.erase(victim);
   }
 
-  if (!TermGfx::Upload(id, p_Cols, p_Rows, p_Info.pngPath))
+  if (TermGfx::IsBlocks())
+  {
+    BlockGrid grid;
+    if (!BlockImage::RenderPng(p_Info.pngPath, p_Cols, p_Rows, grid))
+    {
+      LOG_WARNING("inline image decode failed for %s", p_Info.pngPath.c_str());
+      s_BlockFailed.insert(key);
+      s_FreeIds.push_back(id);
+      return 0;
+    }
+
+    s_Blocks[id] = std::move(grid);
+  }
+  else if (!TermGfx::Upload(id, p_Cols, p_Rows, p_Info.pngPath))
   {
     s_FreeIds.push_back(id);
     return 0;
@@ -219,6 +241,12 @@ int ImageCache::Acquire(const std::string& p_SrcPath, const ImageInfo& p_Info, i
   return id;
 }
 
+const BlockGrid* ImageCache::GetBlocks(int p_Id)
+{
+  auto it = s_Blocks.find(p_Id);
+  return (it != s_Blocks.end()) ? &it->second : nullptr;
+}
+
 void ImageCache::InvalidateAll()
 {
   for (const auto& placement : s_Placements)
@@ -227,6 +255,8 @@ void ImageCache::InvalidateAll()
   }
 
   s_Placements.clear();
+  s_Blocks.clear();
+  s_BlockFailed.clear();
   ResetFreeIds();
 }
 

@@ -21,13 +21,13 @@
 #include "sysutil.h"
 #include "uiconfig.h"
 
-bool TermGfx::m_Enabled = false;
+TermGfx::Mode TermGfx::m_Mode = TermGfx::Mode::Off;
 bool TermGfx::m_InTmux = false;
 bool TermGfx::m_LocalFiles = false;
 
 void TermGfx::Init()
 {
-  m_Enabled = false;
+  m_Mode = Mode::Off;
 
   const std::string mode = UiConfig::GetStr("inline_images");
   if (mode == "off") return;
@@ -35,6 +35,12 @@ void TermGfx::Init()
   if (!has_colors() || (COLORS < 256))
   {
     LOG_WARNING("inline images disabled: terminal has less than 256 colors");
+    return;
+  }
+
+  if (mode == "blocks")
+  {
+    EnableBlocks();
     return;
   }
 
@@ -46,7 +52,8 @@ void TermGfx::Init()
                                                          term != nullptr ? term : "");
     if (!supported)
     {
-      LOG_DEBUG("inline images: kitty graphics terminal not detected");
+      LOG_DEBUG("inline images: kitty graphics terminal not detected, using block characters");
+      EnableBlocks();
       return;
     }
   }
@@ -60,24 +67,44 @@ void TermGfx::Init()
     SysUtil::RunCommand("tmux show-options -pAqv allow-passthrough", &passthrough);
     if ((passthrough != "on") && (passthrough != "all"))
     {
-      LOG_WARNING("inline images disabled: tmux allow-passthrough is '%s', set it to 'on'", passthrough.c_str());
+      LOG_WARNING("inline images: tmux allow-passthrough is '%s', set it to 'on' for kitty graphics",
+                  passthrough.c_str());
+      if (mode != "on") EnableBlocks();
       return;
     }
   }
 
-  m_Enabled = true;
-  LOG_DEBUG("inline images enabled (tmux %d)", m_InTmux);
+  m_Mode = Mode::Kitty;
+  LOG_DEBUG("inline images enabled (kitty, tmux %d)", m_InTmux);
+}
+
+void TermGfx::EnableBlocks()
+{
+  if (COLOR_PAIRS < 1024)
+  {
+    LOG_WARNING("inline images disabled: terminal supports only %d color pairs", COLOR_PAIRS);
+    return;
+  }
+
+  m_Mode = Mode::Blocks;
+  LOG_DEBUG("inline images enabled (block characters)");
 }
 
 bool TermGfx::IsEnabled()
 {
-  return m_Enabled;
+  return m_Mode != Mode::Off;
+}
+
+bool TermGfx::IsBlocks()
+{
+  return m_Mode == Mode::Blocks;
 }
 
 void TermGfx::GetCellPixelSize(int& p_Width, int& p_Height)
 {
   p_Width = 0;
   p_Height = 0;
+  if (m_Mode == Mode::Blocks) return; // callers assume square pixels (1:2 cells) when unknown
 
   struct winsize ws;
   if ((ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0) && (ws.ws_col > 0) && (ws.ws_row > 0) &&
@@ -90,7 +117,7 @@ void TermGfx::GetCellPixelSize(int& p_Width, int& p_Height)
 
 bool TermGfx::Upload(int p_Id, int p_Cols, int p_Rows, const std::string& p_PngPath)
 {
-  if (!m_Enabled) return false;
+  if (m_Mode != Mode::Kitty) return false;
 
   if (m_LocalFiles)
   {
@@ -120,7 +147,7 @@ bool TermGfx::Upload(int p_Id, int p_Cols, int p_Rows, const std::string& p_PngP
 
 void TermGfx::Delete(int p_Id)
 {
-  if (!m_Enabled) return;
+  if (m_Mode != Mode::Kitty) return;
 
   Write(KittyEncoder::EncodeDelete(p_Id));
 }
