@@ -27,6 +27,7 @@ private:
 
 private:
   WINDOW* m_PaddedWin = nullptr;
+  WINDOW* m_BarWin = nullptr;
   int m_PaddedH = 0;
   int m_PaddedW = 0;
   int m_PaddedY = 0;

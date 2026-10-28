@@ -82,8 +82,9 @@ UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
     m_PaddedY = paddedY;
     int paddedX = m_X + hpad;
     m_PaddedH = m_H - (vpad * 2);
-    m_PaddedW = m_W - (hpad * 2);
+    m_PaddedW = m_W - hpad - 1; // right margin column holds the scroll bar
     m_PaddedWin = newwin(m_PaddedH, m_PaddedW, paddedY, paddedX);
+    m_BarWin = (m_PaddedH > 0) ? newwin(m_PaddedH, 1, paddedY, m_X + m_W - 1) : nullptr;
 
     static int attributeTextNormal = UiColorConfig::GetAttribute("history_text_attr");
     static int colorPairTextRecv = UiColorConfig::GetColorPair("history_text_recv_color");
@@ -99,6 +100,12 @@ UiHistoryView::~UiHistoryView()
   {
     delwin(m_PaddedWin);
     m_PaddedWin = nullptr;
+  }
+
+  if (m_BarWin != nullptr)
+  {
+    delwin(m_BarWin);
+    m_BarWin = nullptr;
   }
 }
 
@@ -118,6 +125,10 @@ void UiHistoryView::Draw()
   static int colorPairTextAttachment = UiColorConfig::GetColorPair("history_text_attachment_color");
   static int attributeTextNormal = UiColorConfig::GetAttribute("history_text_attr");
   static int attributeTextSelected = UiColorConfig::GetAttribute("history_text_attr_selected");
+  static int focusColorPair = UiColorConfig::GetColorPair("focus_color");
+  static int focusAttr = UiColorConfig::GetAttribute("focus_attr");
+  static int borderColorPair = UiColorConfig::GetColorPair("listborder_color");
+  static int borderAttr = UiColorConfig::GetAttribute("listborder_attr");
 
   static int colorPairNameSent = UiColorConfig::GetColorPair("history_name_sent_color");
   static int colorPairNameRecv = UiColorConfig::GetColorPair("history_name_recv_color");
@@ -683,6 +694,12 @@ void UiHistoryView::Draw()
   }
 
   wrefresh(m_PaddedWin);
+
+  const bool focused = (m_Model->GetFocusLocked() == NavFocus::History);
+  const int total = static_cast<int>(messageVec.size());
+  DrawScrollBar(m_BarWin, attributeTextNormal | colorPairTextRecv | ' ',
+                focused ? (focusAttr | focusColorPair) : (borderAttr | borderColorPair), 0, m_PaddedH, total,
+                total - (messageOffset + m_HistoryShowCount), m_HistoryShowCount);
 }
 
 int UiHistoryView::GetHistoryShowCount()
