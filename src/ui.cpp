@@ -134,8 +134,10 @@ void Ui::Run()
 
   LOG_INFO("ui loop end");
 
-  // nobody reads input while the protocols shut down, so stop mouse reports now or clicks pile up for the shell
+  // nobody reads input while the protocols shut down, so stop mouse and focus reports now or they pile up for the shell
   mousemask(0, nullptr);
+  printf("\033[?1004l");
+  fflush(stdout);
   flushinp();
 
   // set as offline before logging off
