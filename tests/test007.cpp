@@ -115,6 +115,15 @@ static void TestNearest()
   unittest::ExpectEqual(int, ChatList::Nearest(rows, 3), 3);  // visible stays
   unittest::ExpectEqual(int, ChatList::Nearest(rows, 9), 3);  // none after, previous one
   unittest::ExpectEqual(int, ChatList::Nearest(std::vector<ListRow>(), 1), -1);
+
+  int headers = 0;
+  for (const ListRow& row : rows)
+  {
+    if (row.chat >= 0) continue;
+    ++headers;
+    unittest::ExpectEqual(int, row.collapsed ? 1 : 0, (row.header == "Pinned") ? 1 : 0);
+  }
+  unittest::ExpectTrue(headers >= 2);
 }
 
 int main()

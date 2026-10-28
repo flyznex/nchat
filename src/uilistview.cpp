@@ -231,7 +231,7 @@ void UiListView::Draw()
     {
       std::string header = m_Model->GetProfileDisplayNameLocked(row.header);
       if (header.empty()) header = row.header; // "Pinned" is not a profile
-      std::wstring whead = FitWidth(StrUtil::ToWString(header), m_PaddedW);
+      std::wstring whead = FitWidth(StrUtil::ToWString((row.collapsed ? "> " : "v ") + header), m_PaddedW);
       wattron(m_PaddedWin, A_BOLD);
       mvwaddnwstr(m_PaddedWin, y, 0, whead.c_str(), whead.size());
       wattroff(m_PaddedWin, A_BOLD);

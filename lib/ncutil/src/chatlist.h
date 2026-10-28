@@ -30,6 +30,7 @@ struct ListRow
 {
   int chat; // index into the input vector, or -1 for a group header
   std::string header;
+  bool collapsed = false; // group headers only
 };
 
 class ChatList

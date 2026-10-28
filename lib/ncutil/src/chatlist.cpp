@@ -41,7 +41,7 @@ std::vector<ListRow> ChatList::BuildRows(const std::vector<ListChat>& p_Chats, c
     {
       if (first || (group != lastGroup))
       {
-        rows.push_back(ListRow{ -1, group });
+        rows.push_back(ListRow{ -1, group, p_Collapsed.count(group) > 0 });
         lastGroup = group;
         first = false;
       }
