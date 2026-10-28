@@ -66,6 +66,7 @@ void UiHelpView::Draw()
     AppendHelpItem("abc", "AddFiltr", helpItems);
     AppendHelpItem("backspace", "DelFiltr", helpItems);
     AppendHelpItem("left", "Parent", helpItems);
+    AppendHelpItem("focus_next", "Complete", helpItems);
     return helpItems;
   }();
 
@@ -130,8 +131,6 @@ void UiHelpView::Draw()
   static std::vector<std::wstring> mainSelectHelpItems = []()
   {
     std::vector<std::wstring> helpItems;
-    helpItems.insert(std::end(helpItems), std::begin(mainPreHelpItems), std::end(mainPreHelpItems));
-
     AppendHelpItem("up", "PrevMsg", helpItems);
     AppendHelpItem("down", "NextMsg", helpItems);
 
@@ -147,6 +146,7 @@ void UiHelpView::Draw()
     AppendHelpItem("forward_msg", "FwdMsg", helpItems);
     AppendHelpItem("translate", "Transl", helpItems);
 
+    helpItems.insert(std::end(helpItems), std::begin(mainPreHelpItems), std::end(mainPreHelpItems));
     helpItems.insert(std::end(helpItems), std::begin(mainPostHelpItems), std::end(mainPostHelpItems));
     return helpItems;
   }();
@@ -212,6 +212,9 @@ void UiHelpView::Draw()
     AppendNavHelpItem(nav, f, vim, { NavAction::Translate }, "Transl", helpItems);
     AppendNavHelpItem(nav, f, vim, { NavAction::Delete }, "Delete", helpItems);
     AppendNavHelpItem(nav, f, vim, { NavAction::Search }, "Find", helpItems);
+    AppendHelpItem("open", "OpenFile", helpItems);
+    AppendHelpItem("save", "SaveFile", helpItems);
+    AppendHelpItem("open_link", "OpenLink", helpItems);
     AppendHelpItem("focus_entry", "Entry", helpItems);
     return helpItems;
   }();
