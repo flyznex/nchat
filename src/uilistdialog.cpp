@@ -74,6 +74,7 @@ void UiListDialog::KeyHandler(wint_t p_Key)
   static wint_t keyUp = UiKeyConfig::GetKey("up");
   static wint_t keyEnd = UiKeyConfig::GetKey("end");
   static wint_t keyHome = UiKeyConfig::GetKey("home");
+  static wint_t keyFocusNext = UiKeyConfig::GetKey("focus_next");
   static wint_t keyBackspace = UiKeyConfig::GetKey("backspace");
   static wint_t keyBackspaceAlt = UiKeyConfig::GetKey("backspace_alt");
   static wint_t keyTerminalFocusIn = UiKeyConfig::GetKey("terminal_focus_in");
@@ -147,6 +148,10 @@ void UiListDialog::KeyHandler(wint_t p_Key)
   else if (p_Key == keyEnd)
   {
     m_Index = std::numeric_limits<int>::max();
+  }
+  else if (p_Key == keyFocusNext)
+  {
+    OnTab();
   }
   else if ((p_Key == keyBackspace) || (p_Key == keyBackspaceAlt))
   {

@@ -54,9 +54,9 @@ bool UiFileListDialog::IsPathInput() const
          (str.rfind("../", 0) == 0);
 }
 
-std::string UiFileListDialog::TypedPath() const
+std::string UiFileListDialog::ResolvePath(const std::string& p_Path) const
 {
-  std::string path = StrUtil::ToString(m_FilterStr);
+  std::string path = p_Path;
   if (path.rfind("~", 0) == 0)
   {
     const char* home = getenv("HOME");
@@ -70,11 +70,32 @@ std::string UiFileListDialog::TypedPath() const
   return FileUtil::AbsolutePath(path);
 }
 
+// entries of the typed directory whose name starts with the typed name part, hidden ones only if the part starts with '.'
+std::set<DirEntry, DirEntryCompare> UiFileListDialog::Candidates(std::string& p_DirPart, std::string& p_Prefix) const
+{
+  std::string str = StrUtil::ToString(m_FilterStr);
+  if (str == "~") str = "~/";
+
+  const size_t pos = str.rfind('/');
+  p_DirPart = str.substr(0, pos + 1);
+  p_Prefix = str.substr(pos + 1);
+
+  std::set<DirEntry, DirEntryCompare> candidates;
+  for (const auto& dirEntry : FileUtil::ListPaths(ResolvePath(p_DirPart)))
+  {
+    if (dirEntry.name.rfind(p_Prefix, 0) != 0) continue;
+    if (p_Prefix.empty() && (dirEntry.name.rfind(".", 0) == 0)) continue;
+    candidates.insert(dirEntry);
+  }
+
+  return candidates;
+}
+
 void UiFileListDialog::OnSelect()
 {
   if (IsPathInput())
   {
-    const std::string path = TypedPath();
+    const std::string path = ResolvePath(StrUtil::ToString(m_FilterStr));
     if (FileUtil::IsDir(path))
     {
       ChangeDir(path);
@@ -112,6 +133,38 @@ void UiFileListDialog::OnBack()
   ChangeDir(m_CurrentDir + "/..");
 }
 
+void UiFileListDialog::OnTab()
+{
+  if (m_FilterStr.empty()) return;
+
+  if (!IsPathInput())
+  {
+    m_FilterStr = L"./" + m_FilterStr;
+  }
+
+  std::string dirPart;
+  std::string prefix;
+  const std::set<DirEntry, DirEntryCompare> candidates = Candidates(dirPart, prefix);
+  if (!candidates.empty())
+  {
+    std::string common = candidates.begin()->name;
+    for (const auto& dirEntry : candidates)
+    {
+      size_t n = 0;
+      while ((n < common.size()) && (n < dirEntry.name.size()) && (common[n] == dirEntry.name[n])) ++n;
+      while ((n > 0) && (n < common.size()) && ((common[n] & 0xC0) == 0x80)) --n; // do not cut a UTF-8 character
+      common.resize(n);
+    }
+
+    if ((candidates.size() == 1) && candidates.begin()->IsDir()) common += "/";
+
+    m_FilterStr = StrUtil::ToWString(dirPart + common);
+  }
+
+  UpdateList();
+  UpdateFooter();
+}
+
 bool UiFileListDialog::OnTimer()
 {
   return false;
@@ -119,7 +172,13 @@ bool UiFileListDialog::OnTimer()
 
 void UiFileListDialog::UpdateList()
 {
-  if (m_FilterStr.empty() || IsPathInput())
+  if (IsPathInput())
+  {
+    std::string dirPart;
+    std::string prefix;
+    m_CurrentDirEntrys = Candidates(dirPart, prefix);
+  }
+  else if (m_FilterStr.empty())
   {
     m_CurrentDirEntrys = m_DirEntrys;
   }

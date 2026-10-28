@@ -966,7 +966,10 @@ last selected file.
 
 In the internal file selection dialog, typing filters the list by name. Typing
 a path that starts with `/`, `~/`, `./` or `../` (or just `~`) instead selects
-that path on Enter: a directory is opened, a file is sent.
+that path on Enter: a directory is opened, a file is sent. While typing a path
+the list shows the matching entries, and Tab completes the name up to what the
+matches have in common (a single directory match gets a trailing `/`). Tab after
+a plain filter text completes it as a name in the current directory.
 
 ### help_enabled
 

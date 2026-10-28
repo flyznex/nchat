@@ -24,6 +24,7 @@ public:
 protected:
   virtual void OnSelect();
   virtual void OnBack();
+  virtual void OnTab();
   virtual bool OnTimer();
 
   void UpdateList();
@@ -31,7 +32,8 @@ protected:
 private:
   void ChangeDir(const std::string& p_Dir);
   bool IsPathInput() const;
-  std::string TypedPath() const;
+  std::string ResolvePath(const std::string& p_Path) const;
+  std::set<DirEntry, DirEntryCompare> Candidates(std::string& p_DirPart, std::string& p_Prefix) const;
 
   std::string m_CurrentDir;
   std::set<DirEntry, DirEntryCompare> m_DirEntrys;

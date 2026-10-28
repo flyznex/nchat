@@ -24,6 +24,7 @@ public:
 protected:
   virtual void OnSelect() = 0;
   virtual void OnBack() = 0;
+  virtual void OnTab() {}
   virtual bool OnTimer() = 0;
   virtual void UpdateList() = 0;
 
