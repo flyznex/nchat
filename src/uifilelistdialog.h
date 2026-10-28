@@ -29,6 +29,10 @@ protected:
   void UpdateList();
 
 private:
+  void ChangeDir(const std::string& p_Dir);
+  bool IsPathInput() const;
+  std::string TypedPath() const;
+
   std::string m_CurrentDir;
   std::set<DirEntry, DirEntryCompare> m_DirEntrys;
   std::set<DirEntry, DirEntryCompare> m_CurrentDirEntrys;

@@ -7,6 +7,8 @@
 
 #include "uifilelistdialog.h"
 
+#include <cstdlib>
+
 #include "fileutil.h"
 #include "strutil.h"
 #include "uimodel.h"
@@ -35,8 +37,58 @@ std::string UiFileListDialog::GetSelectedPath()
   return m_SelectedPath;
 }
 
+void UiFileListDialog::ChangeDir(const std::string& p_Dir)
+{
+  m_CurrentDir = FileUtil::AbsolutePath(p_Dir);
+  m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
+  m_FilterStr.clear();
+  UpdateList();
+  UpdateFooter();
+}
+
+// a filter that looks like a path (file names never contain '/') is typed as a path instead of filtering the list
+bool UiFileListDialog::IsPathInput() const
+{
+  const std::string str = StrUtil::ToString(m_FilterStr);
+  return (str == "~") || (str.rfind("/", 0) == 0) || (str.rfind("~/", 0) == 0) || (str.rfind("./", 0) == 0) ||
+         (str.rfind("../", 0) == 0);
+}
+
+std::string UiFileListDialog::TypedPath() const
+{
+  std::string path = StrUtil::ToString(m_FilterStr);
+  if (path.rfind("~", 0) == 0)
+  {
+    const char* home = getenv("HOME");
+    path = std::string(home ? home : "") + path.substr(1);
+  }
+  else if (path.rfind("/", 0) != 0)
+  {
+    path = m_CurrentDir + "/" + path;
+  }
+
+  return FileUtil::AbsolutePath(path);
+}
+
 void UiFileListDialog::OnSelect()
 {
+  if (IsPathInput())
+  {
+    const std::string path = TypedPath();
+    if (FileUtil::IsDir(path))
+    {
+      ChangeDir(path);
+    }
+    else if (FileUtil::Exists(path))
+    {
+      m_SelectedPath = path;
+      m_Result = true;
+      m_Running = false;
+    }
+
+    return;
+  }
+
   if (m_CurrentDirEntrys.size() == 0) return;
 
   if (m_Index < (int)m_CurrentDirEntrys.size())
@@ -44,11 +96,7 @@ void UiFileListDialog::OnSelect()
     const DirEntry& dirEntry = *std::next(m_CurrentDirEntrys.begin(), m_Index);
     if (dirEntry.IsDir())
     {
-      m_CurrentDir = FileUtil::AbsolutePath(m_CurrentDir + "/" + dirEntry.name);
-      m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
-      m_FilterStr.clear();
-      UpdateList();
-      UpdateFooter();
+      ChangeDir(m_CurrentDir + "/" + dirEntry.name);
     }
     else
     {
@@ -61,11 +109,7 @@ void UiFileListDialog::OnSelect()
 
 void UiFileListDialog::OnBack()
 {
-  m_CurrentDir = FileUtil::AbsolutePath(m_CurrentDir + "/..");
-  m_DirEntrys = FileUtil::ListPaths(m_CurrentDir);
-  m_FilterStr.clear();
-  UpdateList();
-  UpdateFooter();
+  ChangeDir(m_CurrentDir + "/..");
 }
 
 bool UiFileListDialog::OnTimer()
@@ -75,7 +119,7 @@ bool UiFileListDialog::OnTimer()
 
 void UiFileListDialog::UpdateList()
 {
-  if (m_FilterStr.empty())
+  if (m_FilterStr.empty() || IsPathInput())
   {
     m_CurrentDirEntrys = m_DirEntrys;
   }

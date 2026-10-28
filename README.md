@@ -964,6 +964,10 @@ ranger: `ranger --choosefiles='%1'`
 Specifies whether the file selection dialog shall persist the directory of
 last selected file.
 
+In the internal file selection dialog, typing filters the list by name. Typing
+a path that starts with `/`, `~/`, `./` or `../` (or just `~`) instead selects
+that path on Enter: a directory is opened, a file is sent.
+
 ### help_enabled
 
 Specifies whether to display help bar. Controlled by Ctrl-g in run-time.
