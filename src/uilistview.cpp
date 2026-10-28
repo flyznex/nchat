@@ -187,27 +187,22 @@ void UiListView::Draw()
   }
 
   // wheel scroll moves the view only, until the selection changes
+  // compared by chat identity: a re-sort on incoming messages changes the index but not the selection
+  const std::pair<std::string, std::string> current =
+    ((index >= 0) && (index < (int)chatVec.size())) ? chatVec[index] : std::pair<std::string, std::string>();
   if (m_PendingScroll != 0)
   {
     m_FreeScroll = true;
-    m_FreeIndex = index;
+    m_FreeChat = current;
     m_First += m_PendingScroll;
     m_PendingScroll = 0;
   }
 
-  if (m_FreeScroll && (index != m_FreeIndex)) m_FreeScroll = false;
+  if (m_FreeScroll && (current != m_FreeChat)) m_FreeScroll = false;
 
-  m_First = std::max(0, std::min(m_First, (int)rows.size() - 1));
-  auto span = [&](int a, int b) { int n = 0; for (int i = a; i <= b; ++i) n += linesOf(rows[i]); return n; };
-  if (m_FreeScroll)
-  {
-    while ((m_First > 0) && (span(m_First - 1, (int)rows.size() - 1) <= height)) --m_First;
-  }
-  else if (sel >= 0)
-  {
-    if (sel < m_First) m_First = sel;
-    while ((m_First < sel) && (span(m_First, sel) > height)) ++m_First;
-  }
+  std::vector<int> lineCounts;
+  for (const ListRow& row : rows) lineCounts.push_back(linesOf(row));
+  m_First = ChatList::ScrollFirst(lineCounts, m_First, sel, height, m_FreeScroll);
 
   int y = top;
   for (int i = m_First; (i < (int)rows.size()) && (y < m_PaddedH); ++i)

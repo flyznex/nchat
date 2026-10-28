@@ -129,6 +129,24 @@ std::string ChatList::CycleFolder(const std::vector<std::string>& p_Names, const
   return (index == 0) ? std::string() : p_Names[index - 1];
 }
 
+int ChatList::ScrollFirst(const std::vector<int>& p_Lines, int p_First, int p_Sel, int p_Height, bool p_Free)
+{
+  const int last = static_cast<int>(p_Lines.size()) - 1;
+  int first = std::max(0, std::min(p_First, last));
+  auto span = [&](int a, int b) { int n = 0; for (int i = a; i <= b; ++i) n += p_Lines[i]; return n; };
+  if (p_Free)
+  {
+    while ((first > 0) && (span(first - 1, last) <= p_Height)) --first;
+  }
+  else if (p_Sel >= 0)
+  {
+    if (p_Sel < first) first = p_Sel;
+    while ((first < p_Sel) && (span(first, p_Sel) > p_Height)) ++first;
+  }
+
+  return first;
+}
+
 int ChatList::FirstTab(const std::vector<int>& p_Widths, int p_Selected, int p_Width, int p_Gap)
 {
   if (p_Widths.empty()) return 0;

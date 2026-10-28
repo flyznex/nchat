@@ -93,6 +93,26 @@ static void TestFirstTab()
   unittest::ExpectEqual(int, ChatList::FirstTab({ }, 0, 5, 2), 0);
 }
 
+static void TestScrollFirst()
+{
+  const std::vector<int> ten(10, 1); // ten one-line rows, window of 4
+  // selection follows: below the window scrolls down, above scrolls up, inside leaves it
+  unittest::ExpectEqual(int, ChatList::ScrollFirst(ten, 0, 2, 4, false), 0);
+  unittest::ExpectEqual(int, ChatList::ScrollFirst(ten, 0, 7, 4, false), 4);
+  unittest::ExpectEqual(int, ChatList::ScrollFirst(ten, 6, 2, 4, false), 2);
+  // free scroll ignores the selection, but never leaves a gap below the last row
+  unittest::ExpectEqual(int, ChatList::ScrollFirst(ten, 5, 0, 4, true), 5);
+  unittest::ExpectEqual(int, ChatList::ScrollFirst(ten, 9, 0, 4, true), 6);
+  unittest::ExpectEqual(int, ChatList::ScrollFirst(ten, -3, 9, 4, true), 0);
+  // a stale first past the end of a shrunken list is clamped
+  unittest::ExpectEqual(int, ChatList::ScrollFirst({ 1, 1, 1 }, 40, -1, 4, false), 2);
+  unittest::ExpectEqual(int, ChatList::ScrollFirst({ }, 5, -1, 4, false), 0);
+  // two-line rows: window of 4 lines holds two rows
+  const std::vector<int> two(6, 2);
+  unittest::ExpectEqual(int, ChatList::ScrollFirst(two, 0, 3, 4, false), 2);
+  unittest::ExpectEqual(int, ChatList::ScrollFirst(two, 5, 0, 4, true), 4);
+}
+
 int main()
 {
   int rv = 0;
@@ -102,6 +122,7 @@ int main()
     TestFolderFilter();
     TestCycleFolder();
     TestFirstTab();
+    TestScrollFirst();
   }
   catch (const std::exception& ex)
   {

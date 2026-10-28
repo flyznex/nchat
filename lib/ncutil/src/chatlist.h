@@ -41,5 +41,7 @@ public:
   static int Nearest(const std::vector<ListRow>& p_Rows, int p_Chat); // p_Chat if visible, else next, else previous, else -1
   static int Edge(const std::vector<ListRow>& p_Rows, bool p_Last);
   static std::string CycleFolder(const std::vector<std::string>& p_Names, const std::string& p_Current, int p_Delta);
+  // first visible row; p_Lines = height of each row, p_Sel = selected row or -1, p_Free = wheel-scrolled, selection may be off screen
+  static int ScrollFirst(const std::vector<int>& p_Lines, int p_First, int p_Sel, int p_Height, bool p_Free);
   static int FirstTab(const std::vector<int>& p_Widths, int p_Selected, int p_Width, int p_Gap);
 };
