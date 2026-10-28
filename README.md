@@ -291,7 +291,7 @@ See the descriptions of `inline_images`, `inline_image_max_rows` and
 - Photos and stickers are downloaded when they become visible, so they can appear
   a moment after scrolling to them.
 - Other terminals (Terminal.app, iTerm2, Alacritty, ...) show images with
-  half-block characters, which is coarser than kitty graphics. Set
+  block characters, which is coarser than kitty graphics. Set
   `inline_images=blocks` to use this mode even in kitty or Ghostty, and raise
   `inline_image_max_rows` for a larger picture.
 
@@ -1006,8 +1006,8 @@ Images" above for the full setup). Animated
 stickers are shown as a still first frame, and Lottie (`.tgs`) stickers
 keep the text line.
 Supported values are `auto` (kitty graphics when a supporting terminal is
-detected, half-block characters otherwise), `on` (force kitty graphics),
-`blocks` (force half-block characters) and `off`. Images are converted with the first available
+detected, block characters otherwise), `on` (force kitty graphics),
+`blocks` (force block characters) and `off`. Images are converted with the first available
 of `magick`, `sips`, `dwebp` and `ffmpeg` (needed for video stickers), and
 cached in the `images` directory below the nchat data directory. Photos
 and stickers are downloaded automatically when they become visible.

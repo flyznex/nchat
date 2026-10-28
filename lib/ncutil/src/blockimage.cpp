@@ -16,6 +16,23 @@ namespace
 {
   const int s_CubeLevels[6] = { 0, 95, 135, 175, 215, 255 };
 
+  // quadrant glyph by mask of set pixels: 1 = top left, 2 = top right, 4 = bottom left, 8 = bottom right
+  const wchar_t s_Glyphs[16] = { L' ',      L'▘', L'▝', L'▀', L'▖', L'▌', L'▞', L'▛',
+                                 L'▗', L'▚', L'▐', L'▜', L'▄', L'▙', L'▟', L'█' };
+
+  struct Pixel
+  {
+    bool opaque = false;
+    double rgb[3] = { 0, 0, 0 };
+  };
+
+  struct Group
+  {
+    double mean[3] = { 0, 0, 0 };
+    double err = 0;
+    int count = 0;
+  };
+
   int Sq(int p_V)
   {
     return p_V * p_V;
@@ -30,6 +47,80 @@ namespace
     }
 
     return best;
+  }
+
+  Group Summarize(const Pixel* p_Px, int p_Mask)
+  {
+    Group g;
+    for (int i = 0; i < 4; ++i)
+    {
+      if ((p_Mask & (1 << i)) == 0) continue;
+      for (int c = 0; c < 3; ++c) g.mean[c] += p_Px[i].rgb[c];
+      ++g.count;
+    }
+
+    if (g.count == 0) return g;
+
+    for (int c = 0; c < 3; ++c) g.mean[c] /= g.count;
+    for (int i = 0; i < 4; ++i)
+    {
+      if ((p_Mask & (1 << i)) == 0) continue;
+      for (int c = 0; c < 3; ++c) g.err += (p_Px[i].rgb[c] - g.mean[c]) * (p_Px[i].rgb[c] - g.mean[c]);
+    }
+
+    return g;
+  }
+
+  int ToPalette(const Group& p_Group)
+  {
+    return BlockImage::NearestPalette(static_cast<int>(p_Group.mean[0] + 0.5), static_cast<int>(p_Group.mean[1] + 0.5),
+                                      static_cast<int>(p_Group.mean[2] + 0.5));
+  }
+
+  BlockPaint PaintCell(const Pixel* p_Px)
+  {
+    BlockPaint paint;
+    int opaqueMask = 0;
+    for (int i = 0; i < 4; ++i)
+    {
+      if (p_Px[i].opaque) opaqueMask |= (1 << i);
+    }
+
+    if (opaqueMask == 0) return paint;
+
+    if (opaqueMask != 15)
+    {
+      paint.ch = s_Glyphs[opaqueMask];
+      paint.fg = ToPalette(Summarize(p_Px, opaqueMask));
+      return paint;
+    }
+
+    // all opaque: split into two colour groups, bottom right always in the background group
+    int bestMask = 1;
+    double bestErr = -1;
+    for (int mask = 1; mask <= 7; ++mask)
+    {
+      const double err = Summarize(p_Px, mask).err + Summarize(p_Px, 15 & ~mask).err;
+      if ((bestErr < 0) || (err < bestErr))
+      {
+        bestErr = err;
+        bestMask = mask;
+      }
+    }
+
+    const int fg = ToPalette(Summarize(p_Px, bestMask));
+    const int bg = ToPalette(Summarize(p_Px, 15 & ~bestMask));
+    if (fg == bg)
+    {
+      paint.ch = s_Glyphs[15];
+      paint.fg = fg;
+      return paint;
+    }
+
+    paint.ch = s_Glyphs[bestMask];
+    paint.fg = fg;
+    paint.bg = bg;
+    return paint;
   }
 }
 
@@ -60,11 +151,12 @@ BlockGrid BlockImage::Render(const unsigned char* p_Rgba, int p_Width, int p_Hei
   grid.rows = p_Rows;
   grid.cells.resize(static_cast<size_t>(p_Cols * p_Rows));
 
+  const int pxCols = p_Cols * 2;
   const int pxRows = p_Rows * 2;
-  auto sample = [&](int p_Ox, int p_Oy) -> int
+  auto sample = [&](int p_Ox, int p_Oy) -> Pixel
   {
-    const int x0 = static_cast<int>(static_cast<long long>(p_Ox) * p_Width / p_Cols);
-    const int x1 = std::min(p_Width, std::max(x0 + 1, static_cast<int>(static_cast<long long>(p_Ox + 1) * p_Width / p_Cols)));
+    const int x0 = static_cast<int>(static_cast<long long>(p_Ox) * p_Width / pxCols);
+    const int x1 = std::min(p_Width, std::max(x0 + 1, static_cast<int>(static_cast<long long>(p_Ox + 1) * p_Width / pxCols)));
     const int y0 = static_cast<int>(static_cast<long long>(p_Oy) * p_Height / pxRows);
     const int y1 = std::min(p_Height, std::max(y0 + 1, static_cast<int>(static_cast<long long>(p_Oy + 1) * p_Height / pxRows)));
 
@@ -86,55 +178,27 @@ BlockGrid BlockImage::Render(const unsigned char* p_Rgba, int p_Width, int p_Hei
       }
     }
 
-    if ((count == 0) || (sumA < 128 * count)) return -1;
+    Pixel pixel;
+    if ((count == 0) || (sumA < 128 * count)) return pixel;
 
-    return NearestPalette(static_cast<int>(sumR / sumA), static_cast<int>(sumG / sumA),
-                          static_cast<int>(sumB / sumA));
+    pixel.opaque = true;
+    pixel.rgb[0] = static_cast<double>(sumR) / static_cast<double>(sumA);
+    pixel.rgb[1] = static_cast<double>(sumG) / static_cast<double>(sumA);
+    pixel.rgb[2] = static_cast<double>(sumB) / static_cast<double>(sumA);
+    return pixel;
   };
 
   for (int row = 0; row < p_Rows; ++row)
   {
     for (int col = 0; col < p_Cols; ++col)
     {
-      BlockCell& cell = grid.cells[static_cast<size_t>(row * p_Cols + col)];
-      cell.top = sample(col, row * 2);
-      cell.bottom = sample(col, row * 2 + 1);
+      const Pixel px[4] = { sample(col * 2, row * 2), sample(col * 2 + 1, row * 2),
+                            sample(col * 2, row * 2 + 1), sample(col * 2 + 1, row * 2 + 1) };
+      grid.cells[static_cast<size_t>(row * p_Cols + col)] = PaintCell(px);
     }
   }
 
   return grid;
-}
-
-BlockPaint BlockImage::Paint(const BlockCell& p_Cell)
-{
-  BlockPaint paint;
-  if ((p_Cell.top < 0) && (p_Cell.bottom < 0))
-  {
-    paint.ch = L' ';
-  }
-  else if (p_Cell.top < 0)
-  {
-    paint.ch = L'▄';
-    paint.fg = p_Cell.bottom;
-  }
-  else if (p_Cell.bottom < 0)
-  {
-    paint.ch = L'▀';
-    paint.fg = p_Cell.top;
-  }
-  else if (p_Cell.top == p_Cell.bottom)
-  {
-    paint.ch = L'█';
-    paint.fg = p_Cell.top;
-  }
-  else
-  {
-    paint.ch = L'▀';
-    paint.fg = p_Cell.top;
-    paint.bg = p_Cell.bottom;
-  }
-
-  return paint;
 }
 
 bool BlockImage::RenderPng(const std::string& p_Path, int p_Cols, int p_Rows, BlockGrid& p_Grid)

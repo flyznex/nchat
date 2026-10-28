@@ -29,7 +29,7 @@ void UiImageRow::Draw(WINDOW* p_Win, int p_Y, int p_X, int p_Row, int p_Id, int 
     std::vector<cchar_t> blocks(cols);
     for (int col = 0; col < cols; ++col)
     {
-      const BlockPaint paint = BlockImage::Paint(grid->At(p_Row, col));
+      const BlockPaint& paint = grid->At(p_Row, col);
       const wchar_t chars[2] = { paint.ch, L'\0' };
       const int pair = UiColorConfig::GetBlockPair(paint.fg, paint.bg);
       setcchar(&blocks[col], chars, A_NORMAL, static_cast<short>(pair), nullptr);

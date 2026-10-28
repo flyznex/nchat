@@ -33,6 +33,16 @@ static std::vector<unsigned char> Solid(int p_W, int p_H, int p_R, int p_G, int 
   return img;
 }
 
+// one cell from a 2x2 image, pixels in order top left, top right, bottom left, bottom right
+static BlockPaint Cell(const int p_Rgba[4][4])
+{
+  std::vector<unsigned char> img = Solid(2, 2, 0, 0, 0);
+  for (int i = 0; i < 4; ++i) Put(img, 2, i % 2, i / 2, p_Rgba[i][0], p_Rgba[i][1], p_Rgba[i][2], p_Rgba[i][3]);
+
+  BlockGrid g = BlockImage::Render(img.data(), 2, 2, 1, 1);
+  return g.At(0, 0);
+}
+
 static void TestNearestPalette()
 {
   unittest::ExpectEqual(int, BlockImage::NearestPalette(0, 0, 0), 16);
@@ -44,50 +54,102 @@ static void TestNearestPalette()
 
 static void TestRenderSolid()
 {
-  std::vector<unsigned char> img = Solid(2, 2, 255, 0, 0);
-  BlockGrid g = BlockImage::Render(img.data(), 2, 2, 1, 1);
+  std::vector<unsigned char> img = Solid(4, 4, 255, 0, 0);
+  BlockGrid g = BlockImage::Render(img.data(), 4, 4, 1, 1);
   unittest::ExpectEqual(int, g.cols, 1);
   unittest::ExpectEqual(int, g.rows, 1);
-  unittest::ExpectEqual(int, g.At(0, 0).top, 196);
-  unittest::ExpectEqual(int, g.At(0, 0).bottom, 196);
+  unittest::ExpectEqual(int, static_cast<int>(g.At(0, 0).ch), 0x2588);
+  unittest::ExpectEqual(int, g.At(0, 0).fg, 196);
+  unittest::ExpectEqual(int, g.At(0, 0).bg, -1);
 }
 
-static void TestRenderTwoPixels()
+static void TestRenderSplits()
 {
-  std::vector<unsigned char> img = Solid(1, 2, 0, 0, 0);
-  Put(img, 1, 0, 0, 255, 0, 0);
-  Put(img, 1, 0, 1, 0, 0, 255);
-  BlockGrid g = BlockImage::Render(img.data(), 1, 2, 1, 1);
-  unittest::ExpectEqual(int, g.At(0, 0).top, 196);
-  unittest::ExpectEqual(int, g.At(0, 0).bottom, 21);
+  const int red[4] = { 255, 0, 0, 255 };
+  const int blue[4] = { 0, 0, 255, 255 };
+
+  // top red, bottom blue: upper half block
+  const int topBottom[4][4] = { { red[0], red[1], red[2], red[3] }, { red[0], red[1], red[2], red[3] },
+                                { blue[0], blue[1], blue[2], blue[3] }, { blue[0], blue[1], blue[2], blue[3] } };
+  BlockPaint p = Cell(topBottom);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2580);
+  unittest::ExpectEqual(int, p.fg, 196);
+  unittest::ExpectEqual(int, p.bg, 21);
+
+  // left red, right blue: left half block
+  const int leftRight[4][4] = { { red[0], red[1], red[2], red[3] }, { blue[0], blue[1], blue[2], blue[3] },
+                                { red[0], red[1], red[2], red[3] }, { blue[0], blue[1], blue[2], blue[3] } };
+  p = Cell(leftRight);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x258C);
+  unittest::ExpectEqual(int, p.fg, 196);
+  unittest::ExpectEqual(int, p.bg, 21);
+
+  // red on the diagonal, blue on the other one: the glyph covers the group without the bottom right pixel
+  const int diagonal[4][4] = { { red[0], red[1], red[2], red[3] }, { blue[0], blue[1], blue[2], blue[3] },
+                               { blue[0], blue[1], blue[2], blue[3] }, { red[0], red[1], red[2], red[3] } };
+  p = Cell(diagonal);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x259E);
+  unittest::ExpectEqual(int, p.fg, 21);
+  unittest::ExpectEqual(int, p.bg, 196);
+
+  // one white pixel on black: quadrant glyph
+  const int white[4] = { 255, 255, 255, 255 };
+  const int black[4] = { 0, 0, 0, 255 };
+  const int corner[4][4] = { { white[0], white[1], white[2], white[3] }, { black[0], black[1], black[2], black[3] },
+                             { black[0], black[1], black[2], black[3] }, { black[0], black[1], black[2], black[3] } };
+  p = Cell(corner);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2598);
+  unittest::ExpectEqual(int, p.fg, 231);
+  unittest::ExpectEqual(int, p.bg, 16);
 }
 
 static void TestRenderTransparent()
 {
   std::vector<unsigned char> none = Solid(2, 2, 255, 0, 0, 0);
   BlockGrid g = BlockImage::Render(none.data(), 2, 2, 1, 1);
-  unittest::ExpectEqual(int, g.At(0, 0).top, -1);
-  unittest::ExpectEqual(int, g.At(0, 0).bottom, -1);
+  unittest::ExpectEqual(int, static_cast<int>(g.At(0, 0).ch), 0x20);
+  unittest::ExpectEqual(int, g.At(0, 0).bg, -1);
 
-  std::vector<unsigned char> half = Solid(1, 2, 255, 0, 0);
-  Put(half, 1, 0, 1, 255, 0, 0, 0);
-  g = BlockImage::Render(half.data(), 1, 2, 1, 1);
-  unittest::ExpectEqual(int, g.At(0, 0).top, 196);
-  unittest::ExpectEqual(int, g.At(0, 0).bottom, -1);
+  // bottom row transparent: upper half block on the history background
+  std::vector<unsigned char> bottom = Solid(2, 2, 255, 0, 0);
+  Put(bottom, 2, 0, 1, 255, 0, 0, 0);
+  Put(bottom, 2, 1, 1, 255, 0, 0, 0);
+  g = BlockImage::Render(bottom.data(), 2, 2, 1, 1);
+  unittest::ExpectEqual(int, static_cast<int>(g.At(0, 0).ch), 0x2580);
+  unittest::ExpectEqual(int, g.At(0, 0).fg, 196);
+  unittest::ExpectEqual(int, g.At(0, 0).bg, -1);
+
+  // left column transparent: right half block
+  std::vector<unsigned char> left = Solid(2, 2, 255, 0, 0);
+  Put(left, 2, 0, 0, 255, 0, 0, 0);
+  Put(left, 2, 0, 1, 255, 0, 0, 0);
+  g = BlockImage::Render(left.data(), 2, 2, 1, 1);
+  unittest::ExpectEqual(int, static_cast<int>(g.At(0, 0).ch), 0x2590);
+  unittest::ExpectEqual(int, g.At(0, 0).fg, 196);
+  unittest::ExpectEqual(int, g.At(0, 0).bg, -1);
 }
 
 static void TestRenderAverage()
 {
-  // 4x4 into one cell (4x2 sample): top half is left white / right black, bottom half black
+  // 4x4 into one cell: the top left 2x2 block is half white, half black, the rest is black
   std::vector<unsigned char> img = Solid(4, 4, 0, 0, 0);
-  for (int y = 0; y < 2; ++y)
-  {
-    for (int x = 0; x < 2; ++x) Put(img, 4, x, y, 255, 255, 255);
-  }
+  Put(img, 4, 0, 0, 255, 255, 255);
+  Put(img, 4, 0, 1, 255, 255, 255);
 
   BlockGrid g = BlockImage::Render(img.data(), 4, 4, 1, 1);
-  unittest::ExpectEqual(int, g.At(0, 0).top, 244);   // average 127 is a mid grey
-  unittest::ExpectEqual(int, g.At(0, 0).bottom, 16); // black
+  unittest::ExpectEqual(int, static_cast<int>(g.At(0, 0).ch), 0x2598);
+  unittest::ExpectEqual(int, g.At(0, 0).fg, 244); // average 127 is a mid grey
+  unittest::ExpectEqual(int, g.At(0, 0).bg, 16);
+}
+
+static void TestRenderGridSize()
+{
+  std::vector<unsigned char> img = Solid(8, 6, 0, 255, 0);
+  BlockGrid g = BlockImage::Render(img.data(), 8, 6, 4, 3);
+  unittest::ExpectEqual(int, g.cols, 4);
+  unittest::ExpectEqual(int, g.rows, 3);
+  unittest::ExpectEqual(int, static_cast<int>(g.cells.size()), 12);
+  unittest::ExpectEqual(int, g.At(2, 3).fg, 46);
 }
 
 static void TestRenderInvalid()
@@ -97,33 +159,6 @@ static void TestRenderInvalid()
   std::vector<unsigned char> img = Solid(2, 2, 0, 0, 0);
   g = BlockImage::Render(img.data(), 2, 2, 0, 1);
   unittest::ExpectEqual(int, g.cols, 0);
-}
-
-static void TestPaint()
-{
-  BlockPaint p = BlockImage::Paint(BlockCell{ 196, 21 });
-  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2580);
-  unittest::ExpectEqual(int, p.fg, 196);
-  unittest::ExpectEqual(int, p.bg, 21);
-
-  p = BlockImage::Paint(BlockCell{ 196, 196 });
-  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2588);
-  unittest::ExpectEqual(int, p.fg, 196);
-  unittest::ExpectEqual(int, p.bg, -1);
-
-  p = BlockImage::Paint(BlockCell{ -1, 21 });
-  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2584);
-  unittest::ExpectEqual(int, p.fg, 21);
-  unittest::ExpectEqual(int, p.bg, -1);
-
-  p = BlockImage::Paint(BlockCell{ 196, -1 });
-  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2580);
-  unittest::ExpectEqual(int, p.fg, 196);
-  unittest::ExpectEqual(int, p.bg, -1);
-
-  p = BlockImage::Paint(BlockCell{ -1, -1 });
-  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x20);
-  unittest::ExpectEqual(int, p.bg, -1);
 }
 
 static void TestRenderPngMissing()
@@ -139,11 +174,11 @@ int main()
   {
     TestNearestPalette();
     TestRenderSolid();
-    TestRenderTwoPixels();
+    TestRenderSplits();
     TestRenderTransparent();
     TestRenderAverage();
+    TestRenderGridSize();
     TestRenderInvalid();
-    TestPaint();
     TestRenderPngMissing();
   }
   catch (const std::exception& ex)
