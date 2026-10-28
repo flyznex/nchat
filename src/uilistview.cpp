@@ -304,6 +304,6 @@ void UiListView::Draw()
   wrefresh(m_PaddedWin);
 
   DrawScrollBar(m_BarWin, base | colorPair | ' ',
-                focused ? (focusAttr | focusColorPair) : (borderAttr | borderColorPair), top, height, totalLines,
+                focused ? (focusAttr | focusColorPair) : (borderAttr | borderColorPair | dimAttr), top, height, totalLines,
                 firstLine, height);
 }

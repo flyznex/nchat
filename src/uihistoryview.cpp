@@ -129,6 +129,7 @@ void UiHistoryView::Draw()
   static int focusAttr = UiColorConfig::GetAttribute("focus_attr");
   static int borderColorPair = UiColorConfig::GetColorPair("listborder_color");
   static int borderAttr = UiColorConfig::GetAttribute("listborder_attr");
+  static int dimAttr = UiColorConfig::GetAttribute("dim_attr");
 
   static int colorPairNameSent = UiColorConfig::GetColorPair("history_name_sent_color");
   static int colorPairNameRecv = UiColorConfig::GetColorPair("history_name_recv_color");
@@ -698,7 +699,7 @@ void UiHistoryView::Draw()
   const bool focused = (m_Model->GetFocusLocked() == NavFocus::History);
   const int total = static_cast<int>(messageVec.size());
   DrawScrollBar(m_BarWin, attributeTextNormal | colorPairTextRecv | ' ',
-                focused ? (focusAttr | focusColorPair) : (borderAttr | borderColorPair), 0, m_PaddedH, total,
+                focused ? (focusAttr | focusColorPair) : (borderAttr | borderColorPair | dimAttr), 0, m_PaddedH, total,
                 total - (messageOffset + m_HistoryShowCount), m_HistoryShowCount);
 }
 
