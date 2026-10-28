@@ -201,6 +201,44 @@ static void TestRenderBraille()
   unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x20);
 }
 
+static BlockPaint Sextant(const std::vector<unsigned char>& p_Img)
+{
+  return BlockImage::Render(p_Img.data(), 2, 3, 1, 1, BlockStyle::Sextant).At(0, 0);
+}
+
+static void TestRenderSextant()
+{
+  BlockPaint p = Sextant(Solid(2, 3, 255, 0, 0));
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x2588);
+  unittest::ExpectEqual(int, p.fg, 196);
+
+  // white top row on black: sextants 1 and 2 = U+1FB02
+  std::vector<unsigned char> img = Solid(2, 3, 0, 0, 0);
+  Put(img, 2, 0, 0, 255, 255, 255);
+  Put(img, 2, 1, 0, 255, 255, 255);
+  p = Sextant(img);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x1FB02);
+  unittest::ExpectEqual(int, p.fg, 231);
+  unittest::ExpectEqual(int, p.bg, 16);
+
+  // white left column on black: the pattern has no sextant code point, left half block
+  img = Solid(2, 3, 0, 0, 0);
+  for (int y = 0; y < 3; ++y) Put(img, 2, 0, y, 255, 255, 255);
+  p = Sextant(img);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x258C);
+  unittest::ExpectEqual(int, p.fg, 231);
+  unittest::ExpectEqual(int, p.bg, 16);
+
+  // transparent bottom row: the four upper sextants on the history background
+  img = Solid(2, 3, 255, 0, 0);
+  Put(img, 2, 0, 2, 255, 0, 0, 0);
+  Put(img, 2, 1, 2, 255, 0, 0, 0);
+  p = Sextant(img);
+  unittest::ExpectEqual(int, static_cast<int>(p.ch), 0x1FB0E);
+  unittest::ExpectEqual(int, p.fg, 196);
+  unittest::ExpectEqual(int, p.bg, -1);
+}
+
 static void TestRenderInvalid()
 {
   BlockGrid g = BlockImage::Render(nullptr, 2, 2, 1, 1);
@@ -228,6 +266,7 @@ int main()
     TestRenderAverage();
     TestRenderGridSize();
     TestRenderBraille();
+    TestRenderSextant();
     TestRenderInvalid();
     TestRenderPngMissing();
   }

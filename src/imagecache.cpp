@@ -218,8 +218,10 @@ int ImageCache::Acquire(const std::string& p_SrcPath, const ImageInfo& p_Info, i
   if (TermGfx::IsBlocks())
   {
     BlockGrid grid;
-    const BlockStyle style =
-      (UiConfig::GetStr("inline_image_glyphs") == "braille") ? BlockStyle::Braille : BlockStyle::Quadrant;
+    const std::string glyphs = UiConfig::GetStr("inline_image_glyphs");
+    const BlockStyle style = (glyphs == "braille")   ? BlockStyle::Braille
+                             : (glyphs == "sextant") ? BlockStyle::Sextant
+                                                     : BlockStyle::Quadrant;
     if (!BlockImage::RenderPng(p_Info.pngPath, p_Cols, p_Rows, grid, style))
     {
       LOG_WARNING("inline image decode failed for %s", p_Info.pngPath.c_str());

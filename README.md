@@ -996,8 +996,10 @@ recreated on demand. Set to `0` to never delete them. Default is `30`.
 ### inline_image_glyphs
 
 Specifies the characters used for block character images (see
-`inline_images`): `quadrant` (2x2 pixels per cell, works in every font) or
-`braille` (2x4 pixels per cell, finer detail but looks dotted). Read at startup.
+`inline_images`): `quadrant` (2x2 pixels per cell, works in every font),
+`sextant` (2x3 pixels per cell, needs a font with the Symbols for Legacy
+Computing block, otherwise empty boxes are shown) or `braille` (2x4 pixels per
+cell, finer detail but looks dotted). Read at startup.
 
 ### inline_image_max_rows
 

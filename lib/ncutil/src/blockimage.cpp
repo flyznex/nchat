@@ -80,30 +80,47 @@ namespace
                                       static_cast<int>(p_Group.mean[2] + 0.5));
   }
 
-  BlockPaint PaintCell(const Pixel* p_Px)
+  // sextant glyph by mask of set pixels: 1 = top left, 2 = top right, 4 = middle left, 8 = middle right,
+  // 16 = bottom left, 32 = bottom right. The four patterns without a sextant code point reuse older glyphs.
+  wchar_t SextantGlyph(int p_Mask)
   {
+    if (p_Mask == 0) return L' ';
+    if (p_Mask == 21) return L'▌';
+    if (p_Mask == 42) return L'▐';
+    if (p_Mask == 63) return L'█';
+
+    return static_cast<wchar_t>(0x1FB00 + (p_Mask - 1) - (p_Mask > 21 ? 1 : 0) - (p_Mask > 42 ? 1 : 0));
+  }
+
+  // two-colour cell of 4 (quadrant) or 6 (sextant) pixels, pixel i at row i / 2, column i % 2
+  BlockPaint PaintCell(const Pixel* p_Px, int p_Count)
+  {
+    const bool sextant = (p_Count == 6);
+    const int full = (1 << p_Count) - 1;
+    auto glyph = [&](int p_Mask) { return sextant ? SextantGlyph(p_Mask) : s_Glyphs[p_Mask]; };
+
     BlockPaint paint;
     int opaqueMask = 0;
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < p_Count; ++i)
     {
       if (p_Px[i].opaque) opaqueMask |= (1 << i);
     }
 
     if (opaqueMask == 0) return paint;
 
-    if (opaqueMask != 15)
+    if (opaqueMask != full)
     {
-      paint.ch = s_Glyphs[opaqueMask];
+      paint.ch = glyph(opaqueMask);
       paint.fg = ToPalette(Summarize(p_Px, opaqueMask));
       return paint;
     }
 
-    // all opaque: split into two colour groups, bottom right always in the background group
+    // all opaque: split into two colour groups, last pixel always in the background group
     int bestMask = 1;
     double bestErr = -1;
-    for (int mask = 1; mask <= 7; ++mask)
+    for (int mask = 1; mask <= (full >> 1); ++mask)
     {
-      const double err = Summarize(p_Px, mask).err + Summarize(p_Px, 15 & ~mask).err;
+      const double err = Summarize(p_Px, mask).err + Summarize(p_Px, full & ~mask).err;
       if ((bestErr < 0) || (err < bestErr))
       {
         bestErr = err;
@@ -112,15 +129,15 @@ namespace
     }
 
     const int fg = ToPalette(Summarize(p_Px, bestMask));
-    const int bg = ToPalette(Summarize(p_Px, 15 & ~bestMask));
+    const int bg = ToPalette(Summarize(p_Px, full & ~bestMask));
     if (fg == bg)
     {
-      paint.ch = s_Glyphs[15];
+      paint.ch = glyph(full);
       paint.fg = fg;
       return paint;
     }
 
-    paint.ch = s_Glyphs[bestMask];
+    paint.ch = glyph(bestMask);
     paint.fg = fg;
     paint.bg = bg;
     return paint;
@@ -223,7 +240,7 @@ BlockGrid BlockImage::Render(const unsigned char* p_Rgba, int p_Width, int p_Hei
   grid.cells.resize(static_cast<size_t>(p_Cols * p_Rows));
 
   const bool braille = (p_Style == BlockStyle::Braille);
-  const int subRows = braille ? 4 : 2;
+  const int subRows = braille ? 4 : ((p_Style == BlockStyle::Sextant) ? 3 : 2);
   const int pxCols = p_Cols * 2;
   const int pxRows = p_Rows * subRows;
   auto sample = [&](int p_Ox, int p_Oy) -> Pixel
@@ -271,7 +288,7 @@ BlockGrid BlockImage::Render(const unsigned char* p_Rgba, int p_Width, int p_Hei
         for (int sx = 0; sx < 2; ++sx) px[sy * 2 + sx] = sample(col * 2 + sx, row * subRows + sy);
       }
 
-      grid.cells[static_cast<size_t>(row * p_Cols + col)] = braille ? PaintBrailleCell(px) : PaintCell(px);
+      grid.cells[static_cast<size_t>(row * p_Cols + col)] = braille ? PaintBrailleCell(px) : PaintCell(px, subRows * 2);
     }
   }
 

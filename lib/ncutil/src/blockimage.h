@@ -29,6 +29,7 @@ struct BlockGrid
 enum class BlockStyle
 {
   Quadrant, // 2x2 pixels per cell
+  Sextant,  // 2x3 pixels per cell, needs a font with Symbols for Legacy Computing
   Braille,  // 2x4 pixels per cell, finer but dotted
 };
 
