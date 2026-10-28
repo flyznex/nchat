@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "chatlist.h"
+#include "scrollbar.h"
 
 #include "unittest.h"
 
@@ -113,6 +114,37 @@ static void TestScrollFirst()
   unittest::ExpectEqual(int, ChatList::ScrollFirst(two, 5, 0, 4, true), 4);
 }
 
+static void TestScrollThumb()
+{
+  int pos = -1;
+  int len = -1;
+  // everything fits, or there is no track or window: no bar
+  unittest::ExpectFalse(ScrollThumb(4, 0, 4, 4, pos, len));
+  unittest::ExpectFalse(ScrollThumb(3, 0, 4, 4, pos, len));
+  unittest::ExpectFalse(ScrollThumb(10, 0, 4, 0, pos, len));
+  unittest::ExpectFalse(ScrollThumb(10, 0, 0, 4, pos, len));
+  // 10 rows, window 4, track 4: thumb of 2 from top to bottom
+  unittest::ExpectTrue(ScrollThumb(10, 0, 4, 4, pos, len));
+  unittest::ExpectEqual(int, len, 2);
+  unittest::ExpectEqual(int, pos, 0);
+  unittest::ExpectTrue(ScrollThumb(10, 3, 4, 4, pos, len));
+  unittest::ExpectEqual(int, pos, 1);
+  unittest::ExpectTrue(ScrollThumb(10, 6, 4, 4, pos, len));
+  unittest::ExpectEqual(int, pos, 2);
+  // a stale first past the end stays inside the track
+  unittest::ExpectTrue(ScrollThumb(10, 50, 4, 4, pos, len));
+  unittest::ExpectEqual(int, pos, 2);
+  unittest::ExpectTrue(ScrollThumb(10, -5, 4, 4, pos, len));
+  unittest::ExpectEqual(int, pos, 0);
+  // thumb is at least one cell, and never leaves the track
+  unittest::ExpectTrue(ScrollThumb(1000, 999, 1, 5, pos, len));
+  unittest::ExpectEqual(int, len, 1);
+  unittest::ExpectEqual(int, pos, 4);
+  unittest::ExpectTrue(ScrollThumb(10, 6, 4, 1, pos, len));
+  unittest::ExpectEqual(int, len, 1);
+  unittest::ExpectEqual(int, pos, 0);
+}
+
 int main()
 {
   int rv = 0;
@@ -123,6 +155,7 @@ int main()
     TestCycleFolder();
     TestFirstTab();
     TestScrollFirst();
+    TestScrollThumb();
   }
   catch (const std::exception& ex)
   {

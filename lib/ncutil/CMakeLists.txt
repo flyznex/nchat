@@ -92,6 +92,8 @@ add_library(ncutil ${LIBRARY_LINKING_TYPE}
   src/qrutil.h
   src/scopeddirlock.cpp
   src/scopeddirlock.h
+  src/scrollbar.cpp
+  src/scrollbar.h
   src/serialization.h
   src/sqlitehelp.cpp
   src/sqlitehelp.h
