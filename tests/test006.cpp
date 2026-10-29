@@ -296,6 +296,14 @@ static void TestContinuations()
   unittest::ExpectTrue(r.PendingKeys().empty());
 }
 
+static void TestCtrlHeldChord()
+{
+  // Ctrl-W Ctrl-L (Ctrl still held) behaves like Ctrl-W l
+  NavKeyResolver held;
+  unittest::ExpectTrue(held.Resolve(NavFocus::List, 23, keys, true) == NavAction::Pending);
+  unittest::ExpectTrue(held.Resolve(NavFocus::List, 12, keys, true) == NavAction::FocusHistory);
+}
+
 static void TestNavConfErrors()
 {
   NavKeyResolver r;
@@ -329,6 +337,7 @@ int main()
     TestNavConf();
     TestFirstKeys();
     TestContinuations();
+    TestCtrlHeldChord();
     TestNavConfErrors();
   }
   catch (const std::exception& ex)

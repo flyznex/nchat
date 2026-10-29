@@ -306,6 +306,15 @@ NavAction NavKeyResolver::Resolve(NavFocus p_Focus, wint_t p_Key, const NavKeys&
   seq.swap(m_Seq);
   // a failed Ctrl-W sequence is swallowed so the stray key cannot type into the entry
   const bool swallow = !seq.empty() && (seq[0] == p_Keys.panePrefix);
+  if (swallow && (p_Key >= 1) && (p_Key <= 26))
+  {
+    // Ctrl still held for the second key (Ctrl-W Ctrl-L) arrives as a control code: treat it as the letter, like vim
+    std::vector<wint_t> ctrlSeq = seq;
+    ctrlSeq.push_back(p_Key);
+    bool ctrlPrefix = false;
+    if (!m_Map.Find(p_Focus, ctrlSeq, p_Keys, p_Vim, ctrlPrefix) && !ctrlPrefix) p_Key += 96;
+  }
+
   seq.push_back(p_Key);
   for (;;)
   {
