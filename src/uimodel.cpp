@@ -3889,7 +3889,7 @@ void UiModel::Impl::HandleMouse(int p_X, int p_Y, unsigned long p_State)
     SetFocus(NavFocus::History);
     if (m_Focus == NavFocus::History)
     {
-      const int msg = m_View->GetHistoryMsgAt(p_Y);
+      const int msg = m_View->GetHistoryMsgAt(p_X, p_Y);
       offset = (msg >= 0) ? msg : saved;
       UpdateHistory();
     }

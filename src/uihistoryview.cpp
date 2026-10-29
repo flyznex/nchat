@@ -81,6 +81,7 @@ UiHistoryView::UiHistoryView(const UiViewParams& p_Params)
     int paddedY = m_Y + vpad;
     m_PaddedY = paddedY;
     int paddedX = m_X + hpad;
+    m_PaddedX = paddedX;
     m_PaddedH = m_H - (vpad * 2);
     m_PaddedW = m_W - hpad - 1; // right margin column holds the scroll bar
     m_PaddedWin = newwin(m_PaddedH, m_PaddedW, paddedY, paddedX);
@@ -163,6 +164,7 @@ void UiHistoryView::Draw()
 
   m_HistoryShowCount = 0;
   m_RowMsg.assign(m_PaddedH, -1);
+  m_RowSpan.assign(m_PaddedH, { 0, 0 });
 
   bool firstMessage = true;
   int y = m_PaddedH - 1;
@@ -568,6 +570,7 @@ void UiHistoryView::Draw()
       if ((imageId != 0) && (wline->size() == 2) && ((*wline)[0] == imageRowMark))
       {
         UiImageRow::Draw(m_PaddedWin, y, x0, static_cast<int>((*wline)[1]), imageId, imageGrid.cols);
+        m_RowSpan[y] = { x0, x0 + imageGrid.cols };
         if (--y < 0) break;
         continue;
       }
@@ -632,6 +635,7 @@ void UiHistoryView::Draw()
         wattroff(m_PaddedWin, attributeText | colorPairText);
       }
 
+      m_RowSpan[y] = { x0, x0 + std::min(StrUtil::WStringWidth(*wline), blockW) };
       if (--y < 0) break;
     }
 
@@ -685,6 +689,7 @@ void UiHistoryView::Draw()
     wattroff(m_PaddedWin, headerAttr | colorPairName);
 
     ++m_HistoryShowCount;
+    m_RowSpan[y] = { x0, x0 + std::min(StrUtil::WStringWidth(wheader), blockW) };
     markRows(y);
 
     if (--y < 0) break;
@@ -708,8 +713,11 @@ int UiHistoryView::GetHistoryShowCount()
   return m_HistoryShowCount;
 }
 
-int UiHistoryView::MsgAt(int p_ScreenY) const
+int UiHistoryView::MsgAt(int p_ScreenX, int p_ScreenY) const
 {
   const int i = p_ScreenY - m_PaddedY;
-  return ((i >= 0) && (i < static_cast<int>(m_RowMsg.size()))) ? m_RowMsg[i] : -1;
+  if ((i < 0) || (i >= static_cast<int>(m_RowMsg.size()))) return -1;
+
+  const int x = p_ScreenX - m_PaddedX;
+  return ((x >= m_RowSpan[i].first) && (x < m_RowSpan[i].second)) ? m_RowMsg[i] : -1;
 }

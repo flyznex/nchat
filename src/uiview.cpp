@@ -84,9 +84,9 @@ void UiView::ScrollList(int p_Rows)
   if (m_UiListView) m_UiListView->Scroll(p_Rows);
 }
 
-int UiView::GetHistoryMsgAt(int p_ScreenY)
+int UiView::GetHistoryMsgAt(int p_ScreenX, int p_ScreenY)
 {
-  return m_UiHistoryView ? m_UiHistoryView->MsgAt(p_ScreenY) : -1;
+  return m_UiHistoryView ? m_UiHistoryView->MsgAt(p_ScreenX, p_ScreenY) : -1;
 }
 
 bool UiView::SetEntryLines(int p_Lines)
