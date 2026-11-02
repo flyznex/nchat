@@ -501,6 +501,10 @@ endif()
 if(HAS_SIGNAL)
   add_subdirectory(lib/sgchat)
 endif()
+option(HAS_BRIDGE "Bridge library for the Rust UI" OFF)
+if(HAS_BRIDGE)
+  add_subdirectory(lib/bridge)
+endif()
 
 # Dependency ncurses
 if (${CMAKE_SYSTEM_NAME} MATCHES "OpenBSD")

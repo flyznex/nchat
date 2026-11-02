@@ -5,3 +5,5 @@
 /dbgbuild
 /dist
 /.gotools
+/build-bridge
+/build-rs
