@@ -81,7 +81,7 @@ extern "C" int nc_init(const char* p_ConfigDir)
   if ((p_ConfigDir == nullptr) || state.inited) return NC_ERR_STATE;
 
   umask(S_IRWXG | S_IRWXO);
-  FileUtil::SetApplicationDir(p_ConfigDir);
+  FileUtil::SetApplicationDir(*p_ConfigDir != '\0' ? std::string(p_ConfigDir) : FileUtil::GetDefaultApplicationDir());
   Log::SetVerboseLevel(Log::INFO_LEVEL);
 
   const std::string dir = FileUtil::GetApplicationDir();

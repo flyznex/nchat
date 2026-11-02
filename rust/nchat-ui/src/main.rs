@@ -12,12 +12,12 @@ struct Args {
 }
 
 fn parse_args() -> Result<Args, String> {
-    let mut confdir = None;
+    let mut confdir = String::new();
     let mut seconds = 30;
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         match arg.as_str() {
-            "-d" | "--confdir" => confdir = Some(it.next().ok_or("--confdir needs a value")?),
+            "-d" | "--confdir" => confdir = it.next().ok_or("--confdir needs a value")?,
             "--seconds" => {
                 seconds = it
                     .next()
@@ -28,7 +28,7 @@ fn parse_args() -> Result<Args, String> {
             other => return Err(format!("unknown argument {other}")),
         }
     }
-    Ok(Args { confdir: confdir.ok_or("usage: nchat-rs --confdir DIR [--seconds N]")?, seconds })
+    Ok(Args { confdir, seconds })
 }
 
 fn main() -> ExitCode {

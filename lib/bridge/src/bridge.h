@@ -34,6 +34,7 @@ enum
 typedef void (*NcEventCallback)(const char* p_Json, void* p_User);
 
 int nc_abi_version(void);
+// An empty p_ConfigDir selects nchat's default dir (~/.nchat, else $XDG_CONFIG_HOME/nchat, else ~/.config/nchat).
 int nc_init(const char* p_ConfigDir);
 void nc_set_callback(NcEventCallback p_Callback, void* p_User);
 int nc_start(void);
