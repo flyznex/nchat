@@ -13,6 +13,14 @@ extern "C" {
 
 #define NC_ABI_VERSION 1
 
+// Contract:
+// - Single control thread: nc_init, nc_set_callback, nc_start, nc_send, nc_profiles and
+//   nc_stop must not be called concurrently with each other.
+// - The callback runs on a core-owned thread. Its json pointer is valid only for the
+//   duration of the call (copy it). The callback must NOT call nc_stop or nc_set_callback
+//   (deadlock on the callback mutex).
+// - nc_init calls umask(077) on the whole host process.
+
 enum
 {
   NC_OK = 0,

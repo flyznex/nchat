@@ -1,4 +1,8 @@
 # Bridge library: C ABI between the Rust UI and the protocol core
+if(HAS_DYNAMICLOAD)
+  message(FATAL_ERROR "nchat-bridge requires HAS_DYNAMICLOAD=OFF (protocols are linked statically; ProtocolFactory would dlopen relative to the host exe)")
+endif()
+
 add_library(nchat-bridge STATIC
   src/bridge.cpp
   src/bridge.h

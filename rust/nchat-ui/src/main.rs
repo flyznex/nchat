@@ -76,7 +76,7 @@ fn main() -> ExitCode {
                 continue;
             }
         };
-        if let Event::Connect { profile, .. } = &event {
+        if let Event::Connect { profile, success: true } = &event {
             if let Some(info) = profiles.iter().find(|p| &p.id == profile) {
                 for request in on_connect(info) {
                     if let Err(e) = core.send(&request.to_json()) {

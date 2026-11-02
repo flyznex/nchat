@@ -75,11 +75,17 @@ fn main() {
     for dir in [
         "lib/bridge", "lib/common/src", "lib/ncutil/src", "lib/duchat/src",
         "lib/tgchat/src", "lib/wmchat/src", "lib/sgchat/src",
+        "lib/wmchat/go", "lib/sgchat/go", "lib/gostat",
+        "lib/duchat/CMakeLists.txt", "lib/gostat/CMakeLists.txt", "lib/ncutil/CMakeLists.txt",
+        "lib/sgchat/CMakeLists.txt", "lib/tgchat/CMakeLists.txt", "lib/wmchat/CMakeLists.txt",
     ] {
         println!("cargo:rerun-if-changed={}", root.join(dir).display());
     }
 
-    let args = std::env::var("NCHAT_CMAKE_ARGS").unwrap_or_else(|_| DEFAULT_CMAKE_ARGS.to_string());
+    // Defaults only seed a fresh build dir; an existing cache is reused as-is.
+    let args = std::env::var("NCHAT_CMAKE_ARGS").unwrap_or_else(|_| {
+        if build.join("CMakeCache.txt").exists() { String::new() } else { DEFAULT_CMAKE_ARGS.to_string() }
+    });
     let jobs = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4);
 
     run(Command::new("cmake")
