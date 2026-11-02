@@ -2,6 +2,8 @@
 add_library(nchat-bridge STATIC
   src/eventjson.cpp
   src/eventjson.h
+  src/requestjson.cpp
+  src/requestjson.h
 )
 
 target_common_config(nchat-bridge)
