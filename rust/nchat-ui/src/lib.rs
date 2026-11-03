@@ -1,3 +1,4 @@
+pub mod app;
 pub mod chatlist;
 pub mod colorconf;
 pub mod conf;
