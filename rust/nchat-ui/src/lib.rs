@@ -2,6 +2,7 @@ pub mod chatlist;
 pub mod colorconf;
 pub mod conf;
 pub mod keyconf;
+pub mod layout;
 pub mod nav;
 pub mod protocol;
 pub mod session;
