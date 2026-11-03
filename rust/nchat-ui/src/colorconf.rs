@@ -1,0 +1,184 @@
+use crate::conf::Conf;
+use ratatui::style::{Color, Modifier, Style};
+
+pub fn parse_color(val: &str) -> Option<Color> {
+    let s = val.trim();
+    if s.is_empty() || s.eq_ignore_ascii_case("usercolor") {
+        return None;
+    }
+    match s.to_ascii_lowercase().as_str() {
+        "black" => Some(Color::Indexed(0)),
+        "red" => Some(Color::Indexed(1)),
+        "green" => Some(Color::Indexed(2)),
+        "yellow" => Some(Color::Indexed(3)),
+        "blue" => Some(Color::Indexed(4)),
+        "magenta" => Some(Color::Indexed(5)),
+        "cyan" => Some(Color::Indexed(6)),
+        "white" => Some(Color::Indexed(7)),
+        "gray" | "bright_black" => Some(Color::Indexed(8)),
+        "bright_red" => Some(Color::Indexed(9)),
+        "bright_green" => Some(Color::Indexed(10)),
+        "bright_yellow" => Some(Color::Indexed(11)),
+        "bright_blue" => Some(Color::Indexed(12)),
+        "bright_magenta" => Some(Color::Indexed(13)),
+        "bright_cyan" => Some(Color::Indexed(14)),
+        "bright_white" => Some(Color::Indexed(15)),
+        other => {
+            if let Some(hex) = other.strip_prefix("0x").or_else(|| other.strip_prefix('#')) {
+                if hex.len() == 6 {
+                    if let Ok(rgb) = u32::from_str_radix(hex, 16) {
+                        return Some(Color::Rgb(
+                            ((rgb >> 16) & 0xff) as u8,
+                            ((rgb >> 8) & 0xff) as u8,
+                            (rgb & 0xff) as u8,
+                        ));
+                    }
+                }
+            }
+            if let Ok(idx) = other.parse::<u8>() {
+                return Some(Color::Indexed(idx));
+            }
+            None
+        }
+    }
+}
+
+pub fn parse_modifier(val: &str) -> Modifier {
+    let mut modifier = Modifier::empty();
+    for token in val.split(|c| c == ',' || c == ' ') {
+        match token.trim().to_ascii_lowercase().as_str() {
+            "bold" => modifier.insert(Modifier::BOLD),
+            "dim" => modifier.insert(Modifier::DIM),
+            "italic" => modifier.insert(Modifier::ITALIC),
+            "underline" => modifier.insert(Modifier::UNDERLINED),
+            "reverse" => modifier.insert(Modifier::REVERSED),
+            _ => {}
+        }
+    }
+    modifier
+}
+
+fn make_style(conf: &Conf, prefix: &str) -> Style {
+    let mut style = Style::default();
+    let fg_key = format!("{prefix}_color_fg");
+    let bg_key = format!("{prefix}_color_bg");
+    let attr_key = format!("{prefix}_attr");
+
+    if let Some(fg) = conf.get(&fg_key).and_then(parse_color) {
+        style = style.fg(fg);
+    }
+    if let Some(bg) = conf.get(&bg_key).and_then(parse_color) {
+        style = style.bg(bg);
+    }
+    let m = parse_modifier(conf.str_or(&attr_key, ""));
+    if !m.is_empty() {
+        style = style.add_modifier(m);
+    }
+    style
+}
+
+#[derive(Debug, Clone)]
+pub struct Theme {
+    pub top: Style,
+    pub status: Style,
+    pub list: Style,
+    pub list_selected: Style,
+    pub list_name: Style,
+    pub list_preview: Style,
+    pub list_unread: Style,
+    pub listborder: Style,
+    pub dim_modifier: Modifier,
+    pub focus_style: Style,
+}
+
+impl Default for Theme {
+    fn default() -> Self {
+        Self {
+            top: Style::default().add_modifier(Modifier::REVERSED),
+            status: Style::default().add_modifier(Modifier::REVERSED),
+            list: Style::default(),
+            list_selected: Style::default().add_modifier(Modifier::REVERSED),
+            list_name: Style::default().add_modifier(Modifier::BOLD),
+            list_preview: Style::default().fg(Color::Indexed(8)),
+            list_unread: Style::default(),
+            listborder: Style::default(),
+            dim_modifier: Modifier::DIM,
+            focus_style: Style::default().add_modifier(Modifier::REVERSED),
+        }
+    }
+}
+
+impl Theme {
+    pub fn from_conf(conf: &Conf) -> Self {
+        let mut t = Self::default();
+        t.top = make_style(conf, "top");
+        if t.top == Style::default() {
+            t.top = t.top.add_modifier(Modifier::REVERSED);
+        }
+        t.status = make_style(conf, "status");
+        if t.status == Style::default() {
+            t.status = t.status.add_modifier(Modifier::REVERSED);
+        }
+        t.list = make_style(conf, "list");
+        t.list_selected = make_style(conf, "list_selected");
+        if t.list_selected == Style::default() {
+            t.list_selected = t.list_selected.add_modifier(Modifier::REVERSED);
+        }
+        t.list_name = make_style(conf, "list_name");
+        if t.list_name == Style::default() {
+            t.list_name = t.list_name.add_modifier(Modifier::BOLD);
+        }
+        t.list_preview = make_style(conf, "list_preview");
+        if t.list_preview.fg.is_none() {
+            t.list_preview = t.list_preview.fg(Color::Indexed(8));
+        }
+        t.list_unread = make_style(conf, "list_color_unread");
+        t.listborder = make_style(conf, "listborder");
+        t.dim_modifier = parse_modifier(conf.str_or("dim_attr", "dim"));
+        t.focus_style = make_style(conf, "focus");
+        if t.focus_style == Style::default() {
+            t.focus_style = t.focus_style.add_modifier(Modifier::REVERSED);
+        }
+        t
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_standard_color_names() {
+        assert_eq!(parse_color("black"), Some(Color::Indexed(0)));
+        assert_eq!(parse_color("red"), Some(Color::Indexed(1)));
+        assert_eq!(parse_color("gray"), Some(Color::Indexed(8)));
+        assert_eq!(parse_color("bright_black"), Some(Color::Indexed(8)));
+        assert_eq!(parse_color("white"), Some(Color::Indexed(7)));
+        assert_eq!(parse_color(""), None);
+    }
+
+    #[test]
+    fn parses_hex_and_indexed_colors() {
+        assert_eq!(parse_color("0x112233"), Some(Color::Rgb(0x11, 0x22, 0x33)));
+        assert_eq!(parse_color("240"), Some(Color::Indexed(240)));
+    }
+
+    #[test]
+    fn parses_modifiers() {
+        assert_eq!(parse_modifier("reverse"), Modifier::REVERSED);
+        assert_eq!(parse_modifier("bold,underline"), Modifier::BOLD | Modifier::UNDERLINED);
+    }
+
+    #[test]
+    fn loads_theme_styles() {
+        let conf = Conf::parse("
+            top_attr=reverse
+            list_name_attr=bold
+            list_preview_color_fg=gray
+        ");
+        let theme = Theme::from_conf(&conf);
+        assert_eq!(theme.top.add_modifier, Modifier::REVERSED);
+        assert_eq!(theme.list_name.add_modifier, Modifier::BOLD);
+        assert_eq!(theme.list_preview.fg, Some(Color::Indexed(8)));
+    }
+}
