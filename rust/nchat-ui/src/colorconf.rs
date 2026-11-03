@@ -120,9 +120,22 @@ impl Theme {
             t.status = t.status.add_modifier(Modifier::REVERSED);
         }
         t.list = make_style(conf, "list");
-        t.list_selected = make_style(conf, "list_selected");
-        if t.list_selected == Style::default() {
-            t.list_selected = t.list_selected.add_modifier(Modifier::REVERSED);
+        t.list_selected = t.list;
+        if let Some(fg) = conf
+            .get("list_color_selected_fg")
+            .and_then(parse_color)
+        {
+            t.list_selected = t.list_selected.fg(fg);
+        }
+        if let Some(bg) = conf
+            .get("list_color_selected_bg")
+            .and_then(parse_color)
+        {
+            t.list_selected = t.list_selected.bg(bg);
+        }
+        let selected_modifier = parse_modifier(conf.str_or("list_attr_selected", "reverse"));
+        if !selected_modifier.is_empty() {
+            t.list_selected = t.list_selected.add_modifier(selected_modifier);
         }
         t.list_name = make_style(conf, "list_name");
         if t.list_name == Style::default() {
@@ -132,7 +145,21 @@ impl Theme {
         if t.list_preview.fg.is_none() {
             t.list_preview = t.list_preview.fg(Color::Indexed(8));
         }
-        t.list_unread = make_style(conf, "list_color_unread");
+        t.list_unread = Style::default();
+        if let Some(fg) = conf.get("list_color_unread_fg").and_then(parse_color) {
+            t.list_unread = t.list_unread.fg(fg);
+        }
+        if let Some(bg) = conf.get("list_color_unread_bg").and_then(parse_color) {
+            t.list_unread = t.list_unread.bg(bg);
+        }
+        let unread_attr = conf
+            .get("list_color_unread_attr")
+            .or_else(|| conf.get("list_attr_unread"))
+            .unwrap_or("");
+        let unread_modifier = parse_modifier(unread_attr);
+        if !unread_modifier.is_empty() {
+            t.list_unread = t.list_unread.add_modifier(unread_modifier);
+        }
         t.listborder = make_style(conf, "listborder");
         t.dim_modifier = parse_modifier(conf.str_or("dim_attr", "dim"));
         t.focus_style = make_style(conf, "focus");
@@ -180,5 +207,19 @@ mod tests {
         assert_eq!(theme.top.add_modifier, Modifier::REVERSED);
         assert_eq!(theme.list_name.add_modifier, Modifier::BOLD);
         assert_eq!(theme.list_preview.fg, Some(Color::Indexed(8)));
+    }
+
+    #[test]
+    fn list_attr_selected_sets_selected_modifier() {
+        let conf = Conf::parse("list_attr_selected=reverse");
+        let theme = Theme::from_conf(&conf);
+        assert_eq!(theme.list_selected.add_modifier, Modifier::REVERSED);
+    }
+
+    #[test]
+    fn list_color_unread_fg_sets_unread_fg() {
+        let conf = Conf::parse("list_color_unread_fg=red");
+        let theme = Theme::from_conf(&conf);
+        assert_eq!(theme.list_unread.fg, Some(Color::Indexed(1)));
     }
 }
