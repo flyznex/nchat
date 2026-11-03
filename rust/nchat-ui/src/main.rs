@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -95,16 +95,23 @@ fn main() -> ExitCode {
                 Err(RecvTimeoutError::Timeout) => continue,
                 Err(RecvTimeoutError::Disconnected) => break,
             };
-            if let Ok(event) = serde_json::from_str::<Event>(&raw) {
-                if let Event::Connect { profile, success: true } = &event {
-                    if let Some(info) = profiles.iter().find(|p| &p.id == profile) {
-                        for request in on_connect(info) {
-                            let _ = core.send(&request.to_json());
+            let event: Event = match serde_json::from_str(&raw) {
+                Ok(e) => e,
+                Err(e) => {
+                    eprintln!("unparsable event ({e}): {raw}");
+                    continue;
+                }
+            };
+            if let Event::Connect { profile, success: true } = &event {
+                if let Some(info) = profiles.iter().find(|p| &p.id == profile) {
+                    for request in on_connect(info) {
+                        if let Err(e) = core.send(&request.to_json()) {
+                            eprintln!("request failed: {e}");
                         }
                     }
                 }
-                println!("{}", describe(&event));
             }
+            println!("{}", describe(&event));
         }
         core.stop();
         return ExitCode::SUCCESS;
@@ -140,10 +147,19 @@ fn main() -> ExitCode {
 
     let _ = app.run(rx, ef);
 
-    // Watchdog stop
+    // Watchdog stop: don't hang forever if core.stop() wedges.
     let stop_thread = std::thread::spawn(move || {
         core.stop();
     });
+    let timeout = Duration::from_secs(3);
+    let start = Instant::now();
+    while !stop_thread.is_finished() {
+        if start.elapsed() >= timeout {
+            eprintln!("core stop timed out after 3s; exiting");
+            return ExitCode::SUCCESS;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
     if stop_thread.join().is_err() {
         eprintln!("core stop joined with error");
     }
