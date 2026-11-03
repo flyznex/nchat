@@ -6,6 +6,7 @@ pub mod layout;
 pub mod model;
 pub mod nav;
 pub mod protocol;
+pub mod render;
 pub mod session;
 pub mod text;
 pub mod uiconf;
