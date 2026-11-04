@@ -3,12 +3,16 @@ use crate::layout::Layout;
 use crate::model::UiModel;
 use crate::nav::{Action, Focus, NavResolveResult, NavResolver};
 use crate::protocol::Event;
-use crate::render::{list, status, top};
+use crate::render::{entry, help, history, list, status, top};
+use crate::session::on_connect;
 use crate::uiconf::UiConfig;
 use crossterm::event::{self, Event as CEvent, MouseEventKind};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use crossterm::ExecutableCommand;
+use nchat_core_sys::Core;
 use ratatui::backend::CrosstermBackend;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 use ratatui::Terminal;
 use std::io::{stdout, Stdout};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -57,6 +61,10 @@ pub struct App {
     pub conf: UiConfig,
     pub theme: Theme,
     pub nav: NavResolver,
+    pub picker: ratatui_image::picker::Picker,
+    pub img_cache: crate::imgcache::ImageCache,
+    pub active_dialog: Option<Box<dyn crate::dialog::Dialog>>,
+    pub pending_delete_msg: Option<(String, String, String)>,
     terminal: Terminal<CrosstermBackend<Stdout>>,
 }
 
@@ -65,11 +73,17 @@ impl App {
         let backend = CrosstermBackend::new(stdout());
         let terminal = Terminal::new(backend)?;
         let vim_keys = conf.vim_keys;
+        let picker = crate::picker::init_picker(Duration::from_secs(2));
+        let img_cache = crate::imgcache::ImageCache::new();
         Ok(Self {
             model: UiModel::new(),
             conf,
             theme,
             nav: NavResolver::new(vim_keys),
+            picker,
+            img_cache,
+            active_dialog: None,
+            pending_delete_msg: None,
             terminal,
         })
     }
@@ -78,16 +92,51 @@ impl App {
         &mut self,
         rx: Receiver<String>,
         exit_flag: Arc<AtomicBool>,
+        core: &mut Core,
     ) -> std::io::Result<()> {
-        let mut last_draw = Instant::now();
         let frame_interval = Duration::from_millis(16); // ~60fps target
+        let mut last_draw = Instant::now() - frame_interval;
 
         while !exit_flag.load(Ordering::Relaxed) {
             // Drain incoming bridge events (coalesce high-frequency events)
             while let Ok(raw) = rx.try_recv() {
                 if let Ok(ev) = serde_json::from_str::<Event>(&raw) {
+                    if let Event::Connect { profile, success: true } = &ev {
+                        if let Some(info) = self.model.profiles.iter().find(|p| &p.id == profile) {
+                            for request in on_connect(info) {
+                                let _ = core.send(&request.to_json());
+                            }
+                        }
+                    }
+                    let prev_sel = self.model.selected_id.clone();
                     self.model.apply_event(&ev);
+                    if let Some((prof, cid)) = &self.model.selected_id {
+                        if prev_sel.as_ref() != Some(&(prof.clone(), cid.clone()))
+                            || (matches!(&ev, Event::Chats { .. }) && self.model.messages(prof, cid).is_empty())
+                        {
+                            let req = crate::protocol::Request::GetMessages {
+                                profile: prof.clone(),
+                                chat_id: cid.clone(),
+                                from_msg_id: String::new(),
+                                limit: 50,
+                            };
+                            let _ = core.send(&req.to_json());
+                            let status_req = crate::protocol::Request::GetStatus {
+                                profile: prof.clone(),
+                                user_id: cid.clone(),
+                            };
+                            let _ = core.send(&status_req.to_json());
+                        }
+                    }
                 }
+            }
+
+            for read_req in self.model.take_pending_reads() {
+                let _ = core.send(&read_req.to_json());
+            }
+
+            for dl_req in self.model.take_pending_downloads() {
+                let _ = core.send(&dl_req.to_json());
             }
 
             // Poll crossterm events (timeout up to 10ms)
@@ -95,20 +144,272 @@ impl App {
                 match event::read()? {
                     CEvent::Key(k) => {
                         if let Some(norm) = crate::keyconf::normalize_crossterm_key(k) {
-                            if norm == crate::keyconf::Key::ESC && self.model.filter_active {
-                                self.model.filter_text.clear();
-                                self.model.filter_active = false;
-                                self.model.dirty = true;
-                                continue;
-                            }
                             if k.code == crossterm::event::KeyCode::Char('q')
                                 && k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
                             {
                                 exit_flag.store(true, Ordering::Relaxed);
                                 break;
                             }
+
+                            if let Some(mut dialog) = self.active_dialog.take() {
+                                match dialog.handle_key(norm) {
+                                    crate::dialog::DialogResult::KeepOpen => {
+                                        self.active_dialog = Some(dialog);
+                                    }
+                                    crate::dialog::DialogResult::Close(ok) => {
+                                        if ok {
+                                            if let Some((prof, cid, mid)) = self.pending_delete_msg.take() {
+                                                let req = crate::protocol::Request::DeleteMessage {
+                                                    profile: prof,
+                                                    chat_id: cid,
+                                                    msg_id: mid,
+                                                };
+                                                let _ = core.send(&req.to_json());
+                                            }
+                                        } else {
+                                            self.pending_delete_msg = None;
+                                        }
+                                        self.active_dialog = None;
+                                    }
+                                    crate::dialog::DialogResult::CloseValue(val) => {
+                                        if val.starts_with("[sticker_file_id:") && val.ends_with(']') {
+                                            let id_str = &val[17..val.len() - 1];
+                                            if let (Ok(sticker_file_id), Some((prof, cid))) =
+                                                (id_str.parse::<i32>(), &self.model.selected_id)
+                                            {
+                                                let req = crate::protocol::Request::SendSticker {
+                                                    profile: prof.clone(),
+                                                    chat_id: cid.clone(),
+                                                    sticker_file_id,
+                                                };
+                                                let _ = core.send(&req.to_json());
+                                            }
+                                        } else if val.starts_with('/') || val.contains('/') || val.contains('\\') {
+                                            if let Some((prof, cid)) = &self.model.selected_id {
+                                                let req = crate::protocol::Request::SendMessage {
+                                                    profile: prof.clone(),
+                                                    chat_id: cid.clone(),
+                                                    text: String::new(),
+                                                    quoted_id: String::new(),
+                                                    file_path: val,
+                                                };
+                                                let _ = core.send(&req.to_json());
+                                            }
+                                        } else {
+                                            self.model.entry_buffer.insert_str(&val);
+                                        }
+                                        self.active_dialog = None;
+                                    }
+                                }
+                                self.model.dirty = true;
+                                continue;
+                            }
+
+                            // Alt-u opens Emoji Dialog
+                            if k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                                && k.code == crossterm::event::KeyCode::Char('u')
+                            {
+                                self.active_dialog = Some(Box::new(crate::dialog::emoji::EmojiDialog::new()));
+                                self.model.dirty = true;
+                                continue;
+                            }
+
+                            // Alt-g opens Sticker Dialog
+                            if k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                                && k.code == crossterm::event::KeyCode::Char('g')
+                            {
+                                if let Some((prof, _)) = self.model.selected_id.clone() {
+                                    let sets_req = crate::protocol::Request::GetStickerSets { profile: prof.clone() };
+                                    let _ = core.send(&sets_req.to_json());
+                                    let stickers_req = crate::protocol::Request::GetStickers {
+                                        profile: prof.clone(),
+                                        key: "recent".to_string(),
+                                        set_id: 0,
+                                        query: String::new(),
+                                    };
+                                    let _ = core.send(&stickers_req.to_json());
+                                    self.active_dialog = Some(Box::new(crate::dialog::sticker::StickerDialog::new(prof)));
+                                    self.model.dirty = true;
+                                }
+                                continue;
+                            }
+
+                            // Ctrl-O opens Send File Dialog
+                            if k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                                && k.code == crossterm::event::KeyCode::Char('o')
+                            {
+                                self.active_dialog = Some(Box::new(crate::dialog::file::FileDialog::new(None)));
+                                self.model.dirty = true;
+                                continue;
+                            }
+
+                            if self.model.focus == Focus::Entry {
+                                if k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                                    && k.code == crossterm::event::KeyCode::Char('v')
+                                {
+                                    if let Some(text) = crate::clipboard::get_text() {
+                                        self.model.entry_buffer.insert_str(&text);
+                                        self.model.dirty = true;
+                                    }
+                                    continue;
+                                }
+
+                                match k.code {
+                                    crossterm::event::KeyCode::Esc => {
+                                        if self.model.edit_message_active || self.model.reply_message_active {
+                                            self.model.cancel_compose_mode();
+                                        } else {
+                                            self.model.focus = Focus::History;
+                                        }
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Enter => {
+                                        if k.modifiers.contains(crossterm::event::KeyModifiers::ALT) {
+                                            self.model.entry_buffer.insert_char('\n');
+                                            self.model.dirty = true;
+                                        } else {
+                                            let text = self.model.entry_buffer.text().trim().to_string();
+                                            if !text.is_empty() {
+                                                if self.model.edit_message_active {
+                                                    if let (Some((prof, cid)), Some(mid)) = (&self.model.selected_id, &self.model.edit_message_id) {
+                                                        let req = crate::protocol::Request::EditMessage {
+                                                            profile: prof.clone(),
+                                                            chat_id: cid.clone(),
+                                                            msg_id: mid.clone(),
+                                                            text,
+                                                        };
+                                                        let _ = core.send(&req.to_json());
+                                                        self.model.entry_buffer.clear();
+                                                        self.model.cancel_compose_mode();
+                                                        self.model.dirty = true;
+                                                    }
+                                                } else if let Some((prof, cid)) = &self.model.selected_id {
+                                                    let quoted_id = if self.model.reply_message_active {
+                                                        self.model.reply_message_id.clone().unwrap_or_default()
+                                                    } else {
+                                                        String::new()
+                                                    };
+                                                    let req = crate::protocol::Request::SendMessage {
+                                                        profile: prof.clone(),
+                                                        chat_id: cid.clone(),
+                                                        text,
+                                                        quoted_id,
+                                                        file_path: String::new(),
+                                                    };
+                                                    let _ = core.send(&req.to_json());
+                                                    self.model.entry_buffer.clear();
+                                                    self.model.cancel_compose_mode();
+                                                    self.model.dirty = true;
+                                                }
+                                            }
+                                        }
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Backspace => {
+                                        self.model.entry_buffer.backspace();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Delete => {
+                                        self.model.entry_buffer.delete();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Left => {
+                                        self.model.entry_buffer.move_cursor_left();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Right => {
+                                        self.model.entry_buffer.move_cursor_right();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Home => {
+                                        self.model.entry_buffer.move_cursor_home();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::End => {
+                                        self.model.entry_buffer.move_cursor_end();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Char('w') if k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                                        self.model.entry_buffer.delete_word_backward();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Char(c) if !k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                                        self.model.entry_buffer.insert_char(c);
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            if self.model.filter_active {
+                                match k.code {
+                                    crossterm::event::KeyCode::Esc => {
+                                        for req in self.model.filter_clear() {
+                                            let _ = core.send(&req.to_json());
+                                        }
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Enter => {
+                                        self.model.filter_active = false;
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Backspace => {
+                                        for req in self.model.filter_pop_char() {
+                                            let _ = core.send(&req.to_json());
+                                        }
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Down => {
+                                        for req in self.model.select_delta(1) {
+                                            let _ = core.send(&req.to_json());
+                                        }
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Up => {
+                                        for req in self.model.select_delta(-1) {
+                                            let _ = core.send(&req.to_json());
+                                        }
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Char(c) if !k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
+                                        for req in self.model.filter_push_char(c) {
+                                            let _ = core.send(&req.to_json());
+                                        }
+                                        continue;
+                                    }
+                                    _ => {}
+                                }
+                            }
+
+                            if self.model.focus == Focus::List && k.code == crossterm::event::KeyCode::Char('/') {
+                                self.model.filter_active = true;
+                                self.model.filter_text.clear();
+                                self.model.dirty = true;
+                                continue;
+                            }
+
+                            if self.model.focus == Focus::List
+                                && k.code == crossterm::event::KeyCode::Esc
+                                && !self.model.filter_text.is_empty()
+                            {
+                                for req in self.model.filter_clear() {
+                                    let _ = core.send(&req.to_json());
+                                }
+                                continue;
+                            }
+
                             match self.nav.resolve(norm, self.model.focus) {
-                                NavResolveResult::Matched(act) => self.handle_action(act),
+                                NavResolveResult::Matched(act) => self.handle_action(act, core),
                                 NavResolveResult::Pending => {}
                                 NavResolveResult::Ignored => {}
                             }
@@ -120,10 +421,26 @@ impl App {
                         if let Some(focus) = layout.pane_at(m.column, m.row) {
                             self.model.focus = focus;
                         }
-                        if m.kind == MouseEventKind::ScrollDown {
-                            self.model.select_delta(1);
-                        } else if m.kind == MouseEventKind::ScrollUp {
-                            self.model.select_delta(-1);
+                        if self.model.focus == Focus::History {
+                            if m.kind == MouseEventKind::ScrollDown {
+                                if let Some(req) = self.model.history_scroll(-3) {
+                                    let _ = core.send(&req.to_json());
+                                }
+                            } else if m.kind == MouseEventKind::ScrollUp {
+                                if let Some(req) = self.model.history_scroll(3) {
+                                    let _ = core.send(&req.to_json());
+                                }
+                            }
+                        } else {
+                            if m.kind == MouseEventKind::ScrollDown {
+                                for req in self.model.select_delta(1) {
+                                    let _ = core.send(&req.to_json());
+                                }
+                            } else if m.kind == MouseEventKind::ScrollUp {
+                                for req in self.model.select_delta(-1) {
+                                    let _ = core.send(&req.to_json());
+                                }
+                            }
                         }
                     }
                     CEvent::Resize(_, _) => {
@@ -131,6 +448,10 @@ impl App {
                     }
                     _ => {}
                 }
+            }
+
+            if self.img_cache.poll_completed(&self.picker) {
+                self.model.dirty = true;
             }
 
             // Draw at most once per frame interval if dirty
@@ -144,10 +465,66 @@ impl App {
         Ok(())
     }
 
-    fn handle_action(&mut self, action: Action) {
+    fn handle_action(&mut self, action: Action, core: &mut Core) {
         match action {
-            Action::Down => self.model.select_delta(1),
-            Action::Up => self.model.select_delta(-1),
+            Action::Down => {
+                if self.model.focus == Focus::History {
+                    if let Some(req) = self.model.history_scroll(-1) {
+                        let _ = core.send(&req.to_json());
+                    }
+                } else {
+                    for req in self.model.select_delta(1) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::Up => {
+                if self.model.focus == Focus::History {
+                    if let Some(req) = self.model.history_scroll(1) {
+                        let _ = core.send(&req.to_json());
+                    }
+                } else {
+                    for req in self.model.select_delta(-1) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::HalfDown => {
+                if self.model.focus == Focus::History {
+                    if let Some(req) = self.model.history_scroll(-5) {
+                        let _ = core.send(&req.to_json());
+                    }
+                } else {
+                    for req in self.model.select_delta(5) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::HalfUp => {
+                if self.model.focus == Focus::History {
+                    if let Some(req) = self.model.history_scroll(5) {
+                        let _ = core.send(&req.to_json());
+                    }
+                } else {
+                    for req in self.model.select_delta(-5) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::First => {
+                if self.model.focus == Focus::History {
+                    if let Some(req) = self.model.history_jump(true) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::Last => {
+                if self.model.focus == Focus::History {
+                    if let Some(req) = self.model.history_jump(false) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
             Action::FocusNext => {
                 self.model.focus = match self.model.focus {
                     Focus::List => Focus::History,
@@ -172,6 +549,52 @@ impl App {
                 self.model.focus = Focus::History;
                 self.model.dirty = true;
             }
+            Action::Open => {
+                self.model.focus = Focus::Entry;
+                self.model.dirty = true;
+            }
+            Action::FocusEntry => {
+                self.model.focus = Focus::Entry;
+                self.model.dirty = true;
+            }
+            Action::Reply => {
+                if self.model.focus == Focus::History {
+                    self.model.start_reply();
+                }
+            }
+            Action::Edit => {
+                if self.model.focus == Focus::History {
+                    self.model.start_edit();
+                }
+            }
+            Action::Copy => {
+                if self.model.focus == Focus::History {
+                    if let Some(msg) = self.model.selected_message() {
+                        crate::clipboard::set_text(&msg.text);
+                    }
+                }
+            }
+            Action::Delete => {
+                if self.model.focus == Focus::History {
+                    if let Some(msg) = self.model.selected_message() {
+                        if let Some((prof, cid)) = &self.model.selected_id {
+                            self.pending_delete_msg = Some((prof.clone(), cid.clone(), msg.id.clone()));
+                            self.active_dialog = Some(Box::new(crate::dialog::message::MessageDialog::new(
+                                "Confirmation",
+                                "Delete selected message?",
+                            )));
+                            self.model.dirty = true;
+                        }
+                    }
+                }
+            }
+            Action::Search => {
+                if self.model.focus == Focus::List {
+                    self.model.filter_active = true;
+                    self.model.filter_text.clear();
+                    self.model.dirty = true;
+                }
+            }
             Action::ToggleGroup => self.model.toggle_group(),
             Action::UnreadOnly => {
                 self.model.unread_only = !self.model.unread_only;
@@ -186,13 +609,39 @@ impl App {
         let conf = self.conf.clone();
         let theme = self.theme.clone();
         let model = &mut self.model;
+        let img_cache = &mut self.img_cache;
+
+        let mut active_dialog = self.active_dialog.take();
 
         self.terminal.draw(|f| {
             let layout = Layout::compute(f.area().width, f.area().height, &conf);
             top::render_top(f, layout.top, model, &theme, &conf);
             status::render_status(f, layout.status, model, &theme, &conf);
             list::render_list(f, layout.list, model, &theme, &conf);
+
+            // Vertical divider border between list and history/entry
+            if layout.border.width > 0 && layout.border.height > 0 {
+                let border_style = if model.focus == Focus::List {
+                    theme.focus_style
+                } else {
+                    theme.listborder
+                };
+                let border_lines: Vec<Line> = (0..layout.border.height)
+                    .map(|_| Line::from(Span::styled("│", border_style)))
+                    .collect();
+                f.render_widget(Paragraph::new(border_lines), layout.border);
+            }
+
+            history::render_history(f, layout.history, model, &theme, &conf, img_cache);
+            entry::render_entry(f, layout.entry, model, &theme, &conf);
+            help::render_help(f, layout.help, model, &theme, &conf);
+
+            if let Some(dialog) = active_dialog.as_mut() {
+                dialog.render(f, f.area(), &theme, img_cache, model);
+            }
         })?;
+
+        self.active_dialog = active_dialog;
         Ok(())
     }
 }
