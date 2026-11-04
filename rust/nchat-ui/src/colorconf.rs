@@ -58,6 +58,28 @@ pub fn parse_modifier(val: &str) -> Modifier {
     modifier
 }
 
+const CONTACT_PALETTE: [Color; 10] = [
+    Color::Rgb(230, 126, 34),
+    Color::Rgb(46, 204, 113),
+    Color::Rgb(52, 152, 219),
+    Color::Rgb(155, 89, 182),
+    Color::Rgb(241, 196, 15),
+    Color::Rgb(231, 76, 60),
+    Color::Rgb(26, 188, 156),
+    Color::Rgb(243, 156, 18),
+    Color::Rgb(93, 173, 226),
+    Color::Rgb(175, 122, 197),
+];
+
+pub fn contact_color(key: &str) -> Color {
+    let mut hash: u64 = 0xcbf29ce484222325;
+    for b in key.bytes() {
+        hash ^= b as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    CONTACT_PALETTE[(hash as usize) % CONTACT_PALETTE.len()]
+}
+
 fn make_style(conf: &Conf, prefix: &str) -> Style {
     let mut style = Style::default();
     let fg_key = format!("{prefix}_color_fg");
@@ -252,5 +274,17 @@ mod tests {
         let conf = Conf::parse("list_color_unread_fg=red");
         let theme = Theme::from_conf(&conf);
         assert_eq!(theme.list_unread.fg, Some(Color::Indexed(1)));
+    }
+
+    #[test]
+    fn contact_color_is_deterministic() {
+        assert_eq!(contact_color("chat_123"), contact_color("chat_123"));
+    }
+
+    #[test]
+    fn contact_color_spreads_across_palette() {
+        let colors: std::collections::HashSet<Color> =
+            (0..30).map(|i| contact_color(&format!("chat_{i}"))).collect();
+        assert!(colors.len() > 1, "expected more than one distinct color across 30 keys");
     }
 }
