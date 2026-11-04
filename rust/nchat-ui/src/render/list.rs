@@ -22,9 +22,12 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
         return;
     }
 
+    let has_bar = (model.filter_active || !model.filter_text.is_empty() || model.unread_only) && content_h > 1;
+    let list_h = if has_bar { content_h - 1 } else { content_h };
+
     let rows = model.current_rows();
     let sel_row = model.selected_chat_row(&rows);
-    let two_lines = area.width >= 20 && content_h >= 4;
+    let two_lines = area.width >= 20 && list_h >= 4;
 
     let row_lines: Vec<usize> = rows
         .iter()
@@ -40,7 +43,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
         })
         .collect();
 
-    model.scroll_first = scroll_first(&row_lines, model.scroll_first, sel_row, content_h, false);
+    model.scroll_first = scroll_first(&row_lines, model.scroll_first, sel_row, list_h, false);
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -48,7 +51,19 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
         .unwrap_or(0);
 
     let mut lines = Vec::new();
-    let end = (model.scroll_first + content_h).min(rows.len());
+
+    if has_bar {
+        let text = format!(
+            "/{}{}{}",
+            model.filter_text,
+            if model.filter_active { "_" } else { "" },
+            if model.unread_only { " [unread]" } else { "" }
+        );
+        let bar_line = fit(&text, content_w);
+        lines.push(Line::from(Span::styled(bar_line, theme.focus_style)));
+    }
+
+    let end = (model.scroll_first + list_h).min(rows.len());
 
     for r_idx in model.scroll_first..end {
         let is_sel = sel_row == Some(r_idx);
@@ -115,14 +130,16 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
 
     // Scrollbar in the rightmost cell
     let track = area.height as usize;
-    if let Some((pos, len)) = scroll_thumb(rows.len(), model.scroll_first, content_h, track) {
+    let track_h = if has_bar { track.saturating_sub(1) } else { track };
+    let bar_y_offset = if has_bar { 1 } else { 0 };
+    if let Some((pos, len)) = scroll_thumb(rows.len(), model.scroll_first, list_h, track_h) {
         let bar_style = if model.focus == Focus::List {
             theme.focus_style
         } else {
             theme.listborder
         };
         for i in 0..len {
-            let y = area.y + (pos + i) as u16;
+            let y = area.y + bar_y_offset + (pos + i) as u16;
             let bar_cell = Rect::new(area.x + area.width - 1, y, 1, 1);
             f.render_widget(Paragraph::new(" ").style(bar_style), bar_cell);
         }
