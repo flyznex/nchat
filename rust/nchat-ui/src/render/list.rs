@@ -1,24 +1,38 @@
-use crate::chatlist::{scroll_first, scroll_thumb, ListRow};
-use crate::colorconf::Theme;
+use crate::chatlist::{scroll_first, ListRow};
+use crate::colorconf::{contact_color, Theme};
 use crate::model::UiModel;
 use crate::nav::Focus;
 use crate::render::time::format_list_time;
 use crate::text::{fit, split_row};
 use crate::uiconf::UiConfig;
-use ratatui::layout::Rect;
+use ratatui::layout::{Margin, Rect};
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::Frame;
 
 pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme, conf: &UiConfig) {
-    if area.width < 2 || area.height == 0 {
+    if area.width < 4 || area.height < 3 {
         return;
     }
 
-    // 1-cell inset padding
-    let content_w = (area.width.saturating_sub(2)) as usize;
-    let content_h = area.height as usize;
-    if content_w == 0 || content_h == 0 {
+    let border_style = if model.focus == Focus::List {
+        theme.focus_style
+    } else {
+        theme.listborder
+    };
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .style(border_style)
+        .title(" Chats ");
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+
+    let full_w = inner.width as usize;
+    let content_w = full_w.saturating_sub(2); // reserve "▎ " prefix on chat rows
+    let content_h = inner.height as usize;
+    if full_w == 0 || content_h == 0 {
         return;
     }
 
@@ -27,7 +41,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
 
     let rows = model.current_rows();
     let sel_row = model.selected_chat_row(&rows);
-    let two_lines = area.width >= 20 && list_h >= 4;
+    let two_lines = inner.width >= 20 && list_h >= 4;
 
     let row_lines: Vec<usize> = rows
         .iter()
@@ -59,7 +73,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
             if model.filter_active { "_" } else { "" },
             if model.unread_only { " [unread]" } else { "" }
         );
-        let bar_line = fit(&text, content_w);
+        let bar_line = fit(&text, full_w);
         lines.push(Line::from(Span::styled(bar_line, theme.focus_style)));
     }
 
@@ -71,7 +85,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
             ListRow::Header { group, collapsed } => {
                 let prefix = if *collapsed { "> " } else { "v " };
                 let text = format!("{prefix}{group}");
-                let fitted = fit(&text, content_w);
+                let fitted = fit(&text, full_w);
                 lines.push(Line::from(Span::styled(fitted, theme.list_name)));
             }
             ListRow::Chat(c_idx) => {
@@ -82,9 +96,6 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
                 }
                 if chat.is_muted {
                     marks.push('~');
-                }
-                if chat.is_unread {
-                    marks.push_str(&conf.unread_indicator);
                 }
 
                 let time_str = if two_lines {
@@ -101,7 +112,9 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
                     marks
                 };
 
-                let row_str = split_row(&chat.name, &right_part, content_w);
+                let marker_w = if chat.is_unread { conf.unread_indicator.chars().count() + 1 } else { 0 };
+                let name_w = content_w.saturating_sub(marker_w);
+                let row_str = split_row(&chat.name, &right_part, name_w);
                 let style = if is_sel {
                     theme.list_selected
                 } else if chat.is_unread {
@@ -109,10 +122,21 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
                 } else {
                     theme.list
                 };
-                lines.push(Line::from(Span::styled(row_str, style)));
+
+                let bar_style = Style::default().fg(contact_color(&chat.chat_id));
+                let mut spans = vec![Span::styled("▎ ", bar_style), Span::styled(row_str, style)];
+                if chat.is_unread {
+                    let unread_style = if theme.list_unread.fg.is_some() {
+                        theme.list_unread
+                    } else {
+                        Style::default().fg(Color::Rgb(255, 99, 71))
+                    };
+                    spans.push(Span::styled(format!(" {}", conf.unread_indicator), unread_style));
+                }
+                lines.push(Line::from(spans));
 
                 if two_lines && lines.len() < content_h {
-                    let preview_str = fit(&format!(" {}", chat.preview), content_w);
+                    let preview_str = fit(&format!("  {}", chat.preview), content_w);
                     let preview_style = if is_sel {
                         theme.list_selected
                     } else {
@@ -125,23 +149,63 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
     }
 
     let p = Paragraph::new(lines).style(theme.list);
-    let inner_area = Rect::new(area.x + 1, area.y, area.width.saturating_sub(2), area.height);
-    f.render_widget(p, inner_area);
+    f.render_widget(p, inner);
 
-    // Scrollbar in the rightmost cell
-    let track = area.height as usize;
-    let track_h = if has_bar { track.saturating_sub(1) } else { track };
-    let bar_y_offset = if has_bar { 1 } else { 0 };
-    if let Some((pos, len)) = scroll_thumb(rows.len(), model.scroll_first, list_h, track_h) {
-        let bar_style = if model.focus == Focus::List {
-            theme.focus_style
-        } else {
-            theme.listborder
-        };
-        for i in 0..len {
-            let y = area.y + bar_y_offset + (pos + i) as u16;
-            let bar_cell = Rect::new(area.x + area.width - 1, y, 1, 1);
-            f.render_widget(Paragraph::new(" ").style(bar_style), bar_cell);
+    if rows.len() > list_h {
+        let mut sb_area = area.inner(Margin { vertical: 1, horizontal: 0 });
+        if has_bar {
+            sb_area.y += 1;
+            sb_area.height = sb_area.height.saturating_sub(1);
         }
+        let mut state = ScrollbarState::new(rows.len()).position(model.scroll_first);
+        f.render_stateful_widget(
+            Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(None).end_symbol(None),
+            sb_area,
+            &mut state,
+        );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::protocol::Chat;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    #[test]
+    fn renders_rounded_border_and_colored_unread_badge() {
+        let backend = TestBackend::new(30, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let mut model = UiModel::new();
+        model.apply_event(&crate::protocol::Event::Chats {
+            profile: "P1".into(),
+            success: true,
+            chats: vec![Chat {
+                id: "c1".into(),
+                is_unread: true,
+                is_unread_mention: false,
+                is_muted: false,
+                is_pinned: false,
+                is_archived: false,
+                last_message_time: 10,
+            }],
+        });
+
+        let theme = Theme::default();
+        let conf = UiConfig::default();
+
+        terminal
+            .draw(|f| {
+                render_list(f, Rect::new(0, 0, 30, 10), &mut model, &theme, &conf);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        assert_eq!(buf[(0, 0)].symbol(), "╭");
+        let row1: String = (0..30).map(|x| buf[(x, 1)].symbol()).collect();
+        assert!(row1.contains('▎'), "expected colored bar glyph on the chat row, got: {row1:?}");
+        assert!(row1.contains('*'), "expected default unread indicator, got: {row1:?}");
     }
 }
