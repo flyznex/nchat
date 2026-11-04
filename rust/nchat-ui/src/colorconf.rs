@@ -89,6 +89,12 @@ pub struct Theme {
     pub listborder: Style,
     pub dim_modifier: Modifier,
     pub focus_style: Style,
+    pub history_text_sent: Style,
+    pub history_text_recv: Style,
+    pub history_name_sent: Style,
+    pub history_name_recv: Style,
+    pub history_text_quoted: Style,
+    pub history_text_selected: Style,
 }
 
 impl Default for Theme {
@@ -104,6 +110,12 @@ impl Default for Theme {
             listborder: Style::default(),
             dim_modifier: Modifier::DIM,
             focus_style: Style::default().add_modifier(Modifier::REVERSED),
+            history_text_sent: Style::default(),
+            history_text_recv: Style::default(),
+            history_name_sent: Style::default().add_modifier(Modifier::BOLD),
+            history_name_recv: Style::default().add_modifier(Modifier::BOLD),
+            history_text_quoted: Style::default().fg(Color::Indexed(8)),
+            history_text_selected: Style::default().add_modifier(Modifier::REVERSED),
         }
     }
 }
@@ -166,6 +178,25 @@ impl Theme {
         if t.focus_style == Style::default() {
             t.focus_style = t.focus_style.add_modifier(Modifier::REVERSED);
         }
+
+        t.history_text_sent = make_style(conf, "history_text_sent");
+        t.history_text_recv = make_style(conf, "history_text_recv");
+        t.history_name_sent = make_style(conf, "history_name_sent");
+        if t.history_name_sent.add_modifier.is_empty() {
+            t.history_name_sent = t.history_name_sent.add_modifier(Modifier::BOLD);
+        }
+        t.history_name_recv = make_style(conf, "history_name_recv");
+        if t.history_name_recv.add_modifier.is_empty() {
+            t.history_name_recv = t.history_name_recv.add_modifier(Modifier::BOLD);
+        }
+        t.history_text_quoted = make_style(conf, "history_text_quoted");
+        if t.history_text_quoted.fg.is_none() {
+            t.history_text_quoted = t.history_text_quoted.fg(Color::Indexed(8));
+        }
+        t.history_text_selected = make_style(conf, "history_text");
+        let sel_attr = parse_modifier(conf.str_or("history_text_attr_selected", "reverse"));
+        t.history_text_selected = t.history_text_selected.add_modifier(sel_attr);
+
         t
     }
 }
