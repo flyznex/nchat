@@ -11,8 +11,6 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScree
 use crossterm::ExecutableCommand;
 use nchat_core_sys::Core;
 use ratatui::backend::CrosstermBackend;
-use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
 use ratatui::Terminal;
 use std::io::{stdout, Stdout};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -618,20 +616,6 @@ impl App {
             top::render_top(f, layout.top, model, &theme, &conf);
             status::render_status(f, layout.status, model, &theme, &conf);
             list::render_list(f, layout.list, model, &theme, &conf);
-
-            // Vertical divider border between list and history/entry
-            if layout.border.width > 0 && layout.border.height > 0 {
-                let border_style = if model.focus == Focus::List {
-                    theme.focus_style
-                } else {
-                    theme.listborder
-                };
-                let border_lines: Vec<Line> = (0..layout.border.height)
-                    .map(|_| Line::from(Span::styled("│", border_style)))
-                    .collect();
-                f.render_widget(Paragraph::new(border_lines), layout.border);
-            }
-
             history::render_history(f, layout.history, model, &theme, &conf, img_cache);
             entry::render_entry(f, layout.entry, model, &theme, &conf);
             help::render_help(f, layout.help, model, &theme, &conf);
