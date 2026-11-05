@@ -440,7 +440,19 @@ impl App {
                             match self.nav.resolve(norm, self.model.focus) {
                                 NavResolveResult::Matched(act) => self.handle_action(act, core),
                                 NavResolveResult::Pending => {}
-                                NavResolveResult::Ignored => {}
+                                NavResolveResult::Ignored => {
+                                    // In list or history focus, typing a character key automatically
+                                    // switches focus to the message entry and inserts the character.
+                                    if let crossterm::event::KeyCode::Char(c) = k.code {
+                                        if !k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                                            && !k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                                        {
+                                            self.model.focus = Focus::Entry;
+                                            self.model.entry_buffer.insert_char(c);
+                                            self.model.dirty = true;
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

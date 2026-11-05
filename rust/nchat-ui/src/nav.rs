@@ -162,9 +162,14 @@ impl NavResolver {
             return NavResolveResult::Pending;
         }
 
+        let was_ctrl_w = !self.pending.is_empty() && self.pending[0] == Self::ctrl('w');
+
         // Check single key fallback if multi-key pending failed
         if self.pending.len() > 1 {
             self.pending.clear();
+            if was_ctrl_w {
+                return NavResolveResult::Matched(Action::None);
+            }
             return self.resolve(key, focus);
         }
 
@@ -249,6 +254,27 @@ mod tests {
 
         assert_eq!(r.resolve(key('k'), Focus::Entry), NavResolveResult::Matched(Action::FocusHistory));
         assert!(!r.has_pending());
+    }
+
+    #[test]
+    fn failed_ctrl_w_is_swallowed() {
+        let mut r = NavResolver::new(true);
+        let ctrl_w = Key { code: KeyCode::Char('w'), mods: KeyModifiers::CONTROL };
+        assert_eq!(r.resolve(ctrl_w, Focus::List), NavResolveResult::Pending);
+        assert_eq!(r.resolve(key('1'), Focus::List), NavResolveResult::Matched(Action::None));
+        assert!(!r.has_pending());
+    }
+
+    #[test]
+    fn unmapped_char_returns_ignored_in_list_and_history() {
+        let mut r = NavResolver::new(true);
+        assert_eq!(r.resolve(key('a'), Focus::List), NavResolveResult::Ignored);
+        assert_eq!(r.resolve(key('m'), Focus::List), NavResolveResult::Ignored);
+        assert_eq!(r.resolve(key('x'), Focus::List), NavResolveResult::Ignored);
+
+        assert_eq!(r.resolve(key('a'), Focus::History), NavResolveResult::Ignored);
+        assert_eq!(r.resolve(key('m'), Focus::History), NavResolveResult::Ignored);
+        assert_eq!(r.resolve(key('x'), Focus::History), NavResolveResult::Matched(Action::Delete));
     }
 
     #[test]
