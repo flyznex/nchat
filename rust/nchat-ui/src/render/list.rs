@@ -35,8 +35,31 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
         return;
     }
 
-    let has_bar = (model.filter_active || !model.filter_text.is_empty() || model.unread_only) && content_h > 1;
-    let list_h = if has_bar { content_h - 1 } else { content_h };
+    let folder_names = model.folder_names();
+    let has_tabs = !folder_names.is_empty() && content_h > 2;
+    let tab_h = if has_tabs { 1 } else { 0 };
+    let has_bar = (model.filter_active || !model.filter_text.is_empty() || model.unread_only) && content_h > tab_h + 1;
+    let bar_h = if has_bar { 1 } else { 0 };
+    let list_h = content_h.saturating_sub(tab_h + bar_h);
+
+    if has_tabs {
+        let mut titles: Vec<Line> = vec![Line::from("All")];
+        for name in &folder_names {
+            titles.push(Line::from(name.as_str()));
+        }
+        let sel_idx = if model.selected_folder.is_empty() {
+            0
+        } else {
+            folder_names.iter().position(|n| n == &model.selected_folder).map(|i| i + 1).unwrap_or(0)
+        };
+        let tabs_area = Rect::new(inner.x, inner.y, inner.width, 1);
+        let tabs = ratatui::widgets::Tabs::new(titles)
+            .select(sel_idx)
+            .style(theme.list_name)
+            .highlight_style(theme.focus_style)
+            .divider(Span::raw(" | "));
+        f.render_widget(tabs, tabs_area);
+    }
 
     let rows = model.current_rows();
     let sel_row = model.selected_chat_row(&rows);
@@ -133,7 +156,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
                 }
                 lines.push(Line::from(spans));
 
-                if two_lines && lines.len() < content_h {
+                if two_lines && lines.len() < content_h - tab_h {
                     let preview_str = fit(&format!("  {}", chat.preview), content_w);
                     let preview_style = if is_sel {
                         theme.list_selected
@@ -146,11 +169,14 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
         }
     }
 
+    let list_area = Rect::new(inner.x, inner.y + tab_h as u16, inner.width, inner.height.saturating_sub(tab_h as u16));
     let p = Paragraph::new(lines).style(theme.list);
-    f.render_widget(p, inner);
+    f.render_widget(p, list_area);
 
     if rows.len() > list_h {
         let mut sb_area = area.inner(Margin { vertical: 1, horizontal: 0 });
+        sb_area.y += tab_h as u16;
+        sb_area.height = sb_area.height.saturating_sub(tab_h as u16);
         if has_bar {
             sb_area.y += 1;
             sb_area.height = sb_area.height.saturating_sub(1);
@@ -167,7 +193,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::protocol::Chat;
+    use crate::protocol::{Chat, ChatFolderInfo, Event};
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
@@ -205,5 +231,47 @@ mod tests {
         let row1: String = (0..30).map(|x| buf[(x, 1)].symbol()).collect();
         assert!(!row1.contains('▎'), "chat row should not contain avatar bar glyph");
         assert!(row1.contains('*'), "expected default unread indicator, got: {row1:?}");
+    }
+
+    #[test]
+    fn renders_folder_tabs_when_present() {
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let mut model = UiModel::new();
+        model.apply_event(&Event::Chats {
+            profile: "P1".into(),
+            success: true,
+            chats: vec![Chat {
+                id: "c1".into(),
+                is_unread: false,
+                is_unread_mention: false,
+                is_muted: false,
+                is_pinned: false,
+                is_archived: false,
+                last_message_time: 10,
+            }],
+        });
+        model.apply_event(&Event::ChatFolders {
+            profile: "P1".into(),
+            folders: vec![ChatFolderInfo { id: 1, title: "Work".into() }],
+        });
+
+        let theme = Theme::default();
+        let conf = UiConfig::default();
+
+        terminal
+            .draw(|f| {
+                render_list(f, Rect::new(0, 0, 40, 10), &mut model, &theme, &conf);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer();
+        let rendered: String = (0..10)
+            .map(|y| (0..40).map(|x| buf[(x, y)].symbol()).collect::<String>() + "\n")
+            .collect();
+
+        assert!(rendered.contains("All"));
+        assert!(rendered.contains("Work"));
     }
 }
