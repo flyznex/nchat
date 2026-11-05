@@ -496,6 +496,8 @@ impl App {
                         if self.conf.mouse_enabled {
                             if m.kind == MouseEventKind::Down(crossterm::event::MouseButton::Left) {
                                 if let Some(reqs) = self.folder_tab_click(&layout, m.column, m.row) {
+                                    self.model.focus = Focus::List;
+                                    self.model.select_message_active = false;
                                     for r in reqs {
                                         let _ = core.send(&r.to_json());
                                     }
