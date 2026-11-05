@@ -55,6 +55,49 @@ static void TestSendMessage()
   std::shared_ptr<SendMessageRequest> r = std::static_pointer_cast<SendMessageRequest>(p.request);
   unittest::ExpectEqual(std::string, r->chatId, std::string("c1"));
   unittest::ExpectEqual(std::string, r->chatMessage.text, std::string("hej \"du\"\n"));
+
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"download_file","profile":"P","chat_id":"c1","msg_id":"m1","file_id":"f1"})j", p, err));
+  unittest::ExpectTrue(p.request->GetMessageType() == DownloadFileRequestType);
+  std::shared_ptr<DownloadFileRequest> d = std::static_pointer_cast<DownloadFileRequest>(p.request);
+  unittest::ExpectEqual(std::string, d->chatId, std::string("c1"));
+  unittest::ExpectEqual(std::string, d->msgId, std::string("m1"));
+  unittest::ExpectEqual(std::string, d->fileId, std::string("f1"));
+
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"edit_message","profile":"P","chat_id":"c1","msg_id":"m1","text":"edited"})j", p, err));
+  unittest::ExpectTrue(p.request->GetMessageType() == EditMessageRequestType);
+
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"delete_message","profile":"P","chat_id":"c1","msg_id":"m1"})j", p, err));
+  unittest::ExpectTrue(p.request->GetMessageType() == DeleteMessageRequestType);
+
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"send_reaction","profile":"P","chat_id":"c1","msg_id":"m1","emoji":"👍"})j", p, err));
+  unittest::ExpectTrue(p.request->GetMessageType() == SendReactionRequestType);
+
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"get_sticker_sets","profile":"P"})j", p, err));
+  unittest::ExpectTrue(p.request->GetMessageType() == GetStickerSetsRequestType);
+
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"get_stickers","profile":"P","key":"recent","set_id":0,"query":""})j", p, err));
+  unittest::ExpectTrue(p.request->GetMessageType() == GetStickersRequestType);
+  std::shared_ptr<GetStickersRequest> gs = std::static_pointer_cast<GetStickersRequest>(p.request);
+  unittest::ExpectEqual(std::string, gs->key, std::string("recent"));
+  unittest::ExpectEqual(int64_t, gs->setId, (int64_t)0);
+
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"get_stickers","profile":"P","key":"set:123456789012","set_id":123456789012,"query":""})j", p, err));
+  gs = std::static_pointer_cast<GetStickersRequest>(p.request);
+  unittest::ExpectEqual(int64_t, gs->setId, (int64_t)123456789012LL);
+
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"send_sticker","profile":"P","chat_id":"c1","sticker_file_id":42})j", p, err));
+  unittest::ExpectTrue(p.request->GetMessageType() == SendStickerRequestType);
+  std::shared_ptr<SendStickerRequest> ss = std::static_pointer_cast<SendStickerRequest>(p.request);
+  unittest::ExpectEqual(std::string, ss->chatId, std::string("c1"));
+  unittest::ExpectEqual(int32_t, ss->stickerFileId, (int32_t)42);
 }
 
 static void TestErrors()

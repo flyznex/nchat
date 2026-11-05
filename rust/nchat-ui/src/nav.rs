@@ -26,6 +26,10 @@ pub enum Action {
     FocusPrev,
     Open,
     Reply,
+    Edit,
+    Copy,
+    Delete,
+    React,
     Search,
     UnreadOnly,
     ToggleGroup,
@@ -96,6 +100,13 @@ impl NavResolver {
         self.add(vec![Self::k('u')], list, Action::UnreadOnly, true);
         self.add(vec![Self::k('z')], list, Action::ToggleGroup, true);
 
+        // History actions
+        let hist = Focus::History as u8;
+        self.add(vec![Self::k('r')], hist, Action::Reply, true);
+        self.add(vec![Self::k('e')], hist, Action::Edit, true);
+        self.add(vec![Self::k('y')], hist, Action::Copy, true);
+        self.add(vec![Self::k('x')], hist, Action::Delete, true);
+
         // Ctrl-W window navigation
         self.add(vec![ctrl_w, Self::k('h')], all, Action::FocusLeft, true);
         self.add(vec![ctrl_w, Self::k('l')], all, Action::FocusRight, true);
@@ -108,10 +119,14 @@ impl NavResolver {
     }
 
     pub fn resolve(&mut self, key: Key, focus: Focus) -> NavResolveResult {
-        // Fallbacks for standard keys regardless of pending if in Entry focus
-        if focus == Focus::Entry {
+        // Tab / BackTab ALWAYS cycles focus, regardless of active pane
+        if key == Key::TAB {
             self.pending.clear();
-            return NavResolveResult::Ignored;
+            return NavResolveResult::Matched(Action::FocusNext);
+        }
+        if key == Key::BACKTAB {
+            self.pending.clear();
+            return NavResolveResult::Matched(Action::FocusPrev);
         }
 
         self.pending.push(key);
@@ -147,6 +162,10 @@ impl NavResolver {
 
         self.pending.clear();
 
+        if focus == Focus::Entry {
+            return NavResolveResult::Ignored;
+        }
+
         // Standard navigation fallbacks
         match key {
             Key::DOWN => NavResolveResult::Matched(Action::Down),
@@ -160,8 +179,6 @@ impl NavResolver {
                 Focus::History => NavResolveResult::Matched(Action::Reply),
                 Focus::Entry => NavResolveResult::Ignored,
             },
-            Key::TAB => NavResolveResult::Matched(Action::FocusNext),
-            Key::BACKTAB => NavResolveResult::Matched(Action::FocusPrev),
             _ => NavResolveResult::Ignored,
         }
     }
@@ -196,6 +213,17 @@ mod tests {
         let ctrl_w = Key { code: KeyCode::Char('w'), mods: KeyModifiers::CONTROL };
         assert_eq!(r.resolve(ctrl_w, Focus::List), NavResolveResult::Pending);
         assert_eq!(r.resolve(key('l'), Focus::List), NavResolveResult::Matched(Action::FocusRight));
+    }
+
+    #[test]
+    fn resolves_tab_and_ctrl_w_in_entry() {
+        let mut r = NavResolver::new(true);
+        assert_eq!(r.resolve(Key::TAB, Focus::Entry), NavResolveResult::Matched(Action::FocusNext));
+        assert_eq!(r.resolve(Key::BACKTAB, Focus::Entry), NavResolveResult::Matched(Action::FocusPrev));
+
+        let ctrl_w = Key { code: KeyCode::Char('w'), mods: KeyModifiers::CONTROL };
+        assert_eq!(r.resolve(ctrl_w, Focus::Entry), NavResolveResult::Pending);
+        assert_eq!(r.resolve(key('k'), Focus::Entry), NavResolveResult::Matched(Action::FocusHistory));
     }
 
     #[test]

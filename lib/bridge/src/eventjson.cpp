@@ -154,6 +154,68 @@ std::string EventToJson(const std::shared_ptr<ServiceMessage>& p_Message)
       }
       break;
 
+    case NewMessageFileNotifyType:
+      {
+        const NewMessageFileNotify& n = static_cast<const NewMessageFileNotify&>(*p_Message);
+        PutStr(w, "type", "file");
+        PutStr(w, "profile", n.profileId);
+        PutStr(w, "chat_id", n.chatId);
+        PutStr(w, "msg_id", n.msgId);
+        PutStr(w, "file_info", n.fileInfo);
+      }
+      break;
+
+    case ReceiveStatusNotifyType:
+      {
+        const ReceiveStatusNotify& n = static_cast<const ReceiveStatusNotify&>(*p_Message);
+        PutStr(w, "type", "user_status");
+        PutStr(w, "profile", n.profileId);
+        PutStr(w, "user_id", n.userId);
+        PutBool(w, "is_online", n.isOnline);
+        PutInt(w, "time_seen", n.timeSeen);
+      }
+      break;
+
+    case NewStickerSetsNotifyType:
+      {
+        const NewStickerSetsNotify& n = static_cast<const NewStickerSetsNotify&>(*p_Message);
+        PutStr(w, "type", "sticker_sets");
+        PutStr(w, "profile", n.profileId);
+        w.Key("sticker_sets");
+        w.StartArray();
+        for (const StickerSetInfo& s : n.stickerSetInfos)
+        {
+          w.StartObject();
+          PutInt(w, "id", s.id);
+          PutStr(w, "title", s.title);
+          w.EndObject();
+        }
+
+        w.EndArray();
+      }
+      break;
+
+    case NewStickersNotifyType:
+      {
+        const NewStickersNotify& n = static_cast<const NewStickersNotify&>(*p_Message);
+        PutStr(w, "type", "stickers");
+        PutStr(w, "profile", n.profileId);
+        PutStr(w, "key", n.key);
+        w.Key("stickers");
+        w.StartArray();
+        for (const StickerInfo& s : n.stickerInfos)
+        {
+          w.StartObject();
+          PutInt(w, "file_id", s.fileId);
+          PutStr(w, "emoji", s.emoji);
+          PutStr(w, "thumbnail_path", s.thumbnailPath);
+          w.EndObject();
+        }
+
+        w.EndArray();
+      }
+      break;
+
     default:
       PutStr(w, "type", "other");
       PutStr(w, "profile", p_Message->profileId);

@@ -67,6 +67,8 @@ fn dummy_profile_end_to_end() {
         profile: "Dummy_1".into(),
         chat_id: chat_id.clone(),
         text: "hello from rust".into(),
+        quoted_id: String::new(),
+        file_path: String::new(),
     };
     core.send(&request.to_json()).expect("send_message");
     let sent_text = wait_for(&rx, "sent", |e| match e {

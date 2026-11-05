@@ -26,6 +26,10 @@ pub fn describe(event: &Event) -> String {
             None => format!("{profile} messages chat={chat_id} n=0"),
         },
         Event::Sent { profile, chat_id, success, .. } => format!("{profile} sent chat={chat_id} success={success}"),
+        Event::File { profile, chat_id, msg_id, .. } => format!("{profile} file chat={chat_id} msg={msg_id}"),
+        Event::UserStatus { profile, user_id, is_online, .. } => format!("{profile} status user={user_id} online={is_online}"),
+        Event::StickerSets { profile, sticker_sets } => format!("{profile} sticker_sets n={}", sticker_sets.len()),
+        Event::Stickers { profile, key, stickers } => format!("{profile} stickers key={key} n={}", stickers.len()),
         Event::Other { profile, kind } => format!("{profile} other kind={kind}"),
     }
 }
@@ -76,5 +80,7 @@ mod tests {
         assert_eq!(describe(&Event::Connect { profile: "P".into(), success: true }), "P connect success=true");
         let e = Event::Chats { profile: "P".into(), success: true, chats: vec![] };
         assert_eq!(describe(&e), "P chats n=0");
+        let f = Event::File { profile: "P".into(), chat_id: "c1".into(), msg_id: "m1".into(), file_info: "".into() };
+        assert_eq!(describe(&f), "P file chat=c1 msg=m1");
     }
 }

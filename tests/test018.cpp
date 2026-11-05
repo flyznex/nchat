@@ -88,12 +88,46 @@ static void TestSent()
     R"j({"type":"sent","profile":"P","success":true,"chat_id":"c1","message":)j") + s_MessageJson + "}");
 }
 
+static void TestFile()
+{
+  std::shared_ptr<NewMessageFileNotify> n = std::make_shared<NewMessageFileNotify>("P");
+  n->chatId = "c1";
+  n->msgId = "m1";
+  n->fileInfo = "info1";
+  unittest::ExpectEqual(std::string, EventToJson(n),
+                        std::string(R"j({"type":"file","profile":"P","chat_id":"c1","msg_id":"m1","file_info":"info1"})j"));
+}
+
 static void TestOther()
 {
   std::shared_ptr<SendTypingNotify> n = std::make_shared<SendTypingNotify>("P");
   unittest::ExpectEqual(std::string, EventToJson(n),
                         std::string(R"j({"type":"other","profile":"P","kind":)j") +
                         std::to_string(static_cast<int>(SendTypingNotifyType)) + "}");
+}
+
+static void TestStickerSets()
+{
+  std::shared_ptr<NewStickerSetsNotify> n = std::make_shared<NewStickerSetsNotify>("P");
+  StickerSetInfo s;
+  s.id = 123456789012LL;
+  s.title = "Cats";
+  n->stickerSetInfos.push_back(s);
+  unittest::ExpectEqual(std::string, EventToJson(n), std::string(
+    R"j({"type":"sticker_sets","profile":"P","sticker_sets":[{"id":123456789012,"title":"Cats"}]})j"));
+}
+
+static void TestStickers()
+{
+  std::shared_ptr<NewStickersNotify> n = std::make_shared<NewStickersNotify>("P");
+  n->key = "recent";
+  StickerInfo s;
+  s.fileId = 42;
+  s.emoji = "😀";
+  s.thumbnailPath = "/tmp/thumb.webp";
+  n->stickerInfos.push_back(s);
+  unittest::ExpectEqual(std::string, EventToJson(n), std::string(
+    R"j({"type":"stickers","profile":"P","key":"recent","stickers":[{"file_id":42,"emoji":"😀","thumbnail_path":"/tmp/thumb.webp"}]})j"));
 }
 
 int main()
@@ -106,7 +140,10 @@ int main()
     TestContactsEscaping();
     TestMessages();
     TestSent();
+    TestFile();
     TestOther();
+    TestStickerSets();
+    TestStickers();
   }
   catch (const std::exception& ex)
   {

@@ -138,14 +138,7 @@ fn main() -> ExitCode {
     let exit_flag = Arc::new(AtomicBool::new(false));
     let ef = Arc::clone(&exit_flag);
 
-    // Initial requests for auto-connect
-    for p in &profiles {
-        for req in on_connect(p) {
-            let _ = core.send(&req.to_json());
-        }
-    }
-
-    let _ = app.run(rx, ef);
+    let _ = app.run(rx, ef, &mut core);
 
     // Watchdog stop: don't hang forever if core.stop() wedges.
     let stop_thread = std::thread::spawn(move || {

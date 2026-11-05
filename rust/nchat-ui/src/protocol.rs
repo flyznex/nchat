@@ -41,6 +41,19 @@ pub struct Message {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct StickerSetInfo {
+    pub id: i64,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct StickerInfo {
+    pub file_id: i32,
+    pub emoji: String,
+    pub thumbnail_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     Connect { profile: String, success: bool },
@@ -56,6 +69,10 @@ pub enum Event {
         messages: Vec<Message>,
     },
     Sent { profile: String, success: bool, chat_id: String, message: Message },
+    File { profile: String, chat_id: String, msg_id: String, file_info: String },
+    UserStatus { profile: String, user_id: String, is_online: bool, time_seen: i64 },
+    StickerSets { profile: String, sticker_sets: Vec<StickerSetInfo> },
+    Stickers { profile: String, key: String, stickers: Vec<StickerInfo> },
     Other { profile: String, kind: i32 },
 }
 
@@ -65,7 +82,31 @@ pub enum Request {
     GetChats { profile: String },
     GetContacts { profile: String },
     GetMessages { profile: String, chat_id: String, from_msg_id: String, limit: i32 },
-    SendMessage { profile: String, chat_id: String, text: String },
+    SendMessage {
+        profile: String,
+        chat_id: String,
+        text: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        quoted_id: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        file_path: String,
+    },
+    EditMessage { profile: String, chat_id: String, msg_id: String, text: String },
+    DeleteMessage { profile: String, chat_id: String, msg_id: String },
+    SendReaction {
+        profile: String,
+        chat_id: String,
+        msg_id: String,
+        emoji: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        prev_emoji: String,
+    },
+    DownloadFile { profile: String, chat_id: String, msg_id: String, file_id: String },
+    MarkRead { profile: String, chat_id: String, msg_id: String },
+    GetStatus { profile: String, user_id: String },
+    GetStickerSets { profile: String },
+    GetStickers { profile: String, key: String, set_id: i64, query: String },
+    SendSticker { profile: String, chat_id: String, sticker_file_id: i32 },
 }
 
 impl Request {
@@ -172,6 +213,36 @@ mod tests {
             e,
             Event::Sent { profile: "P".into(), success: true, chat_id: "c1".into(), message: message() }
         );
+        let e: Event = serde_json::from_str(r#"{"type":"file","profile":"P","chat_id":"c1","msg_id":"m1","file_info":"abc"}"#).unwrap();
+        assert_eq!(e, Event::File { profile: "P".into(), chat_id: "c1".into(), msg_id: "m1".into(), file_info: "abc".into() });
+    }
+
+    #[test]
+    fn parses_sticker_events() {
+        let e: Event = serde_json::from_str(
+            r#"{"type":"sticker_sets","profile":"P","sticker_sets":[{"id":123456789012,"title":"Cats"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            e,
+            Event::StickerSets {
+                profile: "P".into(),
+                sticker_sets: vec![StickerSetInfo { id: 123456789012, title: "Cats".into() }],
+            }
+        );
+
+        let e: Event = serde_json::from_str(
+            r#"{"type":"stickers","profile":"P","key":"recent","stickers":[{"file_id":42,"emoji":"😀","thumbnail_path":"/tmp/t.webp"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            e,
+            Event::Stickers {
+                profile: "P".into(),
+                key: "recent".into(),
+                stickers: vec![StickerInfo { file_id: 42, emoji: "😀".into(), thumbnail_path: "/tmp/t.webp".into() }],
+            }
+        );
     }
 
     #[test]
@@ -189,10 +260,36 @@ mod tests {
             r.to_json(),
             r#"{"type":"get_messages","profile":"P","chat_id":"c1","from_msg_id":"","limit":12}"#
         );
-        let r = Request::SendMessage { profile: "P".into(), chat_id: "c1".into(), text: "hej \"du\"\n".into() };
+        let r = Request::DownloadFile { profile: "P".into(), chat_id: "c1".into(), msg_id: "m1".into(), file_id: "f1".into() };
+        assert_eq!(
+            r.to_json(),
+            r#"{"type":"download_file","profile":"P","chat_id":"c1","msg_id":"m1","file_id":"f1"}"#
+        );
+        let r = Request::SendMessage {
+            profile: "P".into(),
+            chat_id: "c1".into(),
+            text: "hej \"du\"\n".into(),
+            quoted_id: String::new(),
+            file_path: String::new(),
+        };
         assert_eq!(
             r.to_json(),
             r#"{"type":"send_message","profile":"P","chat_id":"c1","text":"hej \"du\"\n"}"#
+        );
+
+        let r = Request::GetStickerSets { profile: "P".into() };
+        assert_eq!(r.to_json(), r#"{"type":"get_sticker_sets","profile":"P"}"#);
+
+        let r = Request::GetStickers { profile: "P".into(), key: "recent".into(), set_id: 0, query: String::new() };
+        assert_eq!(
+            r.to_json(),
+            r#"{"type":"get_stickers","profile":"P","key":"recent","set_id":0,"query":""}"#
+        );
+
+        let r = Request::SendSticker { profile: "P".into(), chat_id: "c1".into(), sticker_file_id: 42 };
+        assert_eq!(
+            r.to_json(),
+            r#"{"type":"send_sticker","profile":"P","chat_id":"c1","sticker_file_id":42}"#
         );
     }
 

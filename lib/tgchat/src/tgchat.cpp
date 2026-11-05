@@ -605,6 +605,7 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
     case GetContactsRequestType:
       {
         LOG_DEBUG("Get contacts");
+        MessageCache::FetchContacts(m_ProfileId);
         Status::Set(m_ProfileId, Status::FlagFetching);
 
         SendQuery(td::td_api::make_object<td::td_api::getContacts>(),
@@ -635,9 +636,10 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
     case GetChatsRequestType:
       {
         LOG_DEBUG("Get chats");
-        Status::Set(m_ProfileId, Status::FlagFetching);
         std::shared_ptr<GetChatsRequest> getChatsRequest =
           std::static_pointer_cast<GetChatsRequest>(p_RequestMessage);
+        MessageCache::FetchChats(m_ProfileId, getChatsRequest->chatIds);
+        Status::Set(m_ProfileId, Status::FlagFetching);
         int32_t limit = std::numeric_limits<int32_t>::max(); // no limit
 
         SendQuery(td::td_api::make_object<td::td_api::getChats>(nullptr, limit),
@@ -951,15 +953,11 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
         std::shared_ptr<GetMessagesRequest> getMessagesRequest =
           std::static_pointer_cast<GetMessagesRequest>(p_RequestMessage);
 
-        if (!getMessagesRequest->fromMsgId.empty() ||
-            (getMessagesRequest->limit == std::numeric_limits<int>::max()))
+        if (MessageCache::FetchMessagesFrom(m_ProfileId, getMessagesRequest->chatId,
+                                            getMessagesRequest->fromMsgId,
+                                            getMessagesRequest->limit, false /* p_Sync */))
         {
-          if (MessageCache::FetchMessagesFrom(m_ProfileId, getMessagesRequest->chatId,
-                                              getMessagesRequest->fromMsgId,
-                                              getMessagesRequest->limit, false /* p_Sync */))
-          {
-            return;
-          }
+          return;
         }
 
         int64_t fromMsgId = StrUtil::NumFromHex<int64_t>(getMessagesRequest->fromMsgId);

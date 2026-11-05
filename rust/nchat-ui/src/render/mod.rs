@@ -1,3 +1,6 @@
+pub mod entry;
+pub mod help;
+pub mod history;
 pub mod list;
 pub mod status;
 pub mod time;

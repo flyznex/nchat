@@ -30,6 +30,7 @@ pub struct UiConfig {
     pub muted_position_by_timestamp: bool,
     pub away_status_indication: bool,
     pub proxy_indicator: String,
+    pub sent_align_right: bool,
 }
 
 impl Default for UiConfig {
@@ -51,6 +52,7 @@ impl Default for UiConfig {
             muted_position_by_timestamp: true,
             away_status_indication: false,
             proxy_indicator: "🔒".into(),
+            sent_align_right: true,
         }
     }
 }
@@ -83,6 +85,7 @@ impl UiConfig {
             muted_position_by_timestamp: conf.bool_or("muted_position_by_timestamp", true),
             away_status_indication: conf.bool_or("away_status_indication", false),
             proxy_indicator: conf.str_or("proxy_indicator", "🔒").to_string(),
+            sent_align_right: conf.bool_or("sent_align_right", true),
         }
     }
 }
