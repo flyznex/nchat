@@ -163,6 +163,8 @@ impl UiModel {
                 self.stickers.insert((profile.clone(), key.clone()), stickers.clone());
                 self.dirty = true;
             }
+            // ponytail: folder state wiring lands in Task 3; keep build green until then.
+            Event::ChatFolders { .. } | Event::UpdateChatFolder { .. } => {}
             Event::Other { .. } => {}
         }
     }

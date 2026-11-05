@@ -54,6 +54,12 @@ pub struct StickerInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct ChatFolderInfo {
+    pub id: i32,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     Connect { profile: String, success: bool },
@@ -73,6 +79,8 @@ pub enum Event {
     UserStatus { profile: String, user_id: String, is_online: bool, time_seen: i64 },
     StickerSets { profile: String, sticker_sets: Vec<StickerSetInfo> },
     Stickers { profile: String, key: String, stickers: Vec<StickerInfo> },
+    ChatFolders { profile: String, folders: Vec<ChatFolderInfo> },
+    UpdateChatFolder { profile: String, folder_id: i32, is_member: bool, chat_ids: Vec<String> },
     Other { profile: String, kind: i32 },
 }
 
@@ -243,6 +251,38 @@ mod tests {
                 stickers: vec![StickerInfo { file_id: 42, emoji: "😀".into(), thumbnail_path: "/tmp/t.webp".into() }],
             }
         );
+    }
+
+    #[test]
+    fn deserializes_chat_folders_event() {
+        let json = r#"{"type":"chat_folders","profile":"P1","folders":[{"id":1,"title":"Work"},{"id":2,"title":"Family"}]}"#;
+        let event: Event = serde_json::from_str(json).unwrap();
+        match event {
+            Event::ChatFolders { profile, folders } => {
+                assert_eq!(profile, "P1");
+                assert_eq!(folders.len(), 2);
+                assert_eq!(folders[0].id, 1);
+                assert_eq!(folders[0].title, "Work");
+                assert_eq!(folders[1].id, 2);
+                assert_eq!(folders[1].title, "Family");
+            }
+            other => panic!("expected ChatFolders event, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn deserializes_update_chat_folder_event() {
+        let json = r#"{"type":"update_chat_folder","profile":"P1","folder_id":1,"is_member":true,"chat_ids":["c1","c2"]}"#;
+        let event: Event = serde_json::from_str(json).unwrap();
+        match event {
+            Event::UpdateChatFolder { profile, folder_id, is_member, chat_ids } => {
+                assert_eq!(profile, "P1");
+                assert_eq!(folder_id, 1);
+                assert!(is_member);
+                assert_eq!(chat_ids, vec!["c1", "c2"]);
+            }
+            other => panic!("expected UpdateChatFolder event, got {:?}", other),
+        }
     }
 
     #[test]

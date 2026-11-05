@@ -30,6 +30,10 @@ pub fn describe(event: &Event) -> String {
         Event::UserStatus { profile, user_id, is_online, .. } => format!("{profile} status user={user_id} online={is_online}"),
         Event::StickerSets { profile, sticker_sets } => format!("{profile} sticker_sets n={}", sticker_sets.len()),
         Event::Stickers { profile, key, stickers } => format!("{profile} stickers key={key} n={}", stickers.len()),
+        Event::ChatFolders { profile, folders } => format!("{profile} chat_folders n={}", folders.len()),
+        Event::UpdateChatFolder { profile, folder_id, is_member, .. } => {
+            format!("{profile} update_chat_folder id={folder_id} is_member={is_member}")
+        }
         Event::Other { profile, kind } => format!("{profile} other kind={kind}"),
     }
 }
