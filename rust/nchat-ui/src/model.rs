@@ -30,6 +30,8 @@ pub struct UiModel {
     user_status: HashMap<(String, String), (bool, i64)>,
     sticker_sets: HashMap<String, Vec<StickerSetInfo>>,
     stickers: HashMap<(String, String), Vec<StickerInfo>>,
+    pub requested_from_msg_ids: HashSet<(String, String, String)>,
+    pub exhausted_history: HashSet<(String, String)>,
     pub dirty: bool,
 }
 
@@ -41,6 +43,8 @@ impl UiModel {
             contacts: HashMap::new(),
             messages: HashMap::new(),
             download_requested: HashSet::new(),
+            requested_from_msg_ids: HashSet::new(),
+            exhausted_history: HashSet::new(),
             selected_id: None,
             focus: Focus::List,
             filter_text: String::new(),
@@ -98,7 +102,11 @@ impl UiModel {
                 self.refresh_chat_names();
             }
             Event::Messages { profile, success, chat_id, messages, .. } => {
-                if !*success || messages.is_empty() {
+                if !*success {
+                    return;
+                }
+                if messages.is_empty() {
+                    self.exhausted_history.insert((profile.clone(), chat_id.clone()));
                     return;
                 }
                 let key = (profile.clone(), chat_id.clone());
@@ -439,18 +447,59 @@ impl UiModel {
 
         let mut reqs = Vec::new();
         if changed {
-            reqs.push(Request::GetMessages {
-                profile: profile.to_string(),
-                chat_id: chat_id.to_string(),
-                from_msg_id: String::new(),
-                limit: 50,
-            });
+            if let Some(req) = self.check_fetch_more_messages(profile, chat_id, 30) {
+                reqs.push(req);
+            }
             reqs.push(Request::GetStatus {
                 profile: profile.to_string(),
                 user_id: chat_id.to_string(),
             });
         }
         reqs
+    }
+
+    /// Checks whether more older messages should be fetched to fill the history pane
+    /// (up to `target_count` messages, typically 30-50).
+    pub fn check_fetch_more_messages(
+        &mut self,
+        profile: &str,
+        chat_id: &str,
+        target_count: usize,
+    ) -> Option<Request> {
+        let key = (profile.to_string(), chat_id.to_string());
+        if self.exhausted_history.contains(&key) {
+            return None;
+        }
+
+        let entry = self.messages.get(&key);
+        let count = entry.map(|v| v.len()).unwrap_or(0);
+
+        if count >= target_count {
+            return None;
+        }
+
+        let from_msg_id = if count == 0 {
+            String::new()
+        } else {
+            entry.and_then(|v| v.first()).map(|m| m.id.clone()).unwrap_or_default()
+        };
+
+        if from_msg_id.is_empty() && count > 0 {
+            return None;
+        }
+
+        let req_key = (profile.to_string(), chat_id.to_string(), from_msg_id.clone());
+        if self.requested_from_msg_ids.contains(&req_key) {
+            return None;
+        }
+
+        self.requested_from_msg_ids.insert(req_key);
+        Some(Request::GetMessages {
+            profile: profile.to_string(),
+            chat_id: chat_id.to_string(),
+            from_msg_id,
+            limit: 50,
+        })
     }
 
     pub fn sticker_sets(&self, profile: &str) -> &[StickerSetInfo] {
@@ -607,16 +656,11 @@ impl UiModel {
         }
         self.dirty = true;
 
-        if self.message_offset > 0 {
-            let oldest_id = self.messages(prof, cid).first().map(|m| m.id.clone()).unwrap_or_default();
-            if !oldest_id.is_empty() {
-                return Some(Request::GetMessages {
-                    profile: prof.clone(),
-                    chat_id: cid.clone(),
-                    from_msg_id: oldest_id,
-                    limit: 50,
-                });
-            }
+        if delta > 0 || self.message_offset + 10 >= total {
+            let prof_clone = prof.clone();
+            let cid_clone = cid.clone();
+            let target = (total + 30).max(50);
+            return self.check_fetch_more_messages(&prof_clone, &cid_clone, target);
         }
         None
     }
@@ -631,15 +675,10 @@ impl UiModel {
         self.dirty = true;
 
         if oldest {
-            let oldest_id = self.messages(prof, cid).first().map(|m| m.id.clone()).unwrap_or_default();
-            if !oldest_id.is_empty() {
-                return Some(Request::GetMessages {
-                    profile: prof.clone(),
-                    chat_id: cid.clone(),
-                    from_msg_id: oldest_id,
-                    limit: 50,
-                });
-            }
+            let prof_clone = prof.clone();
+            let cid_clone = cid.clone();
+            let target = total + 50;
+            return self.check_fetch_more_messages(&prof_clone, &cid_clone, target);
         }
         None
     }
@@ -1129,5 +1168,94 @@ mod tests {
         m.select_screen_row(1);
         let selected_cid = m.selected_id.as_ref().unwrap().1.clone();
         assert!(selected_cid == "c2" || selected_cid == "c1" || selected_cid == "c3");
+    }
+
+    #[test]
+    fn auto_fetches_older_messages_to_fill_history() {
+        let mut m = UiModel::new();
+        let prof = "Telegram";
+        let cid = "12345";
+
+        // Initial fetch with empty history
+        let req1 = m.check_fetch_more_messages(prof, cid, 30).unwrap();
+        assert_eq!(
+            req1,
+            Request::GetMessages {
+                profile: prof.into(),
+                chat_id: cid.into(),
+                from_msg_id: "".into(),
+                limit: 50,
+            }
+        );
+
+        // Same request is not duplicated while in flight
+        assert_eq!(m.check_fetch_more_messages(prof, cid, 30), None);
+
+        // First message arrives (like Image #3 single message)
+        let msg1 = Message {
+            id: "m_first".into(), sender_id: "u1".into(), text: "hello".into(),
+            quoted_id: "".into(), quoted_text: "".into(), quoted_sender: "".into(),
+            file_info: "".into(), link_preview: "".into(), time_sent: 1000,
+            is_outgoing: false, is_read: true, is_delivered: false, is_edited: false,
+            is_deleted: false, is_pinned: false, has_mention: false,
+        };
+        m.apply_event(&Event::Messages {
+            profile: prof.into(),
+            success: true,
+            chat_id: cid.into(),
+            from_msg_id: "".into(),
+            cached: true,
+            sequence: true,
+            messages: vec![msg1],
+        });
+
+        // Chat only has 1 message (< 30): auto-fetches older messages using m_first
+        let req2 = m.check_fetch_more_messages(prof, cid, 30).unwrap();
+        assert_eq!(
+            req2,
+            Request::GetMessages {
+                profile: prof.into(),
+                chat_id: cid.into(),
+                from_msg_id: "m_first".into(),
+                limit: 50,
+            }
+        );
+
+        // Older batch arrives from server
+        let mut batch = Vec::new();
+        for i in 1..=30 {
+            batch.push(Message {
+                id: format!("m_older_{i}"), sender_id: "u1".into(), text: format!("msg {i}"),
+                quoted_id: "".into(), quoted_text: "".into(), quoted_sender: "".into(),
+                file_info: "".into(), link_preview: "".into(), time_sent: 500 + i as i64,
+                is_outgoing: false, is_read: true, is_delivered: false, is_edited: false,
+                is_deleted: false, is_pinned: false, has_mention: false,
+            });
+        }
+        m.apply_event(&Event::Messages {
+            profile: prof.into(),
+            success: true,
+            chat_id: cid.into(),
+            from_msg_id: "m_first".into(),
+            cached: false,
+            sequence: true,
+            messages: batch,
+        });
+
+        // Now chat has 31 messages (>= 30): no further auto-fetch needed
+        assert_eq!(m.check_fetch_more_messages(prof, cid, 30), None);
+
+        // Empty messages event marks chat history as exhausted (start of chat reached)
+        m.apply_event(&Event::Messages {
+            profile: prof.into(),
+            success: true,
+            chat_id: cid.into(),
+            from_msg_id: "m_older_1".into(),
+            cached: false,
+            sequence: true,
+            messages: vec![],
+        });
+        assert!(m.exhausted_history.contains(&(prof.into(), cid.into())));
+        assert_eq!(m.check_fetch_more_messages(prof, cid, 50), None);
     }
 }

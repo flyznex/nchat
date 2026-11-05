@@ -137,21 +137,25 @@ impl App {
                     let prev_sel = self.model.selected_id.clone();
                     self.model.apply_event(&ev);
                     if let Some((prof, cid)) = &self.model.selected_id {
-                        if prev_sel.as_ref() != Some(&(prof.clone(), cid.clone()))
-                            || (matches!(&ev, Event::Chats { .. }) && self.model.messages(prof, cid).is_empty())
+                        let prof_clone = prof.clone();
+                        let cid_clone = cid.clone();
+                        if prev_sel.as_ref() != Some(&(prof_clone.clone(), cid_clone.clone()))
+                            || (matches!(&ev, Event::Chats { .. }) && self.model.messages(&prof_clone, &cid_clone).is_empty())
                         {
-                            let req = crate::protocol::Request::GetMessages {
-                                profile: prof.clone(),
-                                chat_id: cid.clone(),
-                                from_msg_id: String::new(),
-                                limit: 50,
-                            };
-                            let _ = core.send(&req.to_json());
+                            if let Some(req) = self.model.check_fetch_more_messages(&prof_clone, &cid_clone, 30) {
+                                let _ = core.send(&req.to_json());
+                            }
                             let status_req = crate::protocol::Request::GetStatus {
-                                profile: prof.clone(),
-                                user_id: cid.clone(),
+                                profile: prof_clone.clone(),
+                                user_id: cid_clone.clone(),
                             };
                             let _ = core.send(&status_req.to_json());
+                        } else if let Event::Messages { profile: msg_prof, chat_id: msg_cid, .. } = &ev {
+                            if msg_prof == &prof_clone && msg_cid == &cid_clone {
+                                if let Some(req) = self.model.check_fetch_more_messages(&prof_clone, &cid_clone, 30) {
+                                    let _ = core.send(&req.to_json());
+                                }
+                            }
                         }
                     }
                 }
