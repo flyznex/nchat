@@ -64,6 +64,7 @@ fn main() -> ExitCode {
     let conf_path = resolve_confdir(&args.confdir);
     let ui_conf = UiConfig::from_conf(&load_conf_file(&conf_path, "ui.conf"));
     let color_conf = Theme::from_conf(&load_conf_file(&conf_path, "color.conf"));
+    let key_conf = nchat_ui::keyconf::KeyConfig::from_conf(&load_conf_file(&conf_path, "key.conf"));
 
     let (tx, rx) = mpsc::channel();
     let mut core = match Core::init(&args.confdir, tx) {
@@ -126,7 +127,7 @@ fn main() -> ExitCode {
         }
     };
 
-    let mut app = match App::new(ui_conf, color_conf) {
+    let mut app = match App::new(ui_conf, color_conf, key_conf) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("failed to init app: {e}");

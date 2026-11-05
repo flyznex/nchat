@@ -76,6 +76,7 @@ pub struct App {
     pub model: UiModel,
     pub conf: UiConfig,
     pub theme: Theme,
+    pub keys: crate::keyconf::KeyConfig,
     pub nav: NavResolver,
     pub picker: ratatui_image::picker::Picker,
     pub img_cache: crate::imgcache::ImageCache,
@@ -88,7 +89,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(conf: UiConfig, theme: Theme) -> std::io::Result<Self> {
+    pub fn new(conf: UiConfig, theme: Theme, keys: crate::keyconf::KeyConfig) -> std::io::Result<Self> {
         let backend = CrosstermBackend::new(stdout());
         let terminal = Terminal::new(backend)?;
         let vim_keys = conf.vim_keys;
@@ -100,6 +101,7 @@ impl App {
             model: UiModel::new(),
             conf,
             theme,
+            keys,
             nav: NavResolver::new(vim_keys),
             picker,
             img_cache,
@@ -168,8 +170,9 @@ impl App {
                 match event::read()? {
                     CEvent::Key(k) => {
                         if let Some(norm) = crate::keyconf::normalize_crossterm_key(k) {
-                            if k.code == crossterm::event::KeyCode::Char('q')
-                                && k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                            if self.keys.matches("quit", norm)
+                                || (k.code == crossterm::event::KeyCode::Char('q')
+                                    && k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL))
                             {
                                 exit_flag.store(true, Ordering::Relaxed);
                                 break;
@@ -218,7 +221,7 @@ impl App {
                                                 };
                                                 let _ = core.send(&req.to_json());
                                             }
-                                        } else if val.starts_with('/') || val.contains('/') || val.contains('\\') {
+                                        } else if val.starts_with('/') || val.contains('/') || val.contains('\\') || std::path::Path::new(&val).is_file() {
                                             if let Some((prof, cid)) = &self.model.selected_id {
                                                 let req = crate::protocol::Request::SendMessage {
                                                     profile: prof.clone(),
@@ -239,18 +242,22 @@ impl App {
                                 continue;
                             }
 
-                            // Alt-u opens Emoji Dialog
-                            if k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
-                                && k.code == crossterm::event::KeyCode::Char('u')
+                            // Emoji Dialog: key.conf "select_emoji" (default Ctrl-S) or Alt-u fallback
+                            if self.keys.matches("select_emoji", norm)
+                                || (k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                                    && k.code == crossterm::event::KeyCode::Char('s'))
+                                || (k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                                    && k.code == crossterm::event::KeyCode::Char('u'))
                             {
                                 self.active_dialog = Some(Box::new(crate::dialog::emoji::EmojiDialog::new()));
                                 self.model.dirty = true;
                                 continue;
                             }
 
-                            // Alt-g opens Sticker Dialog
-                            if k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
-                                && k.code == crossterm::event::KeyCode::Char('g')
+                            // Sticker Dialog: key.conf "select_sticker" (default Alt-g)
+                            if self.keys.matches("select_sticker", norm)
+                                || (k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                                    && k.code == crossterm::event::KeyCode::Char('g'))
                             {
                                 if let Some((prof, _)) = self.model.selected_id.clone() {
                                     let sets_req = crate::protocol::Request::GetStickerSets { profile: prof.clone() };
@@ -268,9 +275,11 @@ impl App {
                                 continue;
                             }
 
-                            // Ctrl-O opens Send File Dialog
-                            if k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
-                                && k.code == crossterm::event::KeyCode::Char('o')
+                            // Send File Dialog: key.conf "transfer" (default Ctrl-T) or Ctrl-O fallback
+                            if self.keys.matches("transfer", norm)
+                                || (k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                                    && (k.code == crossterm::event::KeyCode::Char('t')
+                                        || k.code == crossterm::event::KeyCode::Char('o')))
                             {
                                 self.active_dialog = Some(Box::new(crate::dialog::file::FileDialog::new(None)));
                                 self.model.dirty = true;

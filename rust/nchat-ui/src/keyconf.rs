@@ -115,11 +115,17 @@ pub struct KeyConfig {
     bindings: HashMap<String, Key>,
 }
 
+impl Default for KeyConfig {
+    fn default() -> Self {
+        Self::from_conf(&Conf::default())
+    }
+}
+
 impl KeyConfig {
     pub fn from_conf(conf: &Conf) -> Self {
         let mut bindings = HashMap::new();
         let defaults = [
-            ("cancel", "KEY_CTRLC"),
+            ("cancel", "KEY_ESC"),
             ("quit", "KEY_CTRLQ"),
             ("left", "KEY_LEFT"),
             ("right", "KEY_RIGHT"),
@@ -131,12 +137,20 @@ impl KeyConfig {
             ("end", "KEY_END"),
             ("home", "KEY_HOME"),
             ("toggle_list", "KEY_CTRLL"),
-            ("folder_next", "KEY_SRIGHT"),
-            ("folder_prev", "KEY_SLEFT"),
+            ("folder_next", "\\33\\154"),
+            ("folder_prev", "\\33\\150"),
             ("focus_next", "KEY_TAB"),
             ("focus_prev", "KEY_BTAB"),
             ("focus_entry", "KEY_CTRL["),
             ("pane_prefix", "KEY_CTRLW"),
+            ("transfer", "KEY_CTRLT"),
+            ("select_emoji", "KEY_CTRLS"),
+            ("select_sticker", "\\33\\147"),
+            ("select_contact", "\\33\\156"),
+            ("select_mention", "\\33\\62"),
+            ("unread_chat", "KEY_CTRLF"),
+            ("goto_chat", "KEY_CTRLN"),
+            ("other_commands_help", "KEY_CTRLO"),
         ];
 
         for (action, def) in defaults {
@@ -190,5 +204,19 @@ mod tests {
             state: crossterm::event::KeyEventState::NONE,
         };
         assert_eq!(normalize_crossterm_key(release), None);
+    }
+
+    #[test]
+    fn default_key_config_matches_nchat_standard_shortcuts() {
+        let keys = KeyConfig::default();
+        let ctrl_t = Key { code: KeyCode::Char('t'), mods: KeyModifiers::CONTROL };
+        let ctrl_s = Key { code: KeyCode::Char('s'), mods: KeyModifiers::CONTROL };
+        let alt_g = Key { code: KeyCode::Char('g'), mods: KeyModifiers::ALT };
+        let ctrl_q = Key { code: KeyCode::Char('q'), mods: KeyModifiers::CONTROL };
+
+        assert!(keys.matches("transfer", ctrl_t));
+        assert!(keys.matches("select_emoji", ctrl_s));
+        assert!(keys.matches("select_sticker", alt_g));
+        assert!(keys.matches("quit", ctrl_q));
     }
 }
