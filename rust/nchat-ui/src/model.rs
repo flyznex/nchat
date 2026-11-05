@@ -98,6 +98,9 @@ impl UiModel {
                 let key = (profile.clone(), chat_id.clone());
                 let entry = self.messages.entry(key).or_default();
                 for m in messages {
+                    if m.id.is_empty() {
+                        continue;
+                    }
                     if let Some(existing) = entry.iter_mut().find(|x| x.id == m.id) {
                         *existing = m.clone();
                     } else {
@@ -118,18 +121,24 @@ impl UiModel {
                 if !*success {
                     return;
                 }
-                let key = (profile.clone(), chat_id.clone());
-                let entry = self.messages.entry(key).or_default();
-                if let Some(existing) = entry.iter_mut().find(|x| x.id == message.id) {
-                    *existing = message.clone();
-                } else {
-                    entry.push(message.clone());
+                if !message.id.is_empty() {
+                    let key = (profile.clone(), chat_id.clone());
+                    let entry = self.messages.entry(key).or_default();
+                    if let Some(existing) = entry.iter_mut().find(|x| x.id == message.id) {
+                        *existing = message.clone();
+                    } else {
+                        entry.push(message.clone());
+                    }
+                    entry.sort_by_key(|m| m.time_sent);
                 }
-                entry.sort_by_key(|m| m.time_sent);
 
                 if let Some(c) = self.chats.iter_mut().find(|c| &c.profile_id == profile && &c.chat_id == chat_id) {
-                    c.preview = Self::format_preview(message);
-                    c.last_message_time = c.last_message_time.max(message.time_sent);
+                    if !message.text.is_empty() || !message.file_info.is_empty() {
+                        c.preview = Self::format_preview(message);
+                    }
+                    if message.time_sent > 0 {
+                        c.last_message_time = c.last_message_time.max(message.time_sent);
+                    }
                 }
                 self.sort_chats();
             }
@@ -812,5 +821,83 @@ mod tests {
         // Clear filter
         m.filter_clear();
         assert_eq!(m.current_rows().len(), 2);
+    }
+
+    #[test]
+    fn does_not_duplicate_sent_messages() {
+        let mut m = UiModel::new();
+        m.apply_event(&Event::Chats {
+            profile: "P1".into(),
+            success: true,
+            chats: vec![Chat {
+                id: "c1".into(),
+                is_unread: false,
+                is_unread_mention: false,
+                is_muted: false,
+                is_pinned: false,
+                is_archived: false,
+                last_message_time: 10,
+            }],
+        });
+
+        // Backend acknowledges sending message (id is empty, time_sent is 0)
+        let dummy_sent = Message {
+            id: "".into(),
+            sender_id: "".into(),
+            text: "hello world".into(),
+            quoted_id: "".into(),
+            quoted_text: "".into(),
+            quoted_sender: "".into(),
+            file_info: "".into(),
+            link_preview: "".into(),
+            time_sent: 0,
+            is_outgoing: true,
+            is_read: false,
+            is_delivered: false,
+            is_edited: false,
+            is_deleted: false,
+            is_pinned: false,
+            has_mention: false,
+        };
+        m.apply_event(&Event::Sent {
+            profile: "P1".into(),
+            success: true,
+            chat_id: "c1".into(),
+            message: dummy_sent,
+        });
+
+        // Real message arrives from network via Event::Messages
+        let real_msg = Message {
+            id: "m_real_123".into(),
+            sender_id: "u_self".into(),
+            text: "hello world".into(),
+            quoted_id: "".into(),
+            quoted_text: "".into(),
+            quoted_sender: "".into(),
+            file_info: "".into(),
+            link_preview: "".into(),
+            time_sent: 1700000000000,
+            is_outgoing: true,
+            is_read: false,
+            is_delivered: true,
+            is_edited: false,
+            is_deleted: false,
+            is_pinned: false,
+            has_mention: false,
+        };
+        m.apply_event(&Event::Messages {
+            profile: "P1".into(),
+            success: true,
+            chat_id: "c1".into(),
+            from_msg_id: "".into(),
+            cached: false,
+            sequence: false,
+            messages: vec![real_msg],
+        });
+
+        let msgs = m.messages("P1", "c1");
+        assert_eq!(msgs.len(), 1, "Must not contain duplicate ghost message");
+        assert_eq!(msgs[0].id, "m_real_123");
+        assert_eq!(msgs[0].time_sent, 1700000000000);
     }
 }
