@@ -35,6 +35,9 @@ pub enum Action {
     ToggleGroup,
     FolderNext,
     FolderPrev,
+    ScreenHigh,
+    ScreenMiddle,
+    ScreenLow,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,6 +102,16 @@ impl NavResolver {
         self.add(vec![Self::k('b')], list, Action::FolderPrev, true);
         self.add(vec![Self::k('u')], list, Action::UnreadOnly, true);
         self.add(vec![Self::k('z')], list, Action::ToggleGroup, true);
+        self.add(vec![Self::k('H')], list, Action::ScreenHigh, true);
+        self.add(vec![Self::k('M')], list, Action::ScreenMiddle, true);
+        self.add(vec![Self::k('L')], list, Action::ScreenLow, true);
+        self.add(vec![Self::k('o')], list, Action::Open, true);
+
+        // Page navigation & scrolling
+        self.add(vec![Self::ctrl('f')], list_hist, Action::HalfDown, true);
+        self.add(vec![Self::ctrl('b')], list_hist, Action::HalfUp, true);
+        self.add(vec![Self::ctrl('e')], list_hist, Action::Down, true);
+        self.add(vec![Self::ctrl('y')], list_hist, Action::Up, true);
 
         // History actions
         let hist = Focus::History as u8;
@@ -110,8 +123,10 @@ impl NavResolver {
         // Ctrl-W window navigation
         self.add(vec![ctrl_w, Self::k('h')], all, Action::FocusLeft, true);
         self.add(vec![ctrl_w, Self::k('l')], all, Action::FocusRight, true);
-        self.add(vec![ctrl_w, Self::k('j')], Focus::History as u8, Action::FocusEntry, true);
+        self.add(vec![ctrl_w, Self::k('j')], list_hist, Action::FocusEntry, true);
         self.add(vec![ctrl_w, Self::k('k')], Focus::Entry as u8, Action::FocusHistory, true);
+        self.add(vec![ctrl_w, Self::k('w')], all, Action::FocusNext, true);
+        self.add(vec![ctrl_w, ctrl_w], all, Action::FocusNext, true);
     }
 
     fn add(&mut self, keys: Vec<Key>, mask: u8, action: Action, vim_only: bool) {
@@ -275,6 +290,34 @@ mod tests {
         assert_eq!(r.resolve(key('a'), Focus::History), NavResolveResult::Ignored);
         assert_eq!(r.resolve(key('m'), Focus::History), NavResolveResult::Ignored);
         assert_eq!(r.resolve(key('x'), Focus::History), NavResolveResult::Matched(Action::Delete));
+    }
+
+    #[test]
+    fn resolves_screen_and_scrolling_vim_actions_in_list() {
+        let mut r = NavResolver::new(true);
+        assert_eq!(r.resolve(key('H'), Focus::List), NavResolveResult::Matched(Action::ScreenHigh));
+        assert_eq!(r.resolve(key('M'), Focus::List), NavResolveResult::Matched(Action::ScreenMiddle));
+        assert_eq!(r.resolve(key('L'), Focus::List), NavResolveResult::Matched(Action::ScreenLow));
+        assert_eq!(r.resolve(key('o'), Focus::List), NavResolveResult::Matched(Action::Open));
+
+        let ctrl_f = Key { code: KeyCode::Char('f'), mods: KeyModifiers::CONTROL };
+        let ctrl_b = Key { code: KeyCode::Char('b'), mods: KeyModifiers::CONTROL };
+        let ctrl_e = Key { code: KeyCode::Char('e'), mods: KeyModifiers::CONTROL };
+        let ctrl_y = Key { code: KeyCode::Char('y'), mods: KeyModifiers::CONTROL };
+
+        assert_eq!(r.resolve(ctrl_f, Focus::List), NavResolveResult::Matched(Action::HalfDown));
+        assert_eq!(r.resolve(ctrl_b, Focus::List), NavResolveResult::Matched(Action::HalfUp));
+        assert_eq!(r.resolve(ctrl_e, Focus::List), NavResolveResult::Matched(Action::Down));
+        assert_eq!(r.resolve(ctrl_y, Focus::List), NavResolveResult::Matched(Action::Up));
+
+        let ctrl_w = Key { code: KeyCode::Char('w'), mods: KeyModifiers::CONTROL };
+        // Ctrl-w j moves from List to Entry
+        assert_eq!(r.resolve(ctrl_w, Focus::List), NavResolveResult::Pending);
+        assert_eq!(r.resolve(key('j'), Focus::List), NavResolveResult::Matched(Action::FocusEntry));
+
+        // Ctrl-w w cycles window
+        assert_eq!(r.resolve(ctrl_w, Focus::List), NavResolveResult::Pending);
+        assert_eq!(r.resolve(key('w'), Focus::List), NavResolveResult::Matched(Action::FocusNext));
     }
 
     #[test]

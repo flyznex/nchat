@@ -43,18 +43,43 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
     let list_h = content_h.saturating_sub(tab_h + bar_h);
 
     if has_tabs {
-        let mut titles: Vec<Line> = vec![Line::from("All")];
-        for name in &folder_names {
-            titles.push(Line::from(name.as_str()));
-        }
         let sel_idx = if model.selected_folder.is_empty() {
             0
         } else {
             folder_names.iter().position(|n| n == &model.selected_folder).map(|i| i + 1).unwrap_or(0)
         };
+
+        // Abbreviate any single tab title if it exceeds available pane width
+        let max_label_w = content_w.saturating_sub(4).max(3);
+        let raw_titles: Vec<String> = std::iter::once("All".to_string())
+            .chain(folder_names.iter().map(|n| {
+                if n.chars().count() > max_label_w {
+                    crate::text::fit(n, max_label_w).trim_end().to_string()
+                } else {
+                    n.clone()
+                }
+            }))
+            .collect();
+
+        // Ratatui Tabs adds 1 space of padding on each side (width = len + 2)
+        let widths: Vec<usize> = raw_titles.iter().map(|t| t.chars().count() + 2).collect();
+        let avail = if sel_idx > 0 { content_w.saturating_sub(2) } else { content_w };
+        let first = crate::chatlist::first_tab(&widths, sel_idx, avail, 3);
+
+        let mut visible_titles: Vec<Line> = Vec::new();
+        for (i, title) in raw_titles.into_iter().enumerate().skip(first) {
+            let label = if i == first && first > 0 {
+                format!("< {title}")
+            } else {
+                title
+            };
+            visible_titles.push(Line::from(label));
+        }
+
+        let visible_sel = sel_idx.saturating_sub(first);
         let tabs_area = Rect::new(inner.x, inner.y, inner.width, 1);
-        let tabs = ratatui::widgets::Tabs::new(titles)
-            .select(sel_idx)
+        let tabs = ratatui::widgets::Tabs::new(visible_titles)
+            .select(visible_sel)
             .style(theme.list_name)
             .highlight_style(theme.focus_style)
             .divider(Span::raw(" | "));

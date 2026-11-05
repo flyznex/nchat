@@ -234,6 +234,31 @@ pub fn resolve_path(current_dir: &Path, input: &str) -> PathBuf {
     normalize_path(&raw)
 }
 
+pub fn format_display_path(path: &Path, max_width: usize) -> String {
+    let mut s = path.to_string_lossy().to_string();
+    if let Some(home) = std::env::var_os("HOME") {
+        let home_path = PathBuf::from(home);
+        if let Ok(rel) = path.strip_prefix(&home_path) {
+            s = if rel.as_os_str().is_empty() {
+                "~".to_string()
+            } else {
+                format!("~/{}", rel.display())
+            };
+        }
+    }
+    if s.chars().count() <= max_width {
+        return s;
+    }
+    if max_width <= 4 {
+        return s.chars().take(max_width).collect();
+    }
+    let tail_len = max_width - 4; // for ".../"
+    let char_count = s.chars().count();
+    let skip = char_count.saturating_sub(tail_len);
+    let tail: String = s.chars().skip(skip).collect();
+    format!(".../{tail}")
+}
+
 pub fn format_file_size(size: u64) -> String {
     if size < 1024 {
         format!("{size} B")
@@ -421,9 +446,11 @@ impl Dialog for FileDialog {
         let popup_area = centered_rect(75, 70, area);
         f.render_widget(Clear, popup_area);
 
+        let max_title_path_w = (popup_area.width as usize).saturating_sub(18).max(8);
+        let path_disp = format_display_path(&self.current_dir, max_title_path_w);
         let block = Block::default()
             .borders(Borders::ALL)
-            .title(format!(" Send File [{}] ", self.current_dir.display()))
+            .title(format!(" Send File [{path_disp}] "))
             .border_style(theme.focus_style);
 
         let inner = block.inner(popup_area);
@@ -440,7 +467,14 @@ impl Dialog for FileDialog {
         let filter_display = if self.filter.is_empty() {
             Span::styled("Type filename or path (/ or ~), Tab to complete", Style::default().add_modifier(Modifier::DIM))
         } else {
-            Span::styled(format!("{}_", self.filter), theme.focus_style)
+            let max_fit = inner_w.saturating_sub(18).max(4);
+            let display_str = if self.filter.chars().count() > max_fit {
+                let skip = self.filter.chars().count() - max_fit;
+                format!("...{}_", self.filter.chars().skip(skip).collect::<String>())
+            } else {
+                format!("{}_", self.filter)
+            };
+            Span::styled(display_str, theme.focus_style)
         };
         lines.push(Line::from(vec![
             Span::styled(" Path/Filter: ", theme.list_name),
@@ -570,5 +604,26 @@ mod tests {
         d.filter = "/etc/hosts".into();
         let res = d.handle_key(Key::ENTER, &model);
         assert_eq!(res, DialogResult::CloseValue("/etc/hosts".into()));
+    }
+
+    #[test]
+    fn formats_display_path_with_home_and_truncation() {
+        if let Some(home) = std::env::var_os("HOME") {
+            let home_p = PathBuf::from(home);
+            assert_eq!(format_display_path(&home_p, 30), "~");
+
+            let sub = home_p.join("Downloads");
+            assert_eq!(format_display_path(&sub, 30), "~/Downloads");
+
+            // Long path truncation
+            let long_sub = home_p.join("A/Very/Long/Path/That/Exceeds/Allowed/Columns/Final");
+            let truncated = format_display_path(&long_sub, 20);
+            assert!(truncated.len() <= 20);
+            assert!(truncated.starts_with(".../"));
+            assert!(truncated.ends_with("Final"));
+        }
+
+        let non_home = PathBuf::from("/var/log/system.log");
+        assert_eq!(format_display_path(&non_home, 30), "/var/log/system.log");
     }
 }

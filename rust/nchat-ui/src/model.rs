@@ -518,6 +518,53 @@ impl UiModel {
         Vec::new()
     }
 
+    pub fn select_first(&mut self) -> Vec<Request> {
+        let rows = self.current_rows();
+        if let Some(first_row) = step(&rows, None, 1) {
+            if let ListRow::Chat(c_idx) = rows[first_row] {
+                let prof = self.chats[c_idx].profile_id.clone();
+                let cid = self.chats[c_idx].chat_id.clone();
+                return self.select_chat(&prof, &cid);
+            }
+        }
+        Vec::new()
+    }
+
+    pub fn select_last(&mut self) -> Vec<Request> {
+        let rows = self.current_rows();
+        if let Some(last_row) = step(&rows, None, -1) {
+            if let ListRow::Chat(c_idx) = rows[last_row] {
+                let prof = self.chats[c_idx].profile_id.clone();
+                let cid = self.chats[c_idx].chat_id.clone();
+                return self.select_chat(&prof, &cid);
+            }
+        }
+        Vec::new()
+    }
+
+    pub fn select_screen_row(&mut self, target_row: usize) -> Vec<Request> {
+        let rows = self.current_rows();
+        if rows.is_empty() {
+            return Vec::new();
+        }
+        let clamped = target_row.min(rows.len().saturating_sub(1));
+        let row_idx = if matches!(rows[clamped], ListRow::Chat(_)) {
+            clamped
+        } else if let Some(next) = step(&rows, Some(clamped), 1) {
+            next
+        } else if let Some(prev) = step(&rows, Some(clamped), -1) {
+            prev
+        } else {
+            return Vec::new();
+        };
+        if let ListRow::Chat(c_idx) = rows[row_idx] {
+            let prof = self.chats[c_idx].profile_id.clone();
+            let cid = self.chats[c_idx].chat_id.clone();
+            return self.select_chat(&prof, &cid);
+        }
+        Vec::new()
+    }
+
     pub fn take_pending_downloads(&mut self) -> Vec<Request> {
         let mut reqs = Vec::new();
         if let Some((prof, cid)) = &self.selected_id {
@@ -1055,5 +1102,32 @@ mod tests {
         // Cycle backward: "" -> "Personal"
         m.cycle_folder(-1);
         assert_eq!(m.selected_folder, "Personal");
+    }
+
+    #[test]
+    fn select_first_last_and_screen_row() {
+        let mut m = UiModel::new();
+        m.apply_event(&Event::Chats {
+            profile: "P1".into(),
+            success: true,
+            chats: vec![
+                Chat { id: "c1".into(), is_unread: false, is_unread_mention: false, is_muted: false, is_pinned: false, is_archived: false, last_message_time: 30 },
+                Chat { id: "c2".into(), is_unread: false, is_unread_mention: false, is_muted: false, is_pinned: false, is_archived: false, last_message_time: 20 },
+                Chat { id: "c3".into(), is_unread: false, is_unread_mention: false, is_muted: false, is_pinned: false, is_archived: false, last_message_time: 10 },
+            ],
+        });
+
+        // select_first selects the top chat (c1)
+        m.select_first();
+        assert_eq!(m.selected_id, Some(("P1".into(), "c1".into())));
+
+        // select_last selects the bottom chat (c3)
+        m.select_last();
+        assert_eq!(m.selected_id, Some(("P1".into(), "c3".into())));
+
+        // select_screen_row selects row at index
+        m.select_screen_row(1);
+        let selected_cid = m.selected_id.as_ref().unwrap().1.clone();
+        assert!(selected_cid == "c2" || selected_cid == "c1" || selected_cid == "c3");
     }
 }

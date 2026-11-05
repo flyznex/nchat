@@ -643,6 +643,10 @@ impl App {
                     if let Some(req) = self.model.history_jump(true) {
                         let _ = core.send(&req.to_json());
                     }
+                } else if self.model.focus == Focus::List {
+                    for req in self.model.select_first() {
+                        let _ = core.send(&req.to_json());
+                    }
                 }
             }
             Action::Last => {
@@ -650,6 +654,44 @@ impl App {
                     if let Some(req) = self.model.history_jump(false) {
                         let _ = core.send(&req.to_json());
                     }
+                } else if self.model.focus == Focus::List {
+                    for req in self.model.select_last() {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::ScreenHigh => {
+                if self.model.focus == Focus::List {
+                    let target = self.model.scroll_first;
+                    for req in self.model.select_screen_row(target) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::ScreenMiddle => {
+                if self.model.focus == Focus::List {
+                    let target = self.model.scroll_first + 5;
+                    for req in self.model.select_screen_row(target) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::ScreenLow => {
+                if self.model.focus == Focus::List {
+                    let target = self.model.scroll_first + 10;
+                    for req in self.model.select_screen_row(target) {
+                        let _ = core.send(&req.to_json());
+                    }
+                }
+            }
+            Action::FolderNext => {
+                for req in self.model.cycle_folder(1) {
+                    let _ = core.send(&req.to_json());
+                }
+            }
+            Action::FolderPrev => {
+                for req in self.model.cycle_folder(-1) {
+                    let _ = core.send(&req.to_json());
                 }
             }
             Action::FocusNext => {
@@ -728,10 +770,18 @@ impl App {
                     self.model.dirty = true;
                 }
             }
-            Action::ToggleGroup => self.model.toggle_group(),
+            Action::ToggleGroup => {
+                self.model.toggle_group();
+                for req in self.model.snap_selection_to_rows() {
+                    let _ = core.send(&req.to_json());
+                }
+            }
             Action::UnreadOnly => {
                 self.model.unread_only = !self.model.unread_only;
                 self.model.dirty = true;
+                for req in self.model.snap_selection_to_rows() {
+                    let _ = core.send(&req.to_json());
+                }
             }
             Action::None => {}
             _ => {}
@@ -766,13 +816,30 @@ impl App {
             return None;
         }
 
-        let mut titles: Vec<&str> = vec!["All"];
-        titles.extend(folder_names.iter().map(String::as_str));
+        let max_label_w = (inner_w as usize).saturating_sub(4).max(3);
+        let raw_titles: Vec<String> = std::iter::once("All".to_string())
+            .chain(folder_names.iter().map(|n| {
+                if n.chars().count() > max_label_w {
+                    crate::text::fit(n, max_label_w).trim_end().to_string()
+                } else {
+                    n.clone()
+                }
+            }))
+            .collect();
+
+        let widths: Vec<usize> = raw_titles.iter().map(|t| t.chars().count() + 2).collect();
+        let sel_idx = if self.model.selected_folder.is_empty() {
+            0
+        } else {
+            folder_names.iter().position(|n| n == &self.model.selected_folder).map(|i| i + 1).unwrap_or(0)
+        };
+        let avail = if sel_idx > 0 { (inner_w as usize).saturating_sub(2) } else { inner_w as usize };
+        let first = crate::chatlist::first_tab(&widths, sel_idx, avail, 3);
 
         let mut x = inner_x;
-        for (i, title) in titles.iter().enumerate() {
-            // ratatui Tabs default: one space of padding on each side of the title.
-            let width = title.chars().count() as u16 + 2;
+        for (i, title) in raw_titles.iter().enumerate().skip(first) {
+            let extra = if i == first && first > 0 { 2 } else { 0 };
+            let width = (title.chars().count() + 2 + extra) as u16;
             if column >= x && column < x + width {
                 return Some(if i == 0 {
                     self.model.set_selected_folder("")
@@ -781,8 +848,11 @@ impl App {
                 });
             }
             x += width;
-            if i + 1 < titles.len() {
+            if i + 1 < raw_titles.len() {
                 x += 3; // " | " divider
+            }
+            if x >= inner_x + inner_w {
+                break;
             }
         }
         None
@@ -847,5 +917,39 @@ mod resize_tests {
         assert_eq!(clamp_entry_height(30, 40, 1), 8);
         assert_eq!(clamp_entry_height(39, 40, 1), 1); // lower bound
         assert_eq!(clamp_entry_height(0, 40, 0), 20); // upper bound = 40/2
+    }
+
+    #[test]
+    fn folder_tab_click_handles_scrolled_tabs() {
+        let mut app = App::new(
+            crate::uiconf::UiConfig::default(),
+            crate::colorconf::Theme::default(),
+            crate::keyconf::KeyConfig::default(),
+        )
+        .unwrap();
+        app.model.folders.insert(
+            "P".to_string(),
+            vec![
+                (1, "Personal".to_string()),
+                (2, "Work".to_string()),
+                (3, "Home".to_string()),
+            ],
+        );
+        app.model.selected_folder = "Home".to_string();
+
+        let layout = Layout {
+            top: ratatui::layout::Rect::default(),
+            status: ratatui::layout::Rect::default(),
+            border: ratatui::layout::Rect::default(),
+            list: ratatui::layout::Rect::new(0, 0, 24, 20),
+            history: ratatui::layout::Rect::new(24, 0, 56, 17),
+            entry: ratatui::layout::Rect::new(24, 17, 56, 3),
+            help: ratatui::layout::Rect::new(0, 20, 80, 1),
+        };
+
+        // When "Home" is selected in a 24-col pane, first tab shifts past "All"
+        // Row 1 is the tab bar row (inner_y = list.y + 1 = 1)
+        let res = app.folder_tab_click(&layout, 1, 1);
+        assert!(res.is_some());
     }
 }

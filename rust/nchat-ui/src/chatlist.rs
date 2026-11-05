@@ -150,6 +150,22 @@ pub fn scroll_thumb(total: usize, first: usize, visible: usize, track: usize) ->
     Some((pos, len))
 }
 
+/// Computes the sliding window start index for folder tabs so that the `selected`
+/// tab is guaranteed to fit within `available_width`. Matches C++ `ChatList::FirstTab`.
+pub fn first_tab(widths: &[usize], selected: usize, available_width: usize, gap: usize) -> usize {
+    if widths.is_empty() {
+        return 0;
+    }
+    let last = widths.len().saturating_sub(1);
+    let mut first = selected.min(last);
+    let mut used = widths[first];
+    while first > 0 && (used + gap + widths[first - 1]) <= available_width {
+        first -= 1;
+        used += gap + widths[first];
+    }
+    first
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +329,29 @@ mod tests {
         // scrolled to end: first = 80
         let (pos, len) = scroll_thumb(100, 80, 20, 20).unwrap();
         assert_eq!(pos + len, 20);
+    }
+
+    #[test]
+    fn first_tab_sliding_window_keeps_selected_visible() {
+        // Tab widths: All (5), Personal (10), Work (6), Home (6)
+        // With gap = 3, available_width = 28
+        let widths = vec![5usize, 10, 6, 6];
+        let gap = 3;
+        let width = 28;
+
+        // When All (index 0) is selected, first tab is 0
+        assert_eq!(first_tab(&widths, 0, width, gap), 0);
+
+        // When Personal (index 1) is selected, first tab is 0 (5 + 3 + 10 = 18 <= 28)
+        assert_eq!(first_tab(&widths, 1, width, gap), 0);
+
+        // When Home (index 3) is selected, first tab shifts to 1 (10 + 3 + 6 + 3 + 6 = 28 <= 28)
+        assert_eq!(first_tab(&widths, 3, width, gap), 1);
+
+        // Very narrow pane (width = 10): Home (index 3, width 6) selected -> first tab is 3
+        assert_eq!(first_tab(&widths, 3, 10, gap), 3);
+
+        // Empty widths
+        assert_eq!(first_tab(&[], 0, width, gap), 0);
     }
 }
