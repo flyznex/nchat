@@ -302,13 +302,27 @@ impl UiModel {
     }
 
     pub fn folder_names(&self) -> Vec<String> {
-        // ponytail: iterates self.folders directly (not self.profiles) since profiles
-        // are only populated from main.rs at startup, not from events in tests/headless use.
         let mut names = Vec::new();
-        for list in self.folders.values() {
-            for (_, title) in list {
-                if !title.is_empty() && !names.contains(title) {
-                    names.push(title.clone());
+        if !self.profiles.is_empty() {
+            for profile in &self.profiles {
+                if let Some(list) = self.folders.get(&profile.id) {
+                    for (_, title) in list {
+                        if !title.is_empty() && !names.contains(title) {
+                            names.push(title.clone());
+                        }
+                    }
+                }
+            }
+        } else {
+            let mut keys: Vec<&String> = self.folders.keys().collect();
+            keys.sort();
+            for k in keys {
+                if let Some(list) = self.folders.get(k) {
+                    for (_, title) in list {
+                        if !title.is_empty() && !names.contains(title) {
+                            names.push(title.clone());
+                        }
+                    }
                 }
             }
         }
