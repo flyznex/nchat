@@ -130,6 +130,26 @@ static void TestStickers()
     R"j({"type":"stickers","profile":"P","key":"recent","stickers":[{"file_id":42,"emoji":"😀","thumbnail_path":"/tmp/thumb.webp"}]})j"));
 }
 
+static void TestChatFolders()
+{
+  std::shared_ptr<NewChatFoldersNotify> n = std::make_shared<NewChatFoldersNotify>("P");
+  n->folders.push_back(std::make_pair(1, "Work"));
+  n->folders.push_back(std::make_pair(2, "Personal"));
+  unittest::ExpectEqual(std::string, EventToJson(n), std::string(
+    R"j({"type":"chat_folders","profile":"P","folders":[{"id":1,"title":"Work"},{"id":2,"title":"Personal"}]})j"));
+}
+
+static void TestUpdateChatFolder()
+{
+  std::shared_ptr<UpdateChatFolderNotify> n = std::make_shared<UpdateChatFolderNotify>("P");
+  n->folderId = 42;
+  n->chatIds.push_back("c1");
+  n->chatIds.push_back("c2");
+  n->isMember = true;
+  unittest::ExpectEqual(std::string, EventToJson(n), std::string(
+    R"j({"type":"update_chat_folder","profile":"P","folder_id":42,"is_member":true,"chat_ids":["c1","c2"]})j"));
+}
+
 int main()
 {
   int rv = 0;
@@ -144,6 +164,8 @@ int main()
     TestOther();
     TestStickerSets();
     TestStickers();
+    TestChatFolders();
+    TestUpdateChatFolder();
   }
   catch (const std::exception& ex)
   {

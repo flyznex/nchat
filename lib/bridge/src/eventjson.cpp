@@ -216,6 +216,41 @@ std::string EventToJson(const std::shared_ptr<ServiceMessage>& p_Message)
       }
       break;
 
+    case NewChatFoldersNotifyType:
+      {
+        const NewChatFoldersNotify& n = static_cast<const NewChatFoldersNotify&>(*p_Message);
+        PutStr(w, "type", "chat_folders");
+        PutStr(w, "profile", n.profileId);
+        w.Key("folders");
+        w.StartArray();
+        for (const auto& f : n.folders)
+        {
+          w.StartObject();
+          PutInt(w, "id", f.first);
+          PutStr(w, "title", f.second);
+          w.EndObject();
+        }
+        w.EndArray();
+      }
+      break;
+
+    case UpdateChatFolderNotifyType:
+      {
+        const UpdateChatFolderNotify& n = static_cast<const UpdateChatFolderNotify&>(*p_Message);
+        PutStr(w, "type", "update_chat_folder");
+        PutStr(w, "profile", n.profileId);
+        PutInt(w, "folder_id", n.folderId);
+        PutBool(w, "is_member", n.isMember);
+        w.Key("chat_ids");
+        w.StartArray();
+        for (const auto& id : n.chatIds)
+        {
+          w.String(id.c_str(), static_cast<rapidjson::SizeType>(id.size()));
+        }
+        w.EndArray();
+      }
+      break;
+
     default:
       PutStr(w, "type", "other");
       PutStr(w, "profile", p_Message->profileId);
