@@ -115,7 +115,7 @@ impl Default for EmojiDialog {
 }
 
 impl Dialog for EmojiDialog {
-    fn handle_key(&mut self, key: Key) -> DialogResult {
+    fn handle_key(&mut self, key: Key, _model: &crate::model::UiModel) -> DialogResult {
         let emojis = self.filtered_emojis();
         let cols = 8;
         let count = emojis.len();
@@ -219,7 +219,8 @@ mod tests {
         assert!(!emojis.is_empty());
         assert_eq!(emojis[0].0, "🔥");
 
-        let res = d.handle_key(Key::ENTER);
+        let model = crate::model::UiModel::new();
+        let res = d.handle_key(Key::ENTER, &model);
         assert_eq!(res, DialogResult::CloseValue("🔥".into()));
     }
 }

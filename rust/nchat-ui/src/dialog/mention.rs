@@ -33,7 +33,7 @@ impl MentionDialog {
 }
 
 impl Dialog for MentionDialog {
-    fn handle_key(&mut self, key: Key) -> DialogResult {
+    fn handle_key(&mut self, key: Key, _model: &crate::model::UiModel) -> DialogResult {
         let filtered = self.filtered_members();
         let count = filtered.len();
 
@@ -118,7 +118,8 @@ mod tests {
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0], "Alice Smith");
 
-        let res = d.handle_key(Key::ENTER);
+        let model = crate::model::UiModel::new();
+        let res = d.handle_key(Key::ENTER, &model);
         assert_eq!(res, DialogResult::CloseValue("@[Alice Smith] ".into()));
     }
 }

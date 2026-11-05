@@ -43,7 +43,7 @@ impl FileDialog {
 }
 
 impl Dialog for FileDialog {
-    fn handle_key(&mut self, key: Key) -> DialogResult {
+    fn handle_key(&mut self, key: Key, _model: &crate::model::UiModel) -> DialogResult {
         let count = self.entries.len();
         match key.code {
             KeyCode::Esc => DialogResult::Close(false),
@@ -115,7 +115,8 @@ mod tests {
     fn file_dialog_lists_directory_and_handles_esc() {
         let mut d = FileDialog::new(Some(PathBuf::from("/tmp")));
         assert!(!d.entries.is_empty());
-        assert_eq!(d.handle_key(Key::ESC), DialogResult::Close(false));
+        let model = crate::model::UiModel::new();
+        assert_eq!(d.handle_key(Key::ESC, &model), DialogResult::Close(false));
     }
 }
 

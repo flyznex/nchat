@@ -21,7 +21,7 @@ impl MessageDialog {
 }
 
 impl Dialog for MessageDialog {
-    fn handle_key(&mut self, key: Key) -> DialogResult {
+    fn handle_key(&mut self, key: Key, _model: &crate::model::UiModel) -> DialogResult {
         match key.code {
             KeyCode::Esc => DialogResult::Close(false),
             KeyCode::Enter => DialogResult::Close(true),
@@ -51,7 +51,8 @@ mod tests {
     #[test]
     fn message_dialog_returns_close_on_enter_or_esc() {
         let mut d = MessageDialog::new("Confirm", "Are you sure?");
-        assert_eq!(d.handle_key(Key::ENTER), DialogResult::Close(true));
-        assert_eq!(d.handle_key(Key::ESC), DialogResult::Close(false));
+        let model = crate::model::UiModel::new();
+        assert_eq!(d.handle_key(Key::ENTER, &model), DialogResult::Close(true));
+        assert_eq!(d.handle_key(Key::ESC, &model), DialogResult::Close(false));
     }
 }

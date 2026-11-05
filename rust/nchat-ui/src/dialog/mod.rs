@@ -14,10 +14,14 @@ pub enum DialogResult {
     KeepOpen,
     Close(bool),
     CloseValue(String),
+    /// Dialog needs more data from the core before it can show it (e.g. the
+    /// sticker picker switching to a set that hasn't been fetched yet). The
+    /// caller sends the request and keeps the dialog open, same as KeepOpen.
+    FetchStickers { profile: String, key: String, set_id: i64 },
 }
 
 pub trait Dialog {
-    fn handle_key(&mut self, key: Key) -> DialogResult;
+    fn handle_key(&mut self, key: Key, model: &crate::model::UiModel) -> DialogResult;
     fn render(
         &mut self,
         f: &mut Frame,

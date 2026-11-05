@@ -176,8 +176,18 @@ impl App {
                             }
 
                             if let Some(mut dialog) = self.active_dialog.take() {
-                                match dialog.handle_key(norm) {
+                                match dialog.handle_key(norm, &self.model) {
                                     crate::dialog::DialogResult::KeepOpen => {
+                                        self.active_dialog = Some(dialog);
+                                    }
+                                    crate::dialog::DialogResult::FetchStickers { profile, key, set_id } => {
+                                        let req = crate::protocol::Request::GetStickers {
+                                            profile,
+                                            key,
+                                            set_id,
+                                            query: String::new(),
+                                        };
+                                        let _ = core.send(&req.to_json());
                                         self.active_dialog = Some(dialog);
                                     }
                                     crate::dialog::DialogResult::Close(ok) => {
