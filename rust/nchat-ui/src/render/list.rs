@@ -1,5 +1,5 @@
 use crate::chatlist::{scroll_first, ListRow};
-use crate::colorconf::{contact_color, Theme};
+use crate::colorconf::Theme;
 use crate::model::UiModel;
 use crate::nav::Focus;
 use crate::render::time::format_list_time;
@@ -29,7 +29,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
     f.render_widget(block, area);
 
     let full_w = inner.width as usize;
-    let content_w = full_w.saturating_sub(2); // reserve "▎ " prefix on chat rows
+    let content_w = full_w;
     let content_h = inner.height as usize;
     if full_w == 0 || content_h == 0 {
         return;
@@ -122,8 +122,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
                     theme.list
                 };
 
-                let bar_style = Style::default().fg(contact_color(&chat.chat_id));
-                let mut spans = vec![Span::styled("▎ ", bar_style), Span::styled(row_str, style)];
+                let mut spans = vec![Span::styled(row_str, style)];
                 if chat.is_unread {
                     let unread_style = if theme.list_unread.fg.is_some() {
                         theme.list_unread
@@ -204,7 +203,7 @@ mod tests {
         let buf = terminal.backend().buffer();
         assert_eq!(buf[(0, 0)].symbol(), "┌");
         let row1: String = (0..30).map(|x| buf[(x, 1)].symbol()).collect();
-        assert!(row1.contains('▎'), "expected colored bar glyph on the chat row, got: {row1:?}");
+        assert!(!row1.contains('▎'), "chat row should not contain avatar bar glyph");
         assert!(row1.contains('*'), "expected default unread indicator, got: {row1:?}");
     }
 }

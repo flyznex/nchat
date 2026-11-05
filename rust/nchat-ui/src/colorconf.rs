@@ -216,8 +216,24 @@ impl Theme {
             t.history_text_quoted = t.history_text_quoted.fg(Color::Indexed(8));
         }
         t.history_text_selected = make_style(conf, "history_text");
+        if let Some(fg) = conf
+            .get("history_text_color_selected_fg")
+            .or_else(|| conf.get("history_text_selected_color_fg"))
+            .and_then(parse_color)
+        {
+            t.history_text_selected = t.history_text_selected.fg(fg);
+        }
+        if let Some(bg) = conf
+            .get("history_text_color_selected_bg")
+            .or_else(|| conf.get("history_text_selected_color_bg"))
+            .and_then(parse_color)
+        {
+            t.history_text_selected = t.history_text_selected.bg(bg);
+        }
         let sel_attr = parse_modifier(conf.str_or("history_text_attr_selected", "reverse"));
-        t.history_text_selected = t.history_text_selected.add_modifier(sel_attr);
+        if !sel_attr.is_empty() {
+            t.history_text_selected = t.history_text_selected.add_modifier(sel_attr);
+        }
 
         t
     }

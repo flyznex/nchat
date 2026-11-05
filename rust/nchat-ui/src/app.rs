@@ -294,6 +294,7 @@ impl App {
                                             self.model.cancel_compose_mode();
                                         } else {
                                             self.model.focus = Focus::History;
+                                            self.model.select_message_active = true;
                                         }
                                         self.model.dirty = true;
                                         continue;
@@ -505,6 +506,7 @@ impl App {
 
                         if let Some(focus) = layout.pane_at(m.column, m.row) {
                             self.model.focus = focus;
+                            self.model.select_message_active = self.model.focus == Focus::History;
                         }
                         if self.model.focus == Focus::History {
                             if m.kind == MouseEventKind::ScrollDown {
@@ -616,6 +618,7 @@ impl App {
                     Focus::History => Focus::Entry,
                     Focus::Entry => Focus::List,
                 };
+                self.model.select_message_active = self.model.focus == Focus::History;
                 self.model.dirty = true;
             }
             Action::FocusPrev => {
@@ -624,22 +627,27 @@ impl App {
                     Focus::History => Focus::List,
                     Focus::Entry => Focus::History,
                 };
+                self.model.select_message_active = self.model.focus == Focus::History;
                 self.model.dirty = true;
             }
             Action::FocusLeft => {
                 self.model.focus = Focus::List;
+                self.model.select_message_active = false;
                 self.model.dirty = true;
             }
             Action::FocusRight => {
                 self.model.focus = Focus::History;
+                self.model.select_message_active = true;
                 self.model.dirty = true;
             }
             Action::Open => {
                 self.model.focus = Focus::Entry;
+                self.model.select_message_active = false;
                 self.model.dirty = true;
             }
             Action::FocusEntry => {
                 self.model.focus = Focus::Entry;
+                self.model.select_message_active = false;
                 self.model.dirty = true;
             }
             Action::Reply => {

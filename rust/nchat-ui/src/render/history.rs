@@ -61,10 +61,16 @@ pub fn render_history(
     let height = inner.height as usize;
     let total_msgs = messages.len();
 
+    let sel_idx = total_msgs.saturating_sub(1 + model.message_offset);
+    let selection_active = model.focus == Focus::History || model.select_message_active;
+
     let mut all_lines: Vec<Line> = Vec::new();
     let mut image_markers: Vec<ImageMarker> = Vec::new();
+    let mut msg_line_ranges: Vec<(usize, usize)> = Vec::with_capacity(total_msgs);
 
     for (idx, msg) in messages.iter().enumerate() {
+        let msg_start_line = all_lines.len();
+
         let sender_name = if msg.is_outgoing {
             "You".to_string()
         } else {
@@ -82,7 +88,7 @@ pub fn render_history(
         };
 
         let fmt = format_message(msg, &sender_name, content_w, conf.sent_align_right, conf);
-        let is_selected = model.select_message_active && idx == total_msgs.saturating_sub(1);
+        let is_selected = selection_active && idx == sel_idx;
 
         let name_style = if is_selected {
             theme.history_text_selected
@@ -100,14 +106,45 @@ pub fn render_history(
             theme.history_text_recv
         };
 
-        let indent = " ".repeat(fmt.x0);
+        let pad_block = |text: &str| -> String {
+            let w = crate::text::width(text);
+            let pad = fmt.block_w.saturating_sub(w);
+            format!("{text}{}", " ".repeat(pad))
+        };
 
-        let header_str = format!("{indent}{}", fmt.header);
-        all_lines.push(Line::from(Span::styled(header_str, name_style)));
+        let header_str = if is_selected {
+            pad_block(&fmt.header)
+        } else {
+            fmt.header.clone()
+        };
+        if fmt.x0 > 0 {
+            all_lines.push(Line::from(vec![
+                Span::raw(" ".repeat(fmt.x0)),
+                Span::styled(header_str, name_style),
+            ]));
+        } else {
+            all_lines.push(Line::from(Span::styled(header_str, name_style)));
+        }
 
         if let Some(q) = fmt.quote {
-            let quote_str = format!("{indent}{q}");
-            all_lines.push(Line::from(Span::styled(quote_str, theme.history_text_quoted)));
+            let quote_str = if is_selected {
+                pad_block(&q)
+            } else {
+                q
+            };
+            let quote_style = if is_selected {
+                theme.history_text_selected
+            } else {
+                theme.history_text_quoted
+            };
+            if fmt.x0 > 0 {
+                all_lines.push(Line::from(vec![
+                    Span::raw(" ".repeat(fmt.x0)),
+                    Span::styled(quote_str, quote_style),
+                ]));
+            } else {
+                all_lines.push(Line::from(Span::styled(quote_str, quote_style)));
+            }
         }
 
         if let Some(path) = fmt.image_path {
@@ -117,7 +154,24 @@ pub fn render_history(
 
             for r in 0..img_rows {
                 if r == 0 {
-                    all_lines.push(Line::from(Span::styled(format!("{indent}[Image]"), theme.history_text_quoted)));
+                    let label = if is_selected {
+                        pad_block("[Image]")
+                    } else {
+                        "[Image]".to_string()
+                    };
+                    let img_lbl_style = if is_selected {
+                        theme.history_text_selected
+                    } else {
+                        theme.history_text_quoted
+                    };
+                    if fmt.x0 > 0 {
+                        all_lines.push(Line::from(vec![
+                            Span::raw(" ".repeat(fmt.x0)),
+                            Span::styled(label, img_lbl_style),
+                        ]));
+                    } else {
+                        all_lines.push(Line::from(Span::styled(label, img_lbl_style)));
+                    }
                 } else {
                     all_lines.push(Line::from(""));
                 }
@@ -133,9 +187,23 @@ pub fn render_history(
         }
 
         for l in fmt.lines {
-            let line_str = format!("{indent}{l}");
-            all_lines.push(Line::from(Span::styled(line_str, text_style)));
+            let line_str = if is_selected {
+                pad_block(&l)
+            } else {
+                l
+            };
+            if fmt.x0 > 0 {
+                all_lines.push(Line::from(vec![
+                    Span::raw(" ".repeat(fmt.x0)),
+                    Span::styled(line_str, text_style),
+                ]));
+            } else {
+                all_lines.push(Line::from(Span::styled(line_str, text_style)));
+            }
         }
+
+        let msg_end_line = all_lines.len();
+        msg_line_ranges.push((msg_start_line, msg_end_line));
 
         all_lines.push(Line::from(""));
     }
@@ -155,9 +223,28 @@ pub fn render_history(
         start_line_idx = 0;
     } else {
         let max_scroll = total_lines - height;
-        let scroll_up = model.message_offset.min(max_scroll);
-        start_line_idx = max_scroll - scroll_up;
-        let end_line_idx = start_line_idx + height;
+        let target_start = if selection_active {
+            if model.message_offset == 0 {
+                max_scroll
+            } else if let Some(&(sel_start, sel_end)) = msg_line_ranges.get(sel_idx) {
+                if sel_end + 1 > height {
+                    let bottom_anchor = (sel_end + 1).saturating_sub(height).min(max_scroll);
+                    if sel_start < bottom_anchor {
+                        sel_start.min(max_scroll)
+                    } else {
+                        bottom_anchor
+                    }
+                } else {
+                    0
+                }
+            } else {
+                max_scroll
+            }
+        } else {
+            max_scroll
+        };
+        start_line_idx = target_start;
+        let end_line_idx = (start_line_idx + height).min(total_lines);
         visible_lines = all_lines[start_line_idx..end_line_idx].to_vec();
     }
 
@@ -202,9 +289,7 @@ pub fn render_history(
 
     if total_lines > height {
         let max_scroll = total_lines - height;
-        let scroll_up = model.message_offset.min(max_scroll);
-        let first = max_scroll - scroll_up;
-        let mut state = ScrollbarState::new(total_lines).position(first);
+        let mut state = ScrollbarState::new(max_scroll.max(1)).position(start_line_idx);
         f.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(None).end_symbol(None),
             area.inner(Margin { vertical: 1, horizontal: 0 }),
@@ -303,5 +388,57 @@ mod tests {
         let buf = terminal.backend().buffer();
         assert_eq!(buf[(0, 0)].symbol(), "┌");
         assert_eq!(buf[(39, 0)].symbol(), "┐");
+    }
+
+    #[test]
+    fn highlights_selected_message_when_history_focused() {
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let mut model = UiModel::new();
+        model.apply_event(&crate::protocol::Event::Chats {
+            profile: "P1".into(), success: true,
+            chats: vec![Chat {
+                id: "c1".into(), is_unread: false, is_unread_mention: false,
+                is_muted: false, is_pinned: false, is_archived: false, last_message_time: 10,
+            }],
+        });
+        let msg = Message {
+            id: "m1".into(), sender_id: "u1".into(), text: "HighlightMe".into(),
+            quoted_id: "".into(), quoted_text: "".into(), quoted_sender: "".into(),
+            file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
+            is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
+            is_deleted: false, is_pinned: false, has_mention: false,
+        };
+        model.apply_event(&crate::protocol::Event::Messages {
+            profile: "P1".into(), success: true, chat_id: "c1".into(),
+            from_msg_id: "".into(), cached: false, sequence: false,
+            messages: vec![msg],
+        });
+
+        // Set focus to History so selection is active
+        model.focus = Focus::History;
+
+        let theme = Theme::default();
+        let conf = UiConfig::default();
+        let mut img_cache = ImageCache::new();
+
+        terminal.draw(|f| {
+            render_history(f, Rect::new(0, 0, 40, 10), &model, &theme, &conf, &mut img_cache);
+        }).unwrap();
+
+        let buf = terminal.backend().buffer();
+        // Find the cell with 'H' from 'HighlightMe'
+        let mut found_reversed = false;
+        for y in 0..10 {
+            for x in 0..40 {
+                let cell = &buf[(x, y)];
+                if cell.symbol() == "H" && cell.modifier.contains(ratatui::style::Modifier::REVERSED) {
+                    found_reversed = true;
+                    break;
+                }
+            }
+        }
+        assert!(found_reversed, "expected selected message cell to be highlighted with REVERSED modifier");
     }
 }

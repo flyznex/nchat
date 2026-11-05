@@ -437,8 +437,9 @@ impl UiModel {
             return None;
         }
 
+        let max_offset = total.saturating_sub(1);
         if delta > 0 {
-            self.message_offset = self.message_offset.saturating_add(delta as usize);
+            self.message_offset = self.message_offset.saturating_add(delta as usize).min(max_offset);
         } else {
             self.message_offset = self.message_offset.saturating_sub((-delta) as usize);
         }
@@ -464,7 +465,7 @@ impl UiModel {
         if total == 0 {
             return None;
         }
-        self.message_offset = if oldest { usize::MAX / 2 } else { 0 };
+        self.message_offset = if oldest { total.saturating_sub(1) } else { 0 };
         self.dirty = true;
 
         if oldest {
