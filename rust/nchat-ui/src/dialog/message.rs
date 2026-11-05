@@ -37,7 +37,7 @@ impl Dialog for MessageDialog {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(format!(" {} ", self.title))
-            .style(theme.focus_style);
+            .border_style(theme.focus_style);
 
         let content = format!("\n  {}\n\n  [ Enter: OK | Esc: Cancel ]", self.message);
         let p = Paragraph::new(content).block(block);

@@ -85,7 +85,7 @@ impl Dialog for MentionDialog {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(format!(" Mention Member [/{}]: ", self.filter))
-            .style(theme.focus_style);
+            .border_style(theme.focus_style);
 
         let filtered = self.filtered_members();
         let mut lines = Vec::new();

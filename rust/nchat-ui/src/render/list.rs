@@ -24,7 +24,7 @@ pub fn render_list(f: &mut Frame, area: Rect, model: &mut UiModel, theme: &Theme
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
-        .style(border_style)
+        .border_style(border_style)
         .title(" Chats ");
     let inner = block.inner(area);
     f.render_widget(block, area);

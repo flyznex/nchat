@@ -78,7 +78,7 @@ impl Dialog for StickerDialog {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(format!(" Send Sticker (Alt-g) - Recent [{}] ", self.cached.len()))
-            .style(theme.focus_style);
+            .border_style(theme.focus_style);
 
         let inner_area = block.inner(popup_area);
         f.render_widget(block, popup_area);
@@ -127,7 +127,7 @@ impl Dialog for StickerDialog {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(" Sticker Preview ")
-            .style(theme.listborder);
+            .border_style(theme.listborder);
         let preview_inner = preview_block.inner(right_pane);
         f.render_widget(preview_block, right_pane);
 

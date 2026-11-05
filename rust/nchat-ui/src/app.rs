@@ -360,11 +360,6 @@ impl App {
                                         self.model.dirty = true;
                                         continue;
                                     }
-                                    crossterm::event::KeyCode::Char('w') if k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
-                                        self.model.entry_buffer.delete_word_backward();
-                                        self.model.dirty = true;
-                                        continue;
-                                    }
                                     crossterm::event::KeyCode::Char(c) if !k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                                         self.model.entry_buffer.insert_char(c);
                                         self.model.dirty = true;

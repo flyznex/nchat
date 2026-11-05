@@ -84,7 +84,7 @@ impl Dialog for FileDialog {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(format!(" Send File [{}] ", self.current_dir.display()))
-            .style(theme.focus_style);
+            .border_style(theme.focus_style);
 
         let mut lines = Vec::new();
         if self.entries.is_empty() {

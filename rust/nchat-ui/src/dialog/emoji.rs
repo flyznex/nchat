@@ -179,7 +179,7 @@ impl Dialog for EmojiDialog {
             .borders(Borders::ALL)
             .border_type(BorderType::Rounded)
             .title(title)
-            .style(theme.focus_style);
+            .border_style(theme.focus_style);
 
         let emojis = self.filtered_emojis();
         let cols = 8;
