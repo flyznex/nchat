@@ -3,7 +3,7 @@ use crate::colorconf::Theme;
 use crate::keyconf::Key;
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 pub struct MessageDialog {
@@ -35,7 +35,6 @@ impl Dialog for MessageDialog {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
             .title(format!(" {} ", self.title))
             .border_style(theme.focus_style);
 

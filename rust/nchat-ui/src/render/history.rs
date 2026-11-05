@@ -6,7 +6,7 @@ use crate::nav::Focus;
 use crate::uiconf::UiConfig;
 use ratatui::layout::{Margin, Rect};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
+use ratatui::widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState};
 use ratatui::Frame;
 use ratatui_image::StatefulImage;
 
@@ -37,7 +37,6 @@ pub fn render_history(
     };
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
         .border_style(border_style);
     let inner = block.inner(area);
     f.render_widget(block, area);
@@ -268,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn renders_rounded_border() {
+    fn renders_square_border() {
         let backend = TestBackend::new(40, 10);
         let mut terminal = Terminal::new(backend).unwrap();
 
@@ -302,7 +301,7 @@ mod tests {
         }).unwrap();
 
         let buf = terminal.backend().buffer();
-        assert_eq!(buf[(0, 0)].symbol(), "╭");
-        assert_eq!(buf[(39, 0)].symbol(), "╮");
+        assert_eq!(buf[(0, 0)].symbol(), "┌");
+        assert_eq!(buf[(39, 0)].symbol(), "┐");
     }
 }

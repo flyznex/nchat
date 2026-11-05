@@ -4,7 +4,7 @@ use crate::keyconf::Key;
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 pub struct MentionDialog {
@@ -83,7 +83,6 @@ impl Dialog for MentionDialog {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
             .title(format!(" Mention Member [/{}]: ", self.filter))
             .border_style(theme.focus_style);
 

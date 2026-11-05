@@ -267,7 +267,7 @@ impl App {
                                 continue;
                             }
 
-                            if self.model.focus == Focus::Entry {
+                            if self.model.focus == Focus::Entry && !self.nav.has_pending() {
                                 if k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
                                     && k.code == crossterm::event::KeyCode::Char('v')
                                 {

@@ -4,7 +4,7 @@ use crate::nav::Focus;
 use crate::uiconf::UiConfig;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, Borders, Paragraph};
+use ratatui::widgets::{Block, Borders, Paragraph};
 use ratatui::Frame;
 
 pub fn render_entry(
@@ -36,7 +36,6 @@ pub fn render_entry(
 
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
         .border_style(border_style)
         .title(title);
     let inner = block.inner(area);
@@ -92,7 +91,7 @@ mod tests {
         let content_line: String = (0..40).map(|x| buf[(x, 1)].symbol()).collect();
 
         assert!(title_line.contains("Message"));
-        assert_eq!(buf[(0, 0)].symbol(), "╭");
+        assert_eq!(buf[(0, 0)].symbol(), "┌");
         assert!(content_line.contains("Hello"));
     }
 }

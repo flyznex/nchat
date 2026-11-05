@@ -4,7 +4,7 @@ use crate::keyconf::Key;
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
 const DEFAULT_EMOJIS: &[(&str, &str)] = &[
@@ -177,7 +177,6 @@ impl Dialog for EmojiDialog {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
             .title(title)
             .border_style(theme.focus_style);
 

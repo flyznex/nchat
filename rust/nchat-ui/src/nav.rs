@@ -118,6 +118,14 @@ impl NavResolver {
         self.bindings.push(Binding { keys, mask, action, vim_only });
     }
 
+    /// True while a multi-key sequence (e.g. Ctrl-W pane prefix) is waiting
+    /// on its next key. Callers must route the next keystroke to `resolve`
+    /// instead of their own focus-specific handling (e.g. typing into the
+    /// entry buffer), or the chord can never complete.
+    pub fn has_pending(&self) -> bool {
+        !self.pending.is_empty()
+    }
+
     pub fn resolve(&mut self, key: Key, focus: Focus) -> NavResolveResult {
         // Tab / BackTab ALWAYS cycles focus, regardless of active pane
         if key == Key::TAB {
@@ -224,6 +232,23 @@ mod tests {
         let ctrl_w = Key { code: KeyCode::Char('w'), mods: KeyModifiers::CONTROL };
         assert_eq!(r.resolve(ctrl_w, Focus::Entry), NavResolveResult::Pending);
         assert_eq!(r.resolve(key('k'), Focus::Entry), NavResolveResult::Matched(Action::FocusHistory));
+    }
+
+    #[test]
+    fn has_pending_tracks_an_open_ctrl_w_chord() {
+        // app.rs relies on has_pending() to know when a Ctrl-W chord is
+        // waiting on its next key, so it can route that key here instead of
+        // typing it into the entry buffer. If this regresses, Ctrl-W pane
+        // navigation silently breaks from Entry focus.
+        let mut r = NavResolver::new(true);
+        assert!(!r.has_pending());
+
+        let ctrl_w = Key { code: KeyCode::Char('w'), mods: KeyModifiers::CONTROL };
+        assert_eq!(r.resolve(ctrl_w, Focus::Entry), NavResolveResult::Pending);
+        assert!(r.has_pending());
+
+        assert_eq!(r.resolve(key('k'), Focus::Entry), NavResolveResult::Matched(Action::FocusHistory));
+        assert!(!r.has_pending());
     }
 
     #[test]

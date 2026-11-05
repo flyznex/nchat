@@ -6,7 +6,7 @@ use crate::protocol::StickerInfo;
 use crossterm::event::KeyCode;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, BorderType, Borders, Clear, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 use ratatui_image::StatefulImage;
 
@@ -76,7 +76,6 @@ impl Dialog for StickerDialog {
 
         let block = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
             .title(format!(" Send Sticker (Alt-g) - Recent [{}] ", self.cached.len()))
             .border_style(theme.focus_style);
 
@@ -125,7 +124,6 @@ impl Dialog for StickerDialog {
 
         let preview_block = Block::default()
             .borders(Borders::ALL)
-            .border_type(BorderType::Rounded)
             .title(" Sticker Preview ")
             .border_style(theme.listborder);
         let preview_inner = preview_block.inner(right_pane);
