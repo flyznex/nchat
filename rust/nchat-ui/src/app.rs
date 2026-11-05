@@ -54,6 +54,24 @@ impl Drop for TerminalGuard {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ResizeDrag {
+    ListWidth,
+    EntryHeight,
+}
+
+fn clamp_list_width(column: u16, term_w: u16, is_right: bool) -> u16 {
+    let raw = if is_right { term_w.saturating_sub(column + 1) } else { column };
+    let upper = term_w.saturating_sub(25).max(10);
+    raw.clamp(10, upper)
+}
+
+fn clamp_entry_height(row: u16, term_h: u16, help_h: u16) -> u16 {
+    let raw = term_h.saturating_sub(row + help_h + 1);
+    let upper = (term_h / 2).max(1);
+    raw.clamp(1, upper)
+}
+
 pub struct App {
     pub model: UiModel,
     pub conf: UiConfig,
@@ -63,6 +81,9 @@ pub struct App {
     pub img_cache: crate::imgcache::ImageCache,
     pub active_dialog: Option<Box<dyn crate::dialog::Dialog>>,
     pub pending_delete_msg: Option<(String, String, String)>,
+    list_width: u16,
+    entry_height: u16,
+    resize_drag: Option<ResizeDrag>,
     terminal: Terminal<CrosstermBackend<Stdout>>,
 }
 
@@ -71,6 +92,8 @@ impl App {
         let backend = CrosstermBackend::new(stdout());
         let terminal = Terminal::new(backend)?;
         let vim_keys = conf.vim_keys;
+        let list_width = conf.list_width;
+        let entry_height = conf.entry_height;
         let picker = crate::picker::init_picker(Duration::from_secs(2));
         let img_cache = crate::imgcache::ImageCache::new();
         Ok(Self {
@@ -82,6 +105,9 @@ impl App {
             img_cache,
             active_dialog: None,
             pending_delete_msg: None,
+            list_width,
+            entry_height,
+            resize_drag: None,
             terminal,
         })
     }
@@ -415,7 +441,51 @@ impl App {
                     }
                     CEvent::Mouse(m) => {
                         let size = self.terminal.size()?;
-                        let layout = Layout::compute(size.width, size.height, &self.conf);
+                        let layout = Layout::compute(size.width, size.height, &self.effective_conf());
+
+                        if self.conf.mouse_enabled {
+                            if m.kind == MouseEventKind::Down(crossterm::event::MouseButton::Left) {
+                                let in_border = m.column >= layout.border.x
+                                    && m.column < layout.border.x + layout.border.width
+                                    && m.row >= layout.border.y
+                                    && m.row < layout.border.y + layout.border.height;
+                                let on_entry_top = m.row == layout.entry.y
+                                    && m.column >= layout.entry.x
+                                    && m.column < layout.entry.x + layout.entry.width;
+                                if in_border {
+                                    self.resize_drag = Some(ResizeDrag::ListWidth);
+                                    continue;
+                                }
+                                if on_entry_top {
+                                    self.resize_drag = Some(ResizeDrag::EntryHeight);
+                                    continue;
+                                }
+                            }
+                            if m.kind == MouseEventKind::Drag(crossterm::event::MouseButton::Left) {
+                                match self.resize_drag {
+                                    Some(ResizeDrag::ListWidth) => {
+                                        let is_right = matches!(
+                                            self.conf.list_position,
+                                            crate::uiconf::ListPosition::Right
+                                        );
+                                        self.list_width = clamp_list_width(m.column, size.width, is_right);
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    Some(ResizeDrag::EntryHeight) => {
+                                        let help_h: u16 = if self.conf.help_enabled { 1 } else { 0 };
+                                        self.entry_height = clamp_entry_height(m.row, size.height, help_h);
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    None => {}
+                                }
+                            }
+                            if matches!(m.kind, MouseEventKind::Up(_)) {
+                                self.resize_drag = None;
+                            }
+                        }
+
                         if let Some(focus) = layout.pane_at(m.column, m.row) {
                             self.model.focus = focus;
                         }
@@ -603,8 +673,15 @@ impl App {
         }
     }
 
+    fn effective_conf(&self) -> UiConfig {
+        let mut conf = self.conf.clone();
+        conf.list_width = self.list_width;
+        conf.entry_height = self.entry_height;
+        conf
+    }
+
     fn draw(&mut self) -> std::io::Result<()> {
-        let conf = self.conf.clone();
+        let conf = self.effective_conf();
         let theme = self.theme.clone();
         let model = &mut self.model;
         let img_cache = &mut self.img_cache;
@@ -627,5 +704,33 @@ impl App {
 
         self.active_dialog = active_dialog;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod resize_tests {
+    use super::*;
+
+    #[test]
+    fn clamp_list_width_tracks_mouse_column_on_left() {
+        assert_eq!(clamp_list_width(40, 120, false), 40);
+        assert_eq!(clamp_list_width(2, 120, false), 10); // lower bound
+        assert_eq!(clamp_list_width(200, 120, false), 95); // upper bound = 120-25
+    }
+
+    #[test]
+    fn clamp_list_width_mirrors_for_right_position() {
+        // list sits on the right; dragging to column 80 on a 120-wide terminal
+        // means 120 - 80 - 1 = 39 columns of list width
+        assert_eq!(clamp_list_width(80, 120, true), 39);
+    }
+
+    #[test]
+    fn clamp_entry_height_tracks_mouse_row() {
+        // dragging the entry's top border to row 30 on a 40-row terminal with a 1-row help bar
+        // leaves 40 - 30 - 1 - 1 = 8 lines for the entry
+        assert_eq!(clamp_entry_height(30, 40, 1), 8);
+        assert_eq!(clamp_entry_height(39, 40, 1), 1); // lower bound
+        assert_eq!(clamp_entry_height(0, 40, 0), 20); // upper bound = 40/2
     }
 }
