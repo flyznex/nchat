@@ -137,8 +137,8 @@ impl KeyConfig {
             ("end", "KEY_END"),
             ("home", "KEY_HOME"),
             ("toggle_list", "KEY_CTRLL"),
-            ("folder_next", "\\33\\154"),
-            ("folder_prev", "\\33\\150"),
+            ("folder_next", "KEY_SRIGHT"),
+            ("folder_prev", "KEY_SLEFT"),
             ("focus_next", "KEY_TAB"),
             ("focus_prev", "KEY_BTAB"),
             ("focus_entry", "KEY_CTRL["),
@@ -218,5 +218,14 @@ mod tests {
         assert!(keys.matches("select_emoji", ctrl_s));
         assert!(keys.matches("select_sticker", alt_g));
         assert!(keys.matches("quit", ctrl_q));
+    }
+
+    #[test]
+    fn maps_folder_next_and_prev() {
+        let keys = KeyConfig::default();
+        let s_right = Key { code: KeyCode::Right, mods: KeyModifiers::SHIFT };
+        let s_left = Key { code: KeyCode::Left, mods: KeyModifiers::SHIFT };
+        assert!(keys.matches("folder_next", s_right));
+        assert!(keys.matches("folder_prev", s_left));
     }
 }

@@ -447,6 +447,29 @@ impl App {
                                 continue;
                             }
 
+                            // Folder tab navigation: key.conf "folder_next"/"folder_prev"
+                            // (default Shift-Right/Shift-Left) or plain n/b fallback.
+                            if self.model.focus == Focus::List {
+                                let plain_n = crossterm::event::KeyCode::Char('n') == k.code
+                                    && k.modifiers == crossterm::event::KeyModifiers::NONE;
+                                let plain_b = crossterm::event::KeyCode::Char('b') == k.code
+                                    && k.modifiers == crossterm::event::KeyModifiers::NONE;
+                                if self.keys.matches("folder_next", norm) || plain_n {
+                                    let reqs = self.model.cycle_folder(1);
+                                    for r in reqs {
+                                        let _ = core.send(&r.to_json());
+                                    }
+                                    continue;
+                                }
+                                if self.keys.matches("folder_prev", norm) || plain_b {
+                                    let reqs = self.model.cycle_folder(-1);
+                                    for r in reqs {
+                                        let _ = core.send(&r.to_json());
+                                    }
+                                    continue;
+                                }
+                            }
+
                             match self.nav.resolve(norm, self.model.focus) {
                                 NavResolveResult::Matched(act) => self.handle_action(act, core),
                                 NavResolveResult::Pending => {}
@@ -472,6 +495,12 @@ impl App {
 
                         if self.conf.mouse_enabled {
                             if m.kind == MouseEventKind::Down(crossterm::event::MouseButton::Left) {
+                                if let Some(reqs) = self.folder_tab_click(&layout, m.column, m.row) {
+                                    for r in reqs {
+                                        let _ = core.send(&r.to_json());
+                                    }
+                                    continue;
+                                }
                                 let in_border = m.column >= layout.border.x
                                     && m.column < layout.border.x + layout.border.width
                                     && m.row >= layout.border.y
@@ -705,6 +734,56 @@ impl App {
             Action::None => {}
             _ => {}
         }
+    }
+
+    /// Hit-test a left-click against the folder tab bar rendered by
+    /// `render::list` (first inner row of the list pane). Returns the
+    /// requests produced by selecting the clicked folder, or `None` if the
+    /// click was outside the tab bar / there are no folders to show.
+    fn folder_tab_click(
+        &mut self,
+        layout: &Layout,
+        column: u16,
+        row: u16,
+    ) -> Option<Vec<crate::protocol::Request>> {
+        let list = layout.list;
+        if list.width < 4 || list.height < 3 {
+            return None;
+        }
+        // Mirrors Block::bordered().inner(list): border on all 4 sides.
+        let inner_x = list.x + 1;
+        let inner_y = list.y + 1;
+        let inner_w = list.width - 2;
+        let inner_h = list.height - 2;
+        if row != inner_y || inner_h <= 2 {
+            return None;
+        }
+
+        let folder_names = self.model.folder_names();
+        if folder_names.is_empty() || column < inner_x || column >= inner_x + inner_w {
+            return None;
+        }
+
+        let mut titles: Vec<&str> = vec!["All"];
+        titles.extend(folder_names.iter().map(String::as_str));
+
+        let mut x = inner_x;
+        for (i, title) in titles.iter().enumerate() {
+            // ratatui Tabs default: one space of padding on each side of the title.
+            let width = title.chars().count() as u16 + 2;
+            if column >= x && column < x + width {
+                return Some(if i == 0 {
+                    self.model.set_selected_folder("")
+                } else {
+                    self.model.set_selected_folder(&folder_names[i - 1])
+                });
+            }
+            x += width;
+            if i + 1 < titles.len() {
+                x += 3; // " | " divider
+            }
+        }
+        None
     }
 
     fn effective_conf(&self) -> UiConfig {
