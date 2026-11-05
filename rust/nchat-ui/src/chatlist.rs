@@ -11,6 +11,7 @@ pub struct ListChat {
     pub is_pinned: bool,
     pub last_message_time: i64,
     pub preview: String,
+    pub folders: HashSet<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -23,6 +24,7 @@ pub fn build_rows(
     chats: &[ListChat],
     filter_text: &str,
     unread_only: bool,
+    selected_folder: &str,
     collapsed: &HashSet<String>,
 ) -> Vec<ListRow> {
     let lower_filter = filter_text.to_lowercase();
@@ -30,6 +32,9 @@ pub fn build_rows(
         .iter()
         .enumerate()
         .filter(|(_, c)| {
+            if !selected_folder.is_empty() && !c.folders.contains(selected_folder) {
+                return false;
+            }
             if unread_only && !c.is_unread {
                 return false;
             }
@@ -160,6 +165,7 @@ mod tests {
             is_pinned: false,
             last_message_time: 100,
             preview: "hello".into(),
+            folders: HashSet::new(),
         }
     }
 
@@ -171,7 +177,7 @@ mod tests {
             sample_chat("3", "Telegram", false),
         ];
         let collapsed = HashSet::new();
-        let rows = build_rows(&chats, "", false, &collapsed);
+        let rows = build_rows(&chats, "", false, "", &collapsed);
         assert_eq!(rows.len(), 5); // Header Pinned + 2 chats + Header Telegram + 1 chat
         assert_eq!(rows[0], ListRow::Header { group: "Pinned".into(), collapsed: false });
         assert_eq!(rows[1], ListRow::Chat(0));
@@ -188,7 +194,7 @@ mod tests {
         ];
         let mut collapsed = HashSet::new();
         collapsed.insert("Pinned".into());
-        let rows = build_rows(&chats, "", false, &collapsed);
+        let rows = build_rows(&chats, "", false, "", &collapsed);
         assert_eq!(rows.len(), 3); // Header Pinned (collapsed) + Header Telegram + Chat 2
         assert_eq!(rows[0], ListRow::Header { group: "Pinned".into(), collapsed: true });
         assert_eq!(rows[1], ListRow::Header { group: "Telegram".into(), collapsed: false });
@@ -261,6 +267,40 @@ mod tests {
         let lines: Vec<usize> = Vec::new();
         assert_eq!(scroll_first(&lines, 3, Some(1), 5, false), 0);
         assert_eq!(scroll_first(&lines, 3, None, 5, true), 0);
+    }
+
+    #[test]
+    fn filters_chats_by_selected_folder() {
+        let mut c1 = ListChat {
+            profile_id: "P1".into(), chat_id: "c1".into(), name: "Chat 1".into(),
+            group: "P1".into(), is_unread: false, is_muted: false, is_pinned: false,
+            last_message_time: 10, preview: "".into(), folders: HashSet::new(),
+        };
+        c1.folders.insert("Work".into());
+
+        let mut c2 = ListChat {
+            profile_id: "P1".into(), chat_id: "c2".into(), name: "Chat 2".into(),
+            group: "P1".into(), is_unread: false, is_muted: false, is_pinned: false,
+            last_message_time: 20, preview: "".into(), folders: HashSet::new(),
+        };
+        c2.folders.insert("Personal".into());
+
+        let chats = vec![c1, c2];
+        let collapsed = HashSet::new();
+
+        // "All" folder (empty string) returns both chats
+        let rows_all = build_rows(&chats, "", false, "", &collapsed);
+        assert_eq!(rows_all.len(), 2);
+
+        // "Work" folder returns only c1
+        let rows_work = build_rows(&chats, "", false, "Work", &collapsed);
+        assert_eq!(rows_work.len(), 1);
+        assert_eq!(rows_work[0], ListRow::Chat(0));
+
+        // "Personal" folder returns only c2
+        let rows_pers = build_rows(&chats, "", false, "Personal", &collapsed);
+        assert_eq!(rows_pers.len(), 1);
+        assert_eq!(rows_pers[0], ListRow::Chat(1));
     }
 
     #[test]

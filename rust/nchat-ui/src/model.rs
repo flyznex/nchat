@@ -15,6 +15,9 @@ pub struct UiModel {
     pub filter_active: bool,
     pub unread_only: bool,
     pub collapsed_groups: HashSet<String>,
+    pub folders: HashMap<String, Vec<(i32, String)>>,
+    pub chat_folder_ids: HashMap<(String, String), HashSet<i32>>,
+    pub selected_folder: String,
     pub is_online: bool,
     pub scroll_first: usize,
     pub message_offset: usize,
@@ -44,6 +47,9 @@ impl UiModel {
             filter_active: false,
             unread_only: false,
             collapsed_groups: HashSet::new(),
+            folders: HashMap::new(),
+            chat_folder_ids: HashMap::new(),
+            selected_folder: String::new(),
             is_online: false,
             scroll_first: 0,
             message_offset: 0,
@@ -163,8 +169,30 @@ impl UiModel {
                 self.stickers.insert((profile.clone(), key.clone()), stickers.clone());
                 self.dirty = true;
             }
-            // ponytail: folder state wiring lands in Task 3; keep build green until then.
-            Event::ChatFolders { .. } | Event::UpdateChatFolder { .. } => {}
+            Event::ChatFolders { profile, folders } => {
+                let list = folders.iter().map(|f| (f.id, f.title.clone())).collect();
+                self.folders.insert(profile.clone(), list);
+                let names = self.folder_names();
+                if !self.selected_folder.is_empty() && !names.contains(&self.selected_folder) {
+                    self.selected_folder.clear();
+                }
+                self.refresh_chat_folders();
+                self.snap_selection_to_rows();
+                self.dirty = true;
+            }
+            Event::UpdateChatFolder { profile, folder_id, is_member, chat_ids } => {
+                for cid in chat_ids {
+                    let entry = self.chat_folder_ids.entry((profile.clone(), cid.clone())).or_default();
+                    if *is_member {
+                        entry.insert(*folder_id);
+                    } else {
+                        entry.remove(folder_id);
+                    }
+                }
+                self.refresh_chat_folders();
+                self.snap_selection_to_rows();
+                self.dirty = true;
+            }
             Event::Other { .. } => {}
         }
     }
@@ -208,7 +236,25 @@ impl UiModel {
                 is_pinned: c.is_pinned,
                 last_message_time: c.last_message_time,
                 preview: String::new(),
+                folders: HashSet::new(),
             });
+        }
+        self.refresh_chat_folders();
+    }
+
+    fn refresh_chat_folders(&mut self) {
+        for chat in &mut self.chats {
+            chat.folders.clear();
+            let parent_id = chat.chat_id.split(':').next().unwrap_or(&chat.chat_id);
+            if let Some(folder_ids) = self.chat_folder_ids.get(&(chat.profile_id.clone(), parent_id.to_string())) {
+                if let Some(folders) = self.folders.get(&chat.profile_id) {
+                    for (fid, title) in folders {
+                        if folder_ids.contains(fid) {
+                            chat.folders.insert(title.clone());
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -252,7 +298,51 @@ impl UiModel {
     }
 
     pub fn current_rows(&self) -> Vec<ListRow> {
-        build_rows(&self.chats, &self.filter_text, self.unread_only, &self.collapsed_groups)
+        build_rows(&self.chats, &self.filter_text, self.unread_only, &self.selected_folder, &self.collapsed_groups)
+    }
+
+    pub fn folder_names(&self) -> Vec<String> {
+        // ponytail: iterates self.folders directly (not self.profiles) since profiles
+        // are only populated from main.rs at startup, not from events in tests/headless use.
+        let mut names = Vec::new();
+        for list in self.folders.values() {
+            for (_, title) in list {
+                if !title.is_empty() && !names.contains(title) {
+                    names.push(title.clone());
+                }
+            }
+        }
+        names
+    }
+
+    pub fn cycle_folder(&mut self, delta: i32) -> Vec<Request> {
+        let names = self.folder_names();
+        if names.is_empty() {
+            return Vec::new();
+        }
+        let total = names.len() + 1; // 0 is All
+        let current_idx = if self.selected_folder.is_empty() {
+            0
+        } else {
+            names.iter().position(|n| n == &self.selected_folder).map(|i| i + 1).unwrap_or(0)
+        };
+        let next_idx = (((current_idx as isize + delta as isize) % total as isize + total as isize) % total as isize) as usize;
+        self.selected_folder = if next_idx == 0 {
+            String::new()
+        } else {
+            names[next_idx - 1].clone()
+        };
+        self.dirty = true;
+        self.snap_selection_to_rows()
+    }
+
+    pub fn set_selected_folder(&mut self, folder: &str) -> Vec<Request> {
+        if self.selected_folder != folder {
+            self.selected_folder = folder.to_string();
+            self.dirty = true;
+            return self.snap_selection_to_rows();
+        }
+        Vec::new()
     }
 
     pub fn messages(&self, profile: &str, chat_id: &str) -> &[Message] {
@@ -581,6 +671,7 @@ impl UiModel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::protocol::ChatFolderInfo;
 
     #[test]
     fn applies_connect_and_chats_events() {
@@ -901,5 +992,54 @@ mod tests {
         assert_eq!(msgs.len(), 1, "Must not contain duplicate ghost message");
         assert_eq!(msgs[0].id, "m_real_123");
         assert_eq!(msgs[0].time_sent, 1700000000000);
+    }
+
+    #[test]
+    fn applies_chat_folders_events_and_cycles() {
+        let mut m = UiModel::new();
+        m.apply_event(&Event::Chats {
+            profile: "P1".into(), success: true,
+            chats: vec![
+                Chat { id: "c1".into(), is_unread: false, is_unread_mention: false, is_muted: false, is_pinned: false, is_archived: false, last_message_time: 10 },
+                Chat { id: "c2".into(), is_unread: false, is_unread_mention: false, is_muted: false, is_pinned: false, is_archived: false, last_message_time: 20 },
+            ],
+        });
+
+        m.apply_event(&Event::ChatFolders {
+            profile: "P1".into(),
+            folders: vec![
+                ChatFolderInfo { id: 10, title: "Work".into() },
+                ChatFolderInfo { id: 20, title: "Personal".into() },
+            ],
+        });
+
+        m.apply_event(&Event::UpdateChatFolder {
+            profile: "P1".into(),
+            folder_id: 10,
+            is_member: true,
+            chat_ids: vec!["c1".into()],
+        });
+
+        assert_eq!(m.folder_names(), vec!["Work", "Personal"]);
+        assert_eq!(m.selected_folder, "");
+
+        // Cycle forward: "" -> "Work"
+        m.cycle_folder(1);
+        assert_eq!(m.selected_folder, "Work");
+        let rows = m.current_rows();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(m.chats[match rows[0] { ListRow::Chat(i) => i, _ => 99 }].chat_id, "c1");
+
+        // Cycle forward: "Work" -> "Personal"
+        m.cycle_folder(1);
+        assert_eq!(m.selected_folder, "Personal");
+
+        // Cycle forward: "Personal" -> "" (All)
+        m.cycle_folder(1);
+        assert_eq!(m.selected_folder, "");
+
+        // Cycle backward: "" -> "Personal"
+        m.cycle_folder(-1);
+        assert_eq!(m.selected_folder, "Personal");
     }
 }
