@@ -31,6 +31,7 @@ pub struct UiConfig {
     pub away_status_indication: bool,
     pub proxy_indicator: String,
     pub sent_align_right: bool,
+    pub link_open_command: String,
 }
 
 impl Default for UiConfig {
@@ -53,6 +54,7 @@ impl Default for UiConfig {
             away_status_indication: false,
             proxy_indicator: "🔒".into(),
             sent_align_right: true,
+            link_open_command: String::new(),
         }
     }
 }
@@ -86,6 +88,7 @@ impl UiConfig {
             away_status_indication: conf.bool_or("away_status_indication", false),
             proxy_indicator: conf.str_or("proxy_indicator", "🔒").to_string(),
             sent_align_right: conf.bool_or("sent_align_right", true),
+            link_open_command: conf.str_or("link_open_command", "").to_string(),
         }
     }
 }

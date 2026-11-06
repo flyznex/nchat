@@ -151,6 +151,7 @@ impl KeyConfig {
             ("unread_chat", "KEY_CTRLF"),
             ("goto_chat", "KEY_CTRLN"),
             ("other_commands_help", "KEY_CTRLO"),
+            ("open_link", "\\33\\165"),
         ];
 
         for (action, def) in defaults {
@@ -227,5 +228,8 @@ mod tests {
         let s_left = Key { code: KeyCode::Left, mods: KeyModifiers::SHIFT };
         assert!(keys.matches("folder_next", s_right));
         assert!(keys.matches("folder_prev", s_left));
+
+        let alt_u = Key { code: KeyCode::Char('u'), mods: KeyModifiers::ALT };
+        assert!(keys.matches("open_link", alt_u));
     }
 }

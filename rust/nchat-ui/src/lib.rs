@@ -18,3 +18,4 @@ pub mod render;
 pub mod session;
 pub mod text;
 pub mod uiconf;
+pub mod url;

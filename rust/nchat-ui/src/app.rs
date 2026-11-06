@@ -246,15 +246,22 @@ impl App {
                                 continue;
                             }
 
-                            // Emoji Dialog: key.conf "select_emoji" (default Ctrl-S) or Alt-u fallback
+                            // Emoji Dialog: key.conf "select_emoji" (default Ctrl-S)
                             if self.keys.matches("select_emoji", norm)
                                 || (k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
                                     && k.code == crossterm::event::KeyCode::Char('s'))
-                                || (k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
-                                    && k.code == crossterm::event::KeyCode::Char('u'))
                             {
                                 self.active_dialog = Some(Box::new(crate::dialog::emoji::EmojiDialog::new()));
                                 self.model.dirty = true;
+                                continue;
+                            }
+
+                            // Open Link: key.conf "open_link" (default Alt-u)
+                            if self.keys.matches("open_link", norm)
+                                || (k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                                    && k.code == crossterm::event::KeyCode::Char('u'))
+                            {
+                                self.open_selected_or_latest_link();
                                 continue;
                             }
 
@@ -862,6 +869,28 @@ impl App {
         None
     }
 
+    fn open_selected_or_latest_link(&self) {
+        let (prof, cid) = match &self.model.selected_id {
+            Some(pair) => pair,
+            None => return,
+        };
+
+        let msgs = self.model.messages(prof, cid);
+        let target_msg = self.model.selected_message().or_else(|| msgs.last());
+
+        if let Some(msg) = target_msg {
+            let mut urls = crate::url::extract_urls(&msg.text);
+            if urls.is_empty() && !msg.link_preview.is_empty() {
+                urls = crate::url::extract_urls(&msg.link_preview);
+            }
+
+            let link_cmd = self.conf.link_open_command.clone();
+            for u in urls {
+                let _ = crate::url::open_url(&u, &link_cmd);
+            }
+        }
+    }
+
     fn effective_conf(&self) -> UiConfig {
         let mut conf = self.conf.clone();
         conf.list_width = self.list_width;
@@ -955,5 +984,70 @@ mod resize_tests {
         // Row 1 is the tab bar row (inner_y = list.y + 1 = 1)
         let res = app.folder_tab_click(&layout, 1, 1);
         assert!(res.is_some());
+    }
+
+    #[test]
+    fn open_link_extracts_and_executes_for_selected_message() {
+        let mut app = App::new(
+            crate::uiconf::UiConfig::default(),
+            crate::colorconf::Theme::default(),
+            crate::keyconf::KeyConfig::default(),
+        )
+        .unwrap();
+
+        let out_file = std::env::temp_dir().join(format!("test_open_link_{}.txt", std::process::id()));
+        let _ = std::fs::remove_file(&out_file);
+        app.conf.link_open_command = format!("echo '%1' > {}", out_file.display());
+
+        let prof = "P";
+        let cid = "c1";
+        app.model.apply_event(&crate::protocol::Event::Chats {
+            profile: prof.into(),
+            success: true,
+            chats: vec![crate::protocol::Chat {
+                id: cid.into(),
+                is_unread: false,
+                is_unread_mention: false,
+                is_muted: false,
+                is_pinned: false,
+                is_archived: false,
+                last_message_time: 100,
+            }],
+        });
+        app.model.apply_event(&crate::protocol::Event::Messages {
+            profile: prof.into(),
+            success: true,
+            chat_id: cid.into(),
+            from_msg_id: "".into(),
+            cached: false,
+            sequence: true,
+            messages: vec![crate::protocol::Message {
+                id: "m1".into(),
+                sender_id: "u1".into(),
+                text: "link here: https://example.com/test".into(),
+                quoted_id: "".into(),
+                quoted_text: "".into(),
+                quoted_sender: "".into(),
+                file_info: "".into(),
+                link_preview: "".into(),
+                time_sent: 100,
+                is_outgoing: false,
+                is_read: true,
+                is_delivered: false,
+                is_edited: false,
+                is_deleted: false,
+                is_pinned: false,
+                has_mention: false,
+            }],
+        });
+
+        app.model.selected_id = Some((prof.into(), cid.into()));
+        app.open_selected_or_latest_link();
+
+        // Give shell a tiny moment to write
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let content = std::fs::read_to_string(&out_file).unwrap_or_default();
+        let _ = std::fs::remove_file(&out_file);
+        assert_eq!(content.trim(), "https://example.com/test");
     }
 }
