@@ -12,6 +12,7 @@ pub mod keyconf;
 pub mod layout;
 pub mod model;
 pub mod nav;
+pub mod notify;
 pub mod picker;
 pub mod protocol;
 pub mod render;
