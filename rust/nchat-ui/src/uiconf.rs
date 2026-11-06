@@ -32,6 +32,16 @@ pub struct UiConfig {
     pub proxy_indicator: String,
     pub sent_align_right: bool,
     pub link_open_command: String,
+    pub desktop_notify_enabled: bool,
+    pub desktop_notify_active_current: bool,
+    pub desktop_notify_active_noncurrent: bool,
+    pub desktop_notify_inactive: bool,
+    pub desktop_notify_connectivity: bool,
+    pub desktop_notify_command: String,
+    pub muted_notify_unread: bool,
+    pub notify_every_unread: bool,
+    pub terminal_bell_active: bool,
+    pub terminal_bell_inactive: bool,
 }
 
 impl Default for UiConfig {
@@ -55,6 +65,16 @@ impl Default for UiConfig {
             proxy_indicator: "🔒".into(),
             sent_align_right: true,
             link_open_command: String::new(),
+            desktop_notify_enabled: false,
+            desktop_notify_active_current: false,
+            desktop_notify_active_noncurrent: true,
+            desktop_notify_inactive: true,
+            desktop_notify_connectivity: true,
+            desktop_notify_command: String::new(),
+            muted_notify_unread: false,
+            notify_every_unread: true,
+            terminal_bell_active: false,
+            terminal_bell_inactive: true,
         }
     }
 }
@@ -89,6 +109,16 @@ impl UiConfig {
             proxy_indicator: conf.str_or("proxy_indicator", "🔒").to_string(),
             sent_align_right: conf.bool_or("sent_align_right", true),
             link_open_command: conf.str_or("link_open_command", "").to_string(),
+            desktop_notify_enabled: conf.bool_or("desktop_notify_enabled", false),
+            desktop_notify_active_current: conf.bool_or("desktop_notify_active_current", false),
+            desktop_notify_active_noncurrent: conf.bool_or("desktop_notify_active_noncurrent", true),
+            desktop_notify_inactive: conf.bool_or("desktop_notify_inactive", true),
+            desktop_notify_connectivity: conf.bool_or("desktop_notify_connectivity", true),
+            desktop_notify_command: conf.str_or("desktop_notify_command", "").to_string(),
+            muted_notify_unread: conf.bool_or("muted_notify_unread", false),
+            notify_every_unread: conf.bool_or("notify_every_unread", true),
+            terminal_bell_active: conf.bool_or("terminal_bell_active", false),
+            terminal_bell_inactive: conf.bool_or("terminal_bell_inactive", true),
         }
     }
 }
@@ -105,5 +135,47 @@ mod tests {
         assert_eq!(uic.list_width, 32);
         assert_eq!(uic.vim_keys, false);
         assert_eq!(uic.top_enabled, true); // default
+    }
+
+    #[test]
+    fn parses_notification_configs_and_defaults() {
+        // Test defaults
+        let def_conf = Conf::default();
+        let uic_def = UiConfig::from_conf(&def_conf);
+        assert_eq!(uic_def.desktop_notify_enabled, false);
+        assert_eq!(uic_def.desktop_notify_active_current, false);
+        assert_eq!(uic_def.desktop_notify_active_noncurrent, true);
+        assert_eq!(uic_def.desktop_notify_inactive, true);
+        assert_eq!(uic_def.desktop_notify_connectivity, true);
+        assert_eq!(uic_def.desktop_notify_command, "");
+        assert_eq!(uic_def.muted_notify_unread, false);
+        assert_eq!(uic_def.notify_every_unread, true);
+        assert_eq!(uic_def.terminal_bell_active, false);
+        assert_eq!(uic_def.terminal_bell_inactive, true);
+
+        // Test custom values
+        let conf = Conf::parse(
+            "desktop_notify_enabled=1\n\
+             desktop_notify_active_current=1\n\
+             desktop_notify_active_noncurrent=0\n\
+             desktop_notify_inactive=0\n\
+             desktop_notify_connectivity=0\n\
+             desktop_notify_command=notify-send 'MyChat' '%1: %2'\n\
+             muted_notify_unread=1\n\
+             notify_every_unread=0\n\
+             terminal_bell_active=1\n\
+             terminal_bell_inactive=0\n",
+        );
+        let uic = UiConfig::from_conf(&conf);
+        assert_eq!(uic.desktop_notify_enabled, true);
+        assert_eq!(uic.desktop_notify_active_current, true);
+        assert_eq!(uic.desktop_notify_active_noncurrent, false);
+        assert_eq!(uic.desktop_notify_inactive, false);
+        assert_eq!(uic.desktop_notify_connectivity, false);
+        assert_eq!(uic.desktop_notify_command, "notify-send 'MyChat' '%1: %2'");
+        assert_eq!(uic.muted_notify_unread, true);
+        assert_eq!(uic.notify_every_unread, false);
+        assert_eq!(uic.terminal_bell_active, true);
+        assert_eq!(uic.terminal_bell_inactive, false);
     }
 }
