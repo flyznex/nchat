@@ -58,6 +58,7 @@ struct Binding {
 pub struct NavResolver {
     bindings: Vec<Binding>,
     pending: Vec<Key>,
+    last_pending_time: Option<std::time::Instant>,
     pub vim_keys: bool,
 }
 
@@ -66,6 +67,7 @@ impl NavResolver {
         let mut r = Self {
             bindings: Vec::new(),
             pending: Vec::new(),
+            last_pending_time: None,
             vim_keys,
         };
         r.load_defaults();
@@ -121,11 +123,31 @@ impl NavResolver {
         self.add(vec![Self::k('x')], hist, Action::Delete, true);
 
         // Ctrl-W window navigation
+        // FocusLeft: h, Ctrl-H, Backspace (often sent for Ctrl-H), Left
         self.add(vec![ctrl_w, Self::k('h')], all, Action::FocusLeft, true);
+        self.add(vec![ctrl_w, Self::ctrl('h')], all, Action::FocusLeft, true);
+        self.add(vec![ctrl_w, Key { code: KeyCode::Backspace, mods: KeyModifiers::NONE }], all, Action::FocusLeft, true);
+        self.add(vec![ctrl_w, Key { code: KeyCode::Backspace, mods: KeyModifiers::CONTROL }], all, Action::FocusLeft, true);
+        self.add(vec![ctrl_w, Key::LEFT], all, Action::FocusLeft, true);
+
+        // FocusRight: l, Ctrl-L, Right
         self.add(vec![ctrl_w, Self::k('l')], all, Action::FocusRight, true);
+        self.add(vec![ctrl_w, Self::ctrl('l')], all, Action::FocusRight, true);
+        self.add(vec![ctrl_w, Key::RIGHT], all, Action::FocusRight, true);
+
+        // FocusEntry (Down): j, Ctrl-J, Down
         self.add(vec![ctrl_w, Self::k('j')], list_hist, Action::FocusEntry, true);
+        self.add(vec![ctrl_w, Self::ctrl('j')], list_hist, Action::FocusEntry, true);
+        self.add(vec![ctrl_w, Key::DOWN], list_hist, Action::FocusEntry, true);
+
+        // FocusHistory (Up): k, Ctrl-K, Up
         self.add(vec![ctrl_w, Self::k('k')], Focus::Entry as u8, Action::FocusHistory, true);
+        self.add(vec![ctrl_w, Self::ctrl('k')], Focus::Entry as u8, Action::FocusHistory, true);
+        self.add(vec![ctrl_w, Key::UP], Focus::Entry as u8, Action::FocusHistory, true);
+
+        // FocusNext: w, Ctrl-W
         self.add(vec![ctrl_w, Self::k('w')], all, Action::FocusNext, true);
+        self.add(vec![ctrl_w, Self::ctrl('w')], all, Action::FocusNext, true);
         self.add(vec![ctrl_w, ctrl_w], all, Action::FocusNext, true);
     }
 
@@ -138,6 +160,11 @@ impl NavResolver {
     /// instead of their own focus-specific handling (e.g. typing into the
     /// entry buffer), or the chord can never complete.
     pub fn has_pending(&self) -> bool {
+        if let Some(t) = self.last_pending_time {
+            if t.elapsed() > std::time::Duration::from_millis(1000) {
+                return false;
+            }
+        }
         !self.pending.is_empty()
     }
 
@@ -145,11 +172,20 @@ impl NavResolver {
         // Tab / BackTab ALWAYS cycles focus, regardless of active pane
         if key == Key::TAB {
             self.pending.clear();
+            self.last_pending_time = None;
             return NavResolveResult::Matched(Action::FocusNext);
         }
         if key == Key::BACKTAB {
             self.pending.clear();
+            self.last_pending_time = None;
             return NavResolveResult::Matched(Action::FocusPrev);
+        }
+
+        // Auto-cancel stale pending chord if > 1000ms has passed
+        if let Some(t) = self.last_pending_time {
+            if t.elapsed() > std::time::Duration::from_millis(1000) {
+                self.pending.clear();
+            }
         }
 
         self.pending.push(key);
@@ -166,6 +202,7 @@ impl NavResolver {
 
             if b.keys == self.pending {
                 self.pending.clear();
+                self.last_pending_time = None;
                 return NavResolveResult::Matched(b.action);
             }
             if b.keys.starts_with(&self.pending) {
@@ -174,6 +211,7 @@ impl NavResolver {
         }
 
         if has_prefix {
+            self.last_pending_time = Some(std::time::Instant::now());
             return NavResolveResult::Pending;
         }
 
@@ -182,6 +220,7 @@ impl NavResolver {
         // Check single key fallback if multi-key pending failed
         if self.pending.len() > 1 {
             self.pending.clear();
+            self.last_pending_time = None;
             if was_ctrl_w {
                 return NavResolveResult::Matched(Action::None);
             }
@@ -189,6 +228,7 @@ impl NavResolver {
         }
 
         self.pending.clear();
+        self.last_pending_time = None;
 
         if focus == Focus::Entry {
             return NavResolveResult::Ignored;
@@ -241,6 +281,50 @@ mod tests {
         let ctrl_w = Key { code: KeyCode::Char('w'), mods: KeyModifiers::CONTROL };
         assert_eq!(r.resolve(ctrl_w, Focus::List), NavResolveResult::Pending);
         assert_eq!(r.resolve(key('l'), Focus::List), NavResolveResult::Matched(Action::FocusRight));
+    }
+
+    #[test]
+    fn resolves_ctrl_w_with_ctrl_held_down_and_arrows() {
+        let mut r = NavResolver::new(true);
+        let ctrl_w = Key { code: KeyCode::Char('w'), mods: KeyModifiers::CONTROL };
+        let ctrl_h = Key { code: KeyCode::Char('h'), mods: KeyModifiers::CONTROL };
+        let ctrl_l = Key { code: KeyCode::Char('l'), mods: KeyModifiers::CONTROL };
+        let ctrl_j = Key { code: KeyCode::Char('j'), mods: KeyModifiers::CONTROL };
+        let ctrl_k = Key { code: KeyCode::Char('k'), mods: KeyModifiers::CONTROL };
+        let backspace = Key { code: KeyCode::Backspace, mods: KeyModifiers::NONE };
+
+        // Ctrl-W Ctrl-H
+        assert_eq!(r.resolve(ctrl_w, Focus::History), NavResolveResult::Pending);
+        assert_eq!(r.resolve(ctrl_h, Focus::History), NavResolveResult::Matched(Action::FocusLeft));
+
+        // Ctrl-W Backspace (terminal representation of Ctrl-H)
+        assert_eq!(r.resolve(ctrl_w, Focus::History), NavResolveResult::Pending);
+        assert_eq!(r.resolve(backspace, Focus::History), NavResolveResult::Matched(Action::FocusLeft));
+
+        // Ctrl-W Ctrl-L
+        assert_eq!(r.resolve(ctrl_w, Focus::List), NavResolveResult::Pending);
+        assert_eq!(r.resolve(ctrl_l, Focus::List), NavResolveResult::Matched(Action::FocusRight));
+
+        // Ctrl-W Ctrl-J
+        assert_eq!(r.resolve(ctrl_w, Focus::History), NavResolveResult::Pending);
+        assert_eq!(r.resolve(ctrl_j, Focus::History), NavResolveResult::Matched(Action::FocusEntry));
+
+        // Ctrl-W Ctrl-K
+        assert_eq!(r.resolve(ctrl_w, Focus::Entry), NavResolveResult::Pending);
+        assert_eq!(r.resolve(ctrl_k, Focus::Entry), NavResolveResult::Matched(Action::FocusHistory));
+
+        // Arrow keys following Ctrl-W
+        assert_eq!(r.resolve(ctrl_w, Focus::Entry), NavResolveResult::Pending);
+        assert_eq!(r.resolve(Key::LEFT, Focus::Entry), NavResolveResult::Matched(Action::FocusLeft));
+
+        assert_eq!(r.resolve(ctrl_w, Focus::Entry), NavResolveResult::Pending);
+        assert_eq!(r.resolve(Key::UP, Focus::Entry), NavResolveResult::Matched(Action::FocusHistory));
+
+        assert_eq!(r.resolve(ctrl_w, Focus::List), NavResolveResult::Pending);
+        assert_eq!(r.resolve(Key::RIGHT, Focus::List), NavResolveResult::Matched(Action::FocusRight));
+
+        assert_eq!(r.resolve(ctrl_w, Focus::List), NavResolveResult::Pending);
+        assert_eq!(r.resolve(Key::DOWN, Focus::List), NavResolveResult::Matched(Action::FocusEntry));
     }
 
     #[test]
