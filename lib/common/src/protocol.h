@@ -103,6 +103,7 @@ enum MessageType
   GetStickerSetsRequestType,
   SendStickerRequestType,
   FindChatRequestType,
+  SetPollAnswerRequestType,
   // Service messages
   ServiceMessageType,
   NewContactsNotifyType,
@@ -440,6 +441,15 @@ public:
   std::string msgId;
   std::string emoji;
   std::string prevEmoji; // only required for tgchat, to clear reaction
+};
+
+class SetPollAnswerRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return SetPollAnswerRequestType; }
+  std::string chatId;
+  std::string msgId;
+  std::vector<int32_t> optionIds;
 };
 
 class GetUnreadReactionsRequest : public RequestMessage

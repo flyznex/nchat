@@ -166,6 +166,20 @@ bool RequestFromJson(const std::string& p_Json, ParsedRequest& p_Out, std::strin
     r->stickerFileId = stickerFileId;
     p_Out.request = r;
   }
+  else if (type == "set_poll_answer")
+  {
+    std::shared_ptr<SetPollAnswerRequest> r = std::make_shared<SetPollAnswerRequest>();
+    if (!GetStr(doc, "chat_id", r->chatId)) return Missing("chat_id", p_Error);
+    if (!GetStr(doc, "msg_id", r->msgId)) return Missing("msg_id", p_Error);
+    if (doc.HasMember("option_ids") && doc["option_ids"].IsArray())
+    {
+      for (const auto& opt : doc["option_ids"].GetArray())
+      {
+        if (opt.IsInt()) r->optionIds.push_back(opt.GetInt());
+      }
+    }
+    p_Out.request = r;
+  }
   else
   {
     p_Error = "unknown request type: " + type;

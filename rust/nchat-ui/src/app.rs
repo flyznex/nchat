@@ -85,6 +85,7 @@ pub struct App {
     pub img_cache: crate::imgcache::ImageCache,
     pub active_dialog: Option<Box<dyn crate::dialog::Dialog>>,
     pub pending_delete_msg: Option<(String, String, String)>,
+    pub pending_poll_msg: Option<String>,
     pub terminal_active: bool,
     pub notify: crate::notify::NotifyService,
     list_width: u16,
@@ -113,6 +114,7 @@ impl App {
             img_cache,
             active_dialog: None,
             pending_delete_msg: None,
+            pending_poll_msg: None,
             terminal_active: true,
             notify,
             list_width,
@@ -294,6 +296,22 @@ impl App {
                                                     profile: prof.clone(),
                                                     chat_id: cid.clone(),
                                                     sticker_file_id,
+                                                };
+                                                let _ = core.send(&req.to_json());
+                                            }
+                                        } else if val.starts_with("[poll_vote:") && val.ends_with(']') {
+                                            let ids_str = &val[11..val.len() - 1];
+                                            let option_ids: Vec<i32> = if ids_str.is_empty() {
+                                                Vec::new()
+                                            } else {
+                                                ids_str.split(',').filter_map(|s| s.parse::<i32>().ok()).collect()
+                                            };
+                                            if let (Some((prof, cid)), Some(mid)) = (&self.model.selected_id, self.pending_poll_msg.take()) {
+                                                let req = crate::protocol::Request::SetPollAnswer {
+                                                    profile: prof.clone(),
+                                                    chat_id: cid.clone(),
+                                                    msg_id: mid,
+                                                    option_ids,
                                                 };
                                                 let _ = core.send(&req.to_json());
                                             }
@@ -550,6 +568,22 @@ impl App {
                                         let _ = core.send(&r.to_json());
                                     }
                                     continue;
+                                }
+                            }
+
+                            if self.model.focus == Focus::History
+                                && k.modifiers == crossterm::event::KeyModifiers::NONE
+                                && k.code == crossterm::event::KeyCode::Char('v')
+                            {
+                                if let Some(msg) = self.model.selected_message() {
+                                    if msg.file_info.starts_with("poll:") {
+                                        if let Some(poll_data) = crate::dialog::poll::PollData::from_json(&msg.file_info[5..]) {
+                                            self.pending_poll_msg = Some(msg.id.clone());
+                                            self.active_dialog = Some(Box::new(crate::dialog::poll::PollVoteDialog::new(poll_data)));
+                                            self.model.dirty = true;
+                                            continue;
+                                        }
+                                    }
                                 }
                             }
 
@@ -823,6 +857,16 @@ impl App {
             }
             Action::Reply => {
                 if self.model.focus == Focus::History {
+                    if let Some(msg) = self.model.selected_message() {
+                        if msg.file_info.starts_with("poll:") {
+                            if let Some(poll_data) = crate::dialog::poll::PollData::from_json(&msg.file_info[5..]) {
+                                self.pending_poll_msg = Some(msg.id.clone());
+                                self.active_dialog = Some(Box::new(crate::dialog::poll::PollVoteDialog::new(poll_data)));
+                                self.model.dirty = true;
+                                return;
+                            }
+                        }
+                    }
                     self.model.start_reply();
                 }
             }

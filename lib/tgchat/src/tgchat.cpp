@@ -9,6 +9,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -2004,6 +2005,28 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case SetPollAnswerRequestType:
+      {
+        LOG_DEBUG("Set poll answer");
+        std::shared_ptr<SetPollAnswerRequest> req =
+          std::static_pointer_cast<SetPollAnswerRequest>(p_RequestMessage);
+
+        int64_t chatId = ParseChatId(req->chatId).chatId;
+        int64_t msgId = StrUtil::NumFromHex<int64_t>(req->msgId);
+        auto setPollAnswer = td::td_api::make_object<td::td_api::setPollAnswer>(
+          chatId, msgId, std::move(req->optionIds));
+        SendQuery(std::move(setPollAnswer),
+                  [](Object object)
+        {
+          if (object && object->get_id() == td::td_api::error::ID)
+          {
+            auto err = td::move_tl_object_as<td::td_api::error>(object);
+            LOG_WARNING("setPollAnswer failed: %s", err->message_.c_str());
+          }
+        });
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown request message %d", p_RequestMessage->GetMessageType());
       break;
@@ -3770,6 +3793,35 @@ static std::string GetContactText(const td::td_api::contact& p_Contact)
   return "[Contact]\n" + StrUtil::Join(lines, "\n");
 }
 
+static std::string EscapeJsonString(const std::string& p_Str)
+{
+  std::ostringstream ss;
+  for (char c : p_Str)
+  {
+    switch (c)
+    {
+      case '"': ss << "\\\""; break;
+      case '\\': ss << "\\\\"; break;
+      case '\b': ss << "\\b"; break;
+      case '\f': ss << "\\f"; break;
+      case '\n': ss << "\\n"; break;
+      case '\r': ss << "\\r"; break;
+      case '\t': ss << "\\t"; break;
+      default:
+        if ('\x00' <= c && c <= '\x1f')
+        {
+          ss << "\\u" << std::hex << std::setw(4) << std::setfill('0') << (int)(unsigned char)c << std::dec;
+        }
+        else
+        {
+          ss << c;
+        }
+        break;
+    }
+  }
+  return ss.str();
+}
+
 void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessageContent, int64_t p_SenderId,
                                            std::string& p_Text, std::string& p_FileInfo)
 {
@@ -4093,6 +4145,79 @@ void TgChat::Impl::TdMessageContentConvert(td::td_api::MessageContent& p_TdMessa
   else if (p_TdMessageContent.get_id() == td::td_api::messageExpiredVideo::ID)
   {
     p_Text = "[Expired video]";
+  }
+  else if (p_TdMessageContent.get_id() == td::td_api::messagePoll::ID)
+  {
+    auto& messagePoll = static_cast<td::td_api::messagePoll&>(p_TdMessageContent);
+    auto& poll = messagePoll.poll_;
+    if (poll)
+    {
+      std::string question = poll->question_ ? poll->question_->text_ : "";
+      std::string statusTag;
+      if (poll->is_closed_)
+      {
+        statusTag += " [Closed]";
+      }
+      if (poll->is_anonymous_)
+      {
+        statusTag += " [Anonymous]";
+      }
+      if (poll->allows_multiple_answers_)
+      {
+        statusTag += " [Multiple Choice]";
+      }
+
+      std::string pollText = "📊 Poll: " + question + statusTag;
+      const size_t optCount = poll->options_.size();
+
+      std::ostringstream json;
+      json << "poll:{\"id\":\"" << poll->id_ << "\",\"question\":\"" << EscapeJsonString(question) << "\"";
+      json << ",\"closed\":" << (poll->is_closed_ ? "true" : "false");
+      json << ",\"multiple\":" << (poll->allows_multiple_answers_ ? "true" : "false");
+      json << ",\"total_votes\":" << poll->total_voter_count_;
+      json << ",\"options\":[";
+
+      for (size_t i = 0; i < optCount; ++i)
+      {
+        const auto& opt = poll->options_[i];
+        std::string optText = opt->text_ ? opt->text_->text_ : "";
+        bool chosen = opt->is_chosen_;
+        int32_t votes = opt->voter_count_;
+        int32_t pct = opt->vote_percentage_;
+
+        if (i > 0) json << ",";
+        json << "{\"id\":" << i;
+        json << ",\"text\":\"" << EscapeJsonString(optText) << "\"";
+        json << ",\"chosen\":" << (chosen ? "true" : "false");
+        json << ",\"votes\":" << votes;
+        json << ",\"pct\":" << pct << "}";
+
+        std::string branch = (i == optCount - 1) ? "└── " : "├── ";
+        std::string check = chosen ? "[x] " : "[ ] ";
+        int filled = std::min(10, std::max(0, pct / 10));
+        int empty = 10 - filled;
+        std::string bar = " [";
+        for (int b = 0; b < filled; ++b) bar += "█";
+        for (int b = 0; b < empty; ++b) bar += "░";
+        bar += "]";
+
+        pollText += "\n" + branch + check + std::to_string(pct) + "% " + optText;
+        if (poll->total_voter_count_ > 0 || votes > 0)
+        {
+          pollText += " (" + std::to_string(votes) + " " + (votes == 1 ? "vote" : "votes") + ")";
+        }
+        pollText += bar;
+      }
+      json << "]}";
+
+      pollText += "\n👥 Total: " + std::to_string(poll->total_voter_count_) + " votes";
+      p_Text = pollText;
+      p_FileInfo = json.str();
+    }
+    else
+    {
+      p_Text = "[Poll]";
+    }
   }
   else if (p_TdMessageContent.get_id() == td::td_api::messageUnsupported::ID)
   {

@@ -2,6 +2,7 @@ pub mod emoji;
 pub mod file;
 pub mod mention;
 pub mod message;
+pub mod poll;
 pub mod sticker;
 
 use crate::colorconf::Theme;

@@ -115,6 +115,12 @@ pub enum Request {
     GetStickerSets { profile: String },
     GetStickers { profile: String, key: String, set_id: i64, query: String },
     SendSticker { profile: String, chat_id: String, sticker_file_id: i32 },
+    SetPollAnswer {
+        profile: String,
+        chat_id: String,
+        msg_id: String,
+        option_ids: Vec<i32>,
+    },
 }
 
 impl Request {
@@ -330,6 +336,17 @@ mod tests {
         assert_eq!(
             r.to_json(),
             r#"{"type":"send_sticker","profile":"P","chat_id":"c1","sticker_file_id":42}"#
+        );
+
+        let r = Request::SetPollAnswer {
+            profile: "P".into(),
+            chat_id: "c1".into(),
+            msg_id: "m1".into(),
+            option_ids: vec![0, 2],
+        };
+        assert_eq!(
+            r.to_json(),
+            r#"{"type":"set_poll_answer","profile":"P","chat_id":"c1","msg_id":"m1","option_ids":[0,2]}"#
         );
     }
 

@@ -100,6 +100,21 @@ static void TestSendMessage()
   unittest::ExpectEqual(int32_t, ss->stickerFileId, (int32_t)42);
 }
 
+static void TestSetPollAnswer()
+{
+  ParsedRequest p;
+  std::string err;
+  unittest::ExpectTrue(RequestFromJson(
+    R"j({"type":"set_poll_answer","profile":"P","chat_id":"c1","msg_id":"m9","option_ids":[0,2]})j", p, err));
+  unittest::ExpectTrue(p.request->GetMessageType() == SetPollAnswerRequestType);
+  std::shared_ptr<SetPollAnswerRequest> r = std::static_pointer_cast<SetPollAnswerRequest>(p.request);
+  unittest::ExpectEqual(std::string, r->chatId, std::string("c1"));
+  unittest::ExpectEqual(std::string, r->msgId, std::string("m9"));
+  unittest::ExpectEqual(size_t, r->optionIds.size(), (size_t)2);
+  unittest::ExpectEqual(int32_t, r->optionIds[0], (int32_t)0);
+  unittest::ExpectEqual(int32_t, r->optionIds[1], (int32_t)2);
+}
+
 static void TestErrors()
 {
   ParsedRequest p;
@@ -125,6 +140,7 @@ int main()
     TestGetChatsAndContacts();
     TestGetMessages();
     TestSendMessage();
+    TestSetPollAnswer();
     TestErrors();
   }
   catch (const std::exception& ex)
