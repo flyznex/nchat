@@ -27,6 +27,7 @@ impl TerminalGuard {
         enable_raw_mode()?;
         let mut out = stdout();
         out.execute(EnterAlternateScreen)?;
+        let _ = out.execute(crossterm::event::EnableFocusChange);
         if mouse_enabled {
             out.execute(event::EnableMouseCapture)?;
         }
@@ -35,6 +36,7 @@ impl TerminalGuard {
         let orig_hook = std::panic::take_hook();
         std::panic::set_hook(Box::new(move |info| {
             let _ = disable_raw_mode();
+            let _ = stdout().execute(crossterm::event::DisableFocusChange);
             let _ = stdout().execute(LeaveAlternateScreen);
             let _ = stdout().execute(event::DisableMouseCapture);
             orig_hook(info);
@@ -47,6 +49,7 @@ impl TerminalGuard {
 impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
+        let _ = stdout().execute(crossterm::event::DisableFocusChange);
         let _ = stdout().execute(LeaveAlternateScreen);
         if self.mouse_enabled {
             let _ = stdout().execute(event::DisableMouseCapture);
@@ -82,6 +85,8 @@ pub struct App {
     pub img_cache: crate::imgcache::ImageCache,
     pub active_dialog: Option<Box<dyn crate::dialog::Dialog>>,
     pub pending_delete_msg: Option<(String, String, String)>,
+    pub terminal_active: bool,
+    pub notify: crate::notify::NotifyService,
     list_width: u16,
     entry_height: u16,
     resize_drag: Option<ResizeDrag>,
@@ -97,6 +102,7 @@ impl App {
         let entry_height = conf.entry_height;
         let picker = crate::picker::init_picker(Duration::from_secs(2));
         let img_cache = crate::imgcache::ImageCache::new();
+        let notify = crate::notify::NotifyService::new(&conf);
         Ok(Self {
             model: UiModel::new(),
             conf,
@@ -107,6 +113,8 @@ impl App {
             img_cache,
             active_dialog: None,
             pending_delete_msg: None,
+            terminal_active: true,
+            notify,
             list_width,
             entry_height,
             resize_drag: None,
@@ -135,7 +143,71 @@ impl App {
                         }
                     }
                     let prev_sel = self.model.selected_id.clone();
+                    let was_online = self.model.is_online;
                     self.model.apply_event(&ev);
+
+                    if let Event::Connect { success, .. } = &ev {
+                        if *success && !was_online && self.conf.desktop_notify_connectivity {
+                            self.notify.send(crate::notify::NotifyJob::Desktop {
+                                title: "Connection".into(),
+                                text: "Online".into(),
+                            });
+                        }
+                    }
+
+                    if let Event::Messages { profile: msg_prof, chat_id: msg_cid, messages: msg_list, .. } = &ev {
+                        let connect_time = self.model.connect_time(msg_prof);
+                        let is_curr = self.model.selected_id.as_ref() == Some(&(msg_prof.clone(), msg_cid.clone()));
+                        let chat_was_unread = self.model.chats.iter()
+                            .find(|c| &c.profile_id == msg_prof && &c.chat_id == msg_cid)
+                            .map(|c| c.is_unread)
+                            .unwrap_or(false);
+                        let is_muted = self.model.chats.iter()
+                            .find(|c| &c.profile_id == msg_prof && &c.chat_id == msg_cid)
+                            .map(|c| c.is_muted)
+                            .unwrap_or(false);
+
+                        for m in msg_list {
+                            let decision = crate::notify::should_notify_message(
+                                m.is_outgoing,
+                                m.is_read,
+                                m.time_sent,
+                                connect_time,
+                                is_muted,
+                                m.has_mention,
+                                chat_was_unread,
+                                self.terminal_active,
+                                is_curr,
+                                &self.conf,
+                            );
+
+                            if decision.desktop || decision.bell {
+                                let sender_name = self.model.contact_name(msg_prof, &m.sender_id);
+                                let chat_name = self.model.chats.iter()
+                                    .find(|c| &c.profile_id == msg_prof && &c.chat_id == msg_cid)
+                                    .map(|c| c.name.clone())
+                                    .unwrap_or_else(|| msg_cid.clone());
+
+                                let mut title = if m.sender_id == *msg_cid {
+                                    sender_name
+                                } else {
+                                    format!("{chat_name} - {sender_name}")
+                                };
+                                if self.model.profiles.len() > 1 {
+                                    title.push_str(&format!(" ({msg_prof})"));
+                                }
+
+                                let job = match (decision.desktop, decision.bell) {
+                                    (true, true) => crate::notify::NotifyJob::Both { title, text: m.text.clone() },
+                                    (true, false) => crate::notify::NotifyJob::Desktop { title, text: m.text.clone() },
+                                    (false, true) => crate::notify::NotifyJob::Bell,
+                                    (false, false) => continue,
+                                };
+                                self.notify.send(job);
+                            }
+                        }
+                    }
+
                     if let Some((prof, cid)) = &self.model.selected_id {
                         let prof_clone = prof.clone();
                         let cid_clone = cid.clone();
@@ -583,6 +655,12 @@ impl App {
                     }
                     CEvent::Resize(_, _) => {
                         self.model.dirty = true;
+                    }
+                    CEvent::FocusGained => {
+                        self.terminal_active = true;
+                    }
+                    CEvent::FocusLost => {
+                        self.terminal_active = false;
                     }
                     _ => {}
                 }
@@ -1049,5 +1127,15 @@ mod resize_tests {
         let content = std::fs::read_to_string(&out_file).unwrap_or_default();
         let _ = std::fs::remove_file(&out_file);
         assert_eq!(content.trim(), "https://example.com/test");
+    }
+
+    #[test]
+    fn app_initializes_with_terminal_active_true() {
+        let app = App::new(
+            crate::uiconf::UiConfig::default(),
+            crate::colorconf::Theme::default(),
+            crate::keyconf::KeyConfig::default(),
+        ).unwrap();
+        assert_eq!(app.terminal_active, true);
     }
 }

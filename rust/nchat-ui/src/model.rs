@@ -32,6 +32,7 @@ pub struct UiModel {
     stickers: HashMap<(String, String), Vec<StickerInfo>>,
     pub requested_from_msg_ids: HashSet<(String, String, String)>,
     pub exhausted_history: HashSet<(String, String)>,
+    pub connect_times: HashMap<String, i64>,
     pub dirty: bool,
 }
 
@@ -45,6 +46,7 @@ impl UiModel {
             download_requested: HashSet::new(),
             requested_from_msg_ids: HashSet::new(),
             exhausted_history: HashSet::new(),
+            connect_times: HashMap::new(),
             selected_id: None,
             focus: Focus::List,
             filter_text: String::new(),
@@ -75,12 +77,21 @@ impl UiModel {
         self.dirty = true;
     }
 
+    pub fn connect_time(&self, profile: &str) -> i64 {
+        self.connect_times.get(profile).copied().unwrap_or(0)
+    }
+
     pub fn apply_event(&mut self, event: &Event) {
         self.dirty = true;
         match event {
-            Event::Connect { success, .. } => {
+            Event::Connect { profile, success } => {
                 if *success {
                     self.is_online = true;
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .map(|d| d.as_millis() as i64)
+                        .unwrap_or(0);
+                    self.connect_times.insert(profile.clone(), now_ms);
                 }
             }
             Event::Chats { profile, success, chats } => {
@@ -772,6 +783,15 @@ impl UiModel {
 mod tests {
     use super::*;
     use crate::protocol::ChatFolderInfo;
+
+    #[test]
+    fn records_connect_time_on_event_connect() {
+        let mut m = UiModel::new();
+        assert_eq!(m.connect_time("P1"), 0);
+
+        m.apply_event(&Event::Connect { profile: "P1".into(), success: true });
+        assert!(m.connect_time("P1") > 0);
+    }
 
     #[test]
     fn applies_connect_and_chats_events() {
