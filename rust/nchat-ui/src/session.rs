@@ -34,6 +34,9 @@ pub fn describe(event: &Event) -> String {
         Event::UpdateChatFolder { profile, folder_id, is_member, .. } => {
             format!("{profile} update_chat_folder id={folder_id} is_member={is_member}")
         }
+        Event::MessageStatus { profile, chat_id, msg_id, is_read, is_delivered } => {
+            format!("{profile} message_status chat={chat_id} msg={msg_id} read={is_read} delivered={is_delivered}")
+        }
         Event::Other { profile, kind } => format!("{profile} other kind={kind}"),
     }
 }

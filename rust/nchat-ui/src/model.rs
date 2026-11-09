@@ -212,6 +212,16 @@ impl UiModel {
                 self.snap_selection_to_rows();
                 self.dirty = true;
             }
+            Event::MessageStatus { profile, chat_id, msg_id, is_read, is_delivered } => {
+                let key = (profile.clone(), chat_id.clone());
+                if let Some(entry) = self.messages.get_mut(&key) {
+                    if let Some(m) = entry.iter_mut().find(|m| &m.id == msg_id) {
+                        m.is_read = *is_read;
+                        m.is_delivered = *is_delivered;
+                    }
+                }
+                self.dirty = true;
+            }
             Event::Other { .. } => {}
         }
     }

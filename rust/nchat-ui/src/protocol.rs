@@ -81,6 +81,13 @@ pub enum Event {
     Stickers { profile: String, key: String, stickers: Vec<StickerInfo> },
     ChatFolders { profile: String, folders: Vec<ChatFolderInfo> },
     UpdateChatFolder { profile: String, folder_id: i32, is_member: bool, chat_ids: Vec<String> },
+    MessageStatus {
+        profile: String,
+        chat_id: String,
+        msg_id: String,
+        is_read: bool,
+        is_delivered: bool,
+    },
     Other { profile: String, kind: i32 },
 }
 
@@ -289,6 +296,22 @@ mod tests {
             }
             other => panic!("expected UpdateChatFolder event, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn parses_message_status_event() {
+        let json = r#"{"type":"message_status","profile":"P","chat_id":"c1","msg_id":"m1","is_read":true,"is_delivered":false}"#;
+        let e: Event = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            e,
+            Event::MessageStatus {
+                profile: "P".into(),
+                chat_id: "c1".into(),
+                msg_id: "m1".into(),
+                is_read: true,
+                is_delivered: false,
+            }
+        );
     }
 
     #[test]
