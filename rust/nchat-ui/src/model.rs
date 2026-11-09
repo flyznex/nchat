@@ -33,6 +33,7 @@ pub struct UiModel {
     pub requested_from_msg_ids: HashSet<(String, String, String)>,
     pub exhausted_history: HashSet<(String, String)>,
     pub connect_times: HashMap<String, i64>,
+    pub last_read_outbox: HashMap<(String, String), u64>,
     pub dirty: bool,
 }
 
@@ -47,6 +48,7 @@ impl UiModel {
             requested_from_msg_ids: HashSet::new(),
             exhausted_history: HashSet::new(),
             connect_times: HashMap::new(),
+            last_read_outbox: HashMap::new(),
             selected_id: None,
             focus: Focus::List,
             filter_text: String::new(),
@@ -121,7 +123,7 @@ impl UiModel {
                     return;
                 }
                 let key = (profile.clone(), chat_id.clone());
-                let entry = self.messages.entry(key).or_default();
+                let entry = self.messages.entry(key.clone()).or_default();
                 for m in messages {
                     if m.id.is_empty() {
                         continue;
@@ -133,6 +135,18 @@ impl UiModel {
                     }
                 }
                 entry.sort_by_key(|m| m.time_sent);
+
+                if let Some(watermark) = self.last_read_outbox.get(&key).copied() {
+                    for m in entry.iter_mut() {
+                        if m.is_outgoing && !m.is_read {
+                            if let Ok(m_num) = u64::from_str_radix(&m.id, 16) {
+                                if m_num <= watermark {
+                                    m.is_read = true;
+                                }
+                            }
+                        }
+                    }
+                }
 
                 if let Some(c) = self.chats.iter_mut().find(|c| &c.profile_id == profile && &c.chat_id == chat_id) {
                     if let Some(last) = entry.last() {
@@ -214,10 +228,29 @@ impl UiModel {
             }
             Event::MessageStatus { profile, chat_id, msg_id, is_read, is_delivered } => {
                 let key = (profile.clone(), chat_id.clone());
+                let target_num = u64::from_str_radix(msg_id, 16).ok();
+                if let Some(target) = target_num {
+                    if *is_read {
+                        let cur = self.last_read_outbox.entry(key.clone()).or_insert(0);
+                        *cur = (*cur).max(target);
+                    }
+                }
                 if let Some(entry) = self.messages.get_mut(&key) {
-                    if let Some(m) = entry.iter_mut().find(|m| &m.id == msg_id) {
-                        m.is_read = *is_read;
-                        m.is_delivered = *is_delivered;
+                    for m in entry.iter_mut() {
+                        let is_target = &m.id == msg_id;
+                        let is_prior_tg = if let (Some(t), Ok(m_num)) = (target_num, u64::from_str_radix(&m.id, 16)) {
+                            m.is_outgoing && m_num <= t
+                        } else {
+                            false
+                        };
+                        if is_target || (*is_read && is_prior_tg) {
+                            if *is_read {
+                                m.is_read = true;
+                            }
+                            if is_target && *is_delivered {
+                                m.is_delivered = true;
+                            }
+                        }
                     }
                 }
                 self.dirty = true;
@@ -793,6 +826,76 @@ impl UiModel {
 mod tests {
     use super::*;
     use crate::protocol::ChatFolderInfo;
+
+    fn sample_message(id: &str, time_sent: i64) -> Message {
+        Message {
+            id: id.into(),
+            sender_id: "u1".into(),
+            text: "hi".into(),
+            quoted_id: String::new(),
+            quoted_text: String::new(),
+            quoted_sender: String::new(),
+            file_info: String::new(),
+            link_preview: String::new(),
+            time_sent,
+            is_outgoing: false,
+            is_read: false,
+            is_delivered: false,
+            is_edited: false,
+            is_deleted: false,
+            is_pinned: false,
+            has_mention: false,
+        }
+    }
+
+    #[test]
+    fn message_status_event_updates_is_read_and_is_delivered() {
+        let mut model = UiModel::new();
+        let key = ("P".to_string(), "c1".to_string());
+        let mut msg = sample_message("m1", 100);
+        msg.is_outgoing = true;
+        msg.is_read = false;
+        msg.is_delivered = false;
+        model.messages.insert(key, vec![msg]);
+
+        model.apply_event(&Event::MessageStatus {
+            profile: "P".into(),
+            chat_id: "c1".into(),
+            msg_id: "m1".into(),
+            is_read: true,
+            is_delivered: true,
+        });
+
+        let updated = &model.messages[&("P".to_string(), "c1".to_string())][0];
+        assert!(updated.is_read);
+        assert!(updated.is_delivered);
+    }
+
+    #[test]
+    fn message_status_watermark_marks_earlier_outgoing_messages_read() {
+        let mut model = UiModel::new();
+        let key = ("P".to_string(), "c1".to_string());
+        // In Telegram, IDs are hex strings like "10" (16), "20" (32)
+        let mut msg1 = sample_message("10", 100);
+        msg1.is_outgoing = true;
+        msg1.is_read = false;
+        let mut msg2 = sample_message("20", 200);
+        msg2.is_outgoing = true;
+        msg2.is_read = false;
+        model.messages.insert(key, vec![msg1, msg2]);
+
+        model.apply_event(&Event::MessageStatus {
+            profile: "P".into(),
+            chat_id: "c1".into(),
+            msg_id: "20".into(),
+            is_read: true,
+            is_delivered: false,
+        });
+
+        let msgs = &model.messages[&("P".to_string(), "c1".to_string())];
+        assert!(msgs[0].is_read, "msg1 with id 0x10 <= 0x20 should be marked read");
+        assert!(msgs[1].is_read, "msg2 with id 0x20 should be marked read");
+    }
 
     #[test]
     fn records_connect_time_on_event_connect() {

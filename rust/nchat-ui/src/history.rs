@@ -112,8 +112,6 @@ pub fn format_message(
     if msg.is_outgoing {
         if msg.is_read {
             header.push_str(" ✓✓");
-        } else if msg.is_delivered {
-            header.push_str(" ✓");
         } else {
             header.push_str(" ✓");
         }
@@ -205,6 +203,25 @@ pub fn format_message(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn formats_outgoing_message_read_and_unread_indicators() {
+        let mut msg = Message {
+            id: "m1".into(), sender_id: "me".into(), text: "hello".into(),
+            quoted_id: "".into(), quoted_text: "".into(), quoted_sender: "".into(),
+            file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
+            is_outgoing: true, is_read: false, is_delivered: true, is_edited: false,
+            is_deleted: false, is_pinned: false, has_mention: false,
+        };
+        let conf = UiConfig::default();
+        let unread_fmt = format_message(&msg, "Me", 40, true, &conf);
+        assert!(unread_fmt.header.contains("✓"));
+        assert!(!unread_fmt.header.contains("✓✓"));
+
+        msg.is_read = true;
+        let read_fmt = format_message(&msg, "Me", 40, true, &conf);
+        assert!(read_fmt.header.contains("✓✓"));
+    }
 
     #[test]
     fn formats_incoming_message_aligned_left() {
