@@ -5005,6 +5005,7 @@ void TgChat::Impl::UpdateLastReadOutboxMessage(int64_t p_ChatId, int64_t p_LastR
   const int64_t prevLastRead = m_LastReadOutboxMessage[p_ChatId];
   m_LastReadOutboxMessage[p_ChatId] = p_LastReadMsgId;
 
+  bool notifiedLastRead = false;
   std::set<int64_t>& unreadMessages = m_UnreadOutboxMessages[p_ChatId];
   if (!unreadMessages.empty())
   {
@@ -5019,6 +5020,11 @@ void TgChat::Impl::UpdateLastReadOutboxMessage(int64_t p_ChatId, int64_t p_LastR
         newMessageStatusNotify->isRead = true;
         CallMessageHandler(newMessageStatusNotify);
 
+        if (*it == p_LastReadMsgId)
+        {
+          notifiedLastRead = true;
+        }
+
         it = unreadMessages.erase(it);
       }
       else
@@ -5028,7 +5034,7 @@ void TgChat::Impl::UpdateLastReadOutboxMessage(int64_t p_ChatId, int64_t p_LastR
     }
   }
 
-  if (p_LastReadMsgId > prevLastRead && p_LastReadMsgId > 0)
+  if (!notifiedLastRead && p_LastReadMsgId > prevLastRead && p_LastReadMsgId > 0)
   {
     std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
       std::make_shared<NewMessageStatusNotify>(m_ProfileId);
