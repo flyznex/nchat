@@ -251,6 +251,18 @@ std::string EventToJson(const std::shared_ptr<ServiceMessage>& p_Message)
       }
       break;
 
+    case NewMessageStatusNotifyType:
+      {
+        const NewMessageStatusNotify& n = static_cast<const NewMessageStatusNotify&>(*p_Message);
+        PutStr(w, "type", "message_status");
+        PutStr(w, "profile", n.profileId);
+        PutStr(w, "chat_id", n.chatId);
+        PutStr(w, "msg_id", n.msgId);
+        PutBool(w, "is_read", n.isRead);
+        PutBool(w, "is_delivered", n.isDelivered);
+      }
+      break;
+
     default:
       PutStr(w, "type", "other");
       PutStr(w, "profile", p_Message->profileId);

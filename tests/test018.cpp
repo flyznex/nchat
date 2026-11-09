@@ -150,6 +150,17 @@ static void TestUpdateChatFolder()
     R"j({"type":"update_chat_folder","profile":"P","folder_id":42,"is_member":true,"chat_ids":["c1","c2"]})j"));
 }
 
+static void TestMessageStatus()
+{
+  std::shared_ptr<NewMessageStatusNotify> n = std::make_shared<NewMessageStatusNotify>("P");
+  n->chatId = "c1";
+  n->msgId = "m1";
+  n->isRead = true;
+  n->isDelivered = false;
+  unittest::ExpectEqual(std::string, EventToJson(n), std::string(
+    R"j({"type":"message_status","profile":"P","chat_id":"c1","msg_id":"m1","is_read":true,"is_delivered":false})j"));
+}
+
 int main()
 {
   int rv = 0;
@@ -166,6 +177,7 @@ int main()
     TestStickers();
     TestChatFolders();
     TestUpdateChatFolder();
+    TestMessageStatus();
   }
   catch (const std::exception& ex)
   {

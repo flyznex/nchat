@@ -5002,6 +5002,7 @@ int32_t TgChat::Impl::GetEffectiveTopicId(const ChatRef& p_Ref)
 
 void TgChat::Impl::UpdateLastReadOutboxMessage(int64_t p_ChatId, int64_t p_LastReadMsgId)
 {
+  const int64_t prevLastRead = m_LastReadOutboxMessage[p_ChatId];
   m_LastReadOutboxMessage[p_ChatId] = p_LastReadMsgId;
 
   std::set<int64_t>& unreadMessages = m_UnreadOutboxMessages[p_ChatId];
@@ -5025,6 +5026,16 @@ void TgChat::Impl::UpdateLastReadOutboxMessage(int64_t p_ChatId, int64_t p_LastR
         it = std::next(it);
       }
     }
+  }
+
+  if (p_LastReadMsgId > prevLastRead && p_LastReadMsgId > 0)
+  {
+    std::shared_ptr<NewMessageStatusNotify> newMessageStatusNotify =
+      std::make_shared<NewMessageStatusNotify>(m_ProfileId);
+    newMessageStatusNotify->chatId = StrUtil::NumToHex(p_ChatId);
+    newMessageStatusNotify->msgId = StrUtil::NumToHex(p_LastReadMsgId);
+    newMessageStatusNotify->isRead = true;
+    CallMessageHandler(newMessageStatusNotify);
   }
 }
 
