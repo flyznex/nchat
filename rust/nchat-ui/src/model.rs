@@ -3,6 +3,33 @@ use crate::nav::Focus;
 use crate::protocol::{Chat, Contact, Event, Message, ProfileInfo, Request, StickerInfo, StickerSetInfo};
 use std::collections::{HashMap, HashSet};
 
+// C++ StrUtil::NumToHex(val) does NOT hex-encode the integer value directly:
+// it formats val as a decimal string, then hex-encodes the ASCII bytes of
+// that string (e.g. NumToHex(10485760) == "3130343835373630"). Decode that
+// form first, falling back to plain hex/decimal for other id formats.
+fn parse_tg_id(s: &str) -> Option<u64> {
+    if s.len() % 2 == 0 {
+        let mut bytes = Vec::with_capacity(s.len() / 2);
+        let mut valid = true;
+        for i in (0..s.len()).step_by(2) {
+            if let Ok(b) = u8::from_str_radix(&s[i..i + 2], 16) {
+                bytes.push(b);
+            } else {
+                valid = false;
+                break;
+            }
+        }
+        if valid {
+            if let Ok(dec_str) = std::str::from_utf8(&bytes) {
+                if let Ok(num) = dec_str.parse::<u64>() {
+                    return Some(num);
+                }
+            }
+        }
+    }
+    u64::from_str_radix(s, 16).ok().or_else(|| s.parse::<u64>().ok())
+}
+
 pub struct UiModel {
     pub profiles: Vec<ProfileInfo>,
     pub chats: Vec<ListChat>,
@@ -139,7 +166,7 @@ impl UiModel {
                 if let Some(watermark) = self.last_read_outbox.get(&key).copied() {
                     for m in entry.iter_mut() {
                         if m.is_outgoing && !m.is_read {
-                            if let Ok(m_num) = u64::from_str_radix(&m.id, 16) {
+                            if let Some(m_num) = parse_tg_id(&m.id) {
                                 if m_num <= watermark {
                                     m.is_read = true;
                                 }
@@ -228,7 +255,7 @@ impl UiModel {
             }
             Event::MessageStatus { profile, chat_id, msg_id, is_read, is_delivered } => {
                 let key = (profile.clone(), chat_id.clone());
-                let target_num = u64::from_str_radix(msg_id, 16).ok();
+                let target_num = parse_tg_id(msg_id);
                 if let Some(target) = target_num {
                     if *is_read {
                         let cur = self.last_read_outbox.entry(key.clone()).or_insert(0);
@@ -238,7 +265,7 @@ impl UiModel {
                 if let Some(entry) = self.messages.get_mut(&key) {
                     for m in entry.iter_mut() {
                         let is_target = &m.id == msg_id;
-                        let is_prior_tg = if let (Some(t), Ok(m_num)) = (target_num, u64::from_str_radix(&m.id, 16)) {
+                        let is_prior_tg = if let (Some(t), Some(m_num)) = (target_num, parse_tg_id(&m.id)) {
                             m.is_outgoing && m_num <= t
                         } else {
                             false
@@ -895,6 +922,40 @@ mod tests {
         let msgs = &model.messages[&("P".to_string(), "c1".to_string())];
         assert!(msgs[0].is_read, "msg1 with id 0x10 <= 0x20 should be marked read");
         assert!(msgs[1].is_read, "msg2 with id 0x20 should be marked read");
+    }
+
+    #[test]
+    fn parse_tg_id_decodes_num_to_hex_ascii_format() {
+        // NumToHex(10485760) == "3130343835373630" (ASCII hex of "10485760")
+        assert_eq!(parse_tg_id("3130343835373630"), Some(10485760));
+        // NumToHex(104857600) == "313034383537363030" (ASCII hex of "104857600")
+        assert_eq!(parse_tg_id("313034383537363030"), Some(104857600));
+    }
+
+    #[test]
+    fn message_status_watermark_marks_earlier_real_tg_ids_read() {
+        let mut model = UiModel::new();
+        let key = ("P".to_string(), "c1".to_string());
+        // Realistic TDLib message ids, encoded via NumToHex (decimal-then-hex).
+        let mut msg1 = sample_message("3130343835373630", 100); // 10485760
+        msg1.is_outgoing = true;
+        msg1.is_read = false;
+        let mut msg2 = sample_message("313034383537363030", 200); // 104857600
+        msg2.is_outgoing = true;
+        msg2.is_read = false;
+        model.messages.insert(key, vec![msg1, msg2]);
+
+        model.apply_event(&Event::MessageStatus {
+            profile: "P".into(),
+            chat_id: "c1".into(),
+            msg_id: "313034383537363030".into(),
+            is_read: true,
+            is_delivered: false,
+        });
+
+        let msgs = &model.messages[&("P".to_string(), "c1".to_string())];
+        assert!(msgs[0].is_read, "msg1 (10485760) <= watermark (104857600) should be marked read");
+        assert!(msgs[1].is_read, "msg2 (104857600) should be marked read");
     }
 
     #[test]
