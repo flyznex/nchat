@@ -1,4 +1,4 @@
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct EntryBuffer {
@@ -113,6 +113,90 @@ impl EntryBuffer {
     pub fn required_height(&self, max_h: usize) -> u16 {
         let lines = self.text.split('\n').count();
         (lines as u16).clamp(1, max_h as u16)
+    }
+
+    pub fn visual_layout(&self, max_width: usize) -> (Vec<String>, usize, usize) {
+        let max_w = max_width.max(1);
+        let chars: Vec<char> = self.text.chars().collect();
+        let target_idx = self.cursor_char_idx.min(chars.len());
+
+        if chars.is_empty() {
+            return (vec![String::new()], 0, 0);
+        }
+
+        let mut lines = Vec::new();
+        let mut cur_line = String::new();
+        let mut cur_w = 0;
+        let mut cursor_row = 0;
+        let mut cursor_col = 0;
+        let mut found_cursor = false;
+
+        let mut i = 0;
+        while i < chars.len() {
+            if !found_cursor && i == target_idx {
+                cursor_row = lines.len();
+                cursor_col = cur_w;
+                found_cursor = true;
+            }
+
+            let c = chars[i];
+            if c == '\n' {
+                lines.push(cur_line);
+                cur_line = String::new();
+                cur_w = 0;
+                i += 1;
+                continue;
+            }
+
+            // Word wrap lookahead
+            if c != ' ' && (i == 0 || chars[i - 1] == ' ' || chars[i - 1] == '\n') {
+                let mut word_end = i;
+                let mut word_w = 0;
+                while word_end < chars.len() && chars[word_end] != ' ' && chars[word_end] != '\n' {
+                    let w = UnicodeWidthChar::width(chars[word_end]).unwrap_or(0);
+                    word_w += w;
+                    word_end += 1;
+                }
+
+                if cur_w + word_w > max_w && cur_w > 0 && word_w <= max_w {
+                    lines.push(cur_line);
+                    cur_line = String::new();
+                    cur_w = 0;
+
+                    if !found_cursor && i == target_idx {
+                        cursor_row = lines.len();
+                        cursor_col = 0;
+                        found_cursor = true;
+                    }
+                }
+            }
+
+            let cw = UnicodeWidthChar::width(c).unwrap_or(0);
+            if cur_w + cw > max_w && cur_w > 0 {
+                lines.push(cur_line);
+                cur_line = String::new();
+                cur_w = 0;
+
+                if !found_cursor && i == target_idx {
+                    cursor_row = lines.len();
+                    cursor_col = 0;
+                    found_cursor = true;
+                }
+            }
+
+            cur_line.push(c);
+            cur_w += cw;
+            i += 1;
+        }
+
+        if !found_cursor && i == target_idx {
+            cursor_row = lines.len();
+            cursor_col = cur_w;
+        }
+
+        lines.push(cur_line);
+
+        (lines, cursor_row, cursor_col)
     }
 
     pub fn cursor_coords(&self) -> (usize, usize) {
@@ -272,5 +356,18 @@ mod tests {
         assert_eq!(eb.required_height(8), 3);
         eb.insert_str("\n4\n5\n6\n7\n8\n9\n10");
         assert_eq!(eb.required_height(8), 8); // clamped to max_h 8
+    }
+
+    #[test]
+    fn visual_layout_wraps_long_lines_and_tracks_cursor() {
+        let mut eb = EntryBuffer::new();
+        eb.insert_str("this is a long sentence that exceeds twenty chars");
+        let (lines, row, col) = eb.visual_layout(20);
+        assert!(lines.len() >= 3);
+        for l in &lines {
+            assert!(unicode_width::UnicodeWidthStr::width(l.as_str()) <= 20);
+        }
+        assert_eq!(row, lines.len() - 1);
+        assert_eq!(col, unicode_width::UnicodeWidthStr::width(lines.last().unwrap().as_str()));
     }
 }

@@ -45,18 +45,29 @@ pub fn render_entry(
         return;
     }
 
-    let text = model.entry_buffer.text();
-    let text_lines: Vec<Line> = if text.is_empty() {
-        vec![Line::from("")]
+    let (visual_lines, cursor_row, cursor_col) =
+        model.entry_buffer.visual_layout(inner.width as usize);
+
+    let content_h = inner.height as usize;
+    let scroll_y = if cursor_row < content_h {
+        0
     } else {
-        text.lines().map(Line::from).collect()
+        cursor_row - (content_h - 1)
     };
-    f.render_widget(Paragraph::new(text_lines), inner);
+
+    let visible_lines: Vec<Line> = visual_lines
+        .into_iter()
+        .skip(scroll_y)
+        .take(content_h)
+        .map(Line::from)
+        .collect();
+
+    f.render_widget(Paragraph::new(visible_lines), inner);
 
     if is_focused {
-        let (row, col) = model.entry_buffer.cursor_coords();
-        let cx = inner.x + (col as u16).min(inner.width.saturating_sub(1));
-        let cy = inner.y + (row as u16).min(inner.height.saturating_sub(1));
+        let screen_row = cursor_row.saturating_sub(scroll_y);
+        let cx = inner.x + (cursor_col as u16).min(inner.width.saturating_sub(1));
+        let cy = inner.y + (screen_row as u16).min(inner.height.saturating_sub(1));
         f.set_cursor_position((cx, cy));
     }
 }
@@ -94,5 +105,30 @@ mod tests {
         assert!(title_line.contains("Message"));
         assert_eq!(buf[(0, 0)].symbol(), "┌");
         assert!(content_line.contains("Hello"));
+    }
+
+    #[test]
+    fn renders_long_multiline_content_and_positions_cursor_with_scroll() {
+        let backend = TestBackend::new(30, 5); // inner is 28x3
+        let mut terminal = Terminal::new(backend).unwrap();
+
+        let mut model = UiModel::new();
+        model.focus = Focus::Entry;
+        // Insert 10 lines
+        model.entry_buffer.insert_str("1\n2\n3\n4\n5\n6\n7\n8\n9\nlast line");
+        let theme = Theme::default();
+        let conf = UiConfig::default();
+
+        terminal
+            .draw(|f| {
+                render_entry(f, Rect::new(0, 0, 30, 5), &model, &theme, &conf);
+            })
+            .unwrap();
+
+        let cursor = terminal.get_cursor_position().unwrap();
+        // Inner area starts at y=1, height 3. Bottom line of inner is y = 1 + 2 = 3.
+        assert_eq!(cursor.y, 3);
+        // Cursor x is at start of line (x=1) + length of "last line" (9) = 10
+        assert_eq!(cursor.x, 10);
     }
 }

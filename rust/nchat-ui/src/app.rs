@@ -91,6 +91,7 @@ pub struct App {
     pub pending_poll_msg: Option<String>,
     pub terminal_active: bool,
     pub notify: crate::notify::NotifyService,
+    last_esc: Option<Instant>,
     list_width: u16,
     entry_height: u16,
     resize_drag: Option<ResizeDrag>,
@@ -120,6 +121,7 @@ impl App {
             pending_poll_msg: None,
             terminal_active: true,
             notify,
+            last_esc: None,
             list_width,
             entry_height,
             resize_drag: None,
@@ -402,15 +404,17 @@ impl App {
                                     continue;
                                 }
 
+                                if k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                                    && k.code == crossterm::event::KeyCode::Char('c')
+                                {
+                                    self.model.entry_buffer.clear();
+                                    self.model.dirty = true;
+                                    continue;
+                                }
+
                                 match k.code {
                                     crossterm::event::KeyCode::Esc => {
-                                        if self.model.edit_message_active || self.model.reply_message_active {
-                                            self.model.cancel_compose_mode();
-                                        } else {
-                                            self.model.focus = Focus::History;
-                                            self.model.select_message_active = true;
-                                        }
-                                        self.model.dirty = true;
+                                        self.handle_esc();
                                         continue;
                                     }
                                     crossterm::event::KeyCode::Enter => {
@@ -559,6 +563,11 @@ impl App {
                                 for req in self.model.filter_clear() {
                                     let _ = core.send(&req.to_json());
                                 }
+                                continue;
+                            }
+
+                            if self.model.focus == Focus::History && k.code == crossterm::event::KeyCode::Esc {
+                                self.handle_esc();
                                 continue;
                             }
 
@@ -1033,10 +1042,36 @@ impl App {
         }
     }
 
+    pub fn handle_esc(&mut self) {
+        let now = Instant::now();
+        let is_double_esc = self
+            .last_esc
+            .is_some_and(|t| now.duration_since(t) < Duration::from_millis(500));
+        self.last_esc = if is_double_esc { None } else { Some(now) };
+
+        if self.model.edit_message_active || self.model.reply_message_active {
+            self.model.cancel_compose_mode();
+        } else if is_double_esc {
+            self.model.entry_buffer.clear();
+            self.model.focus = Focus::Entry;
+            self.model.select_message_active = false;
+        } else if self.model.focus == Focus::Entry {
+            self.model.focus = Focus::History;
+            self.model.select_message_active = true;
+        } else if self.model.focus == Focus::History {
+            self.model.select_message_active = false;
+            self.model.focus = Focus::Entry;
+        }
+        self.model.dirty = true;
+    }
+
     fn effective_conf(&self) -> UiConfig {
         let mut conf = self.conf.clone();
         conf.list_width = self.list_width;
-        let dyn_h = self.model.entry_buffer.required_height(8);
+        let term_w = self.terminal.size().map(|s| s.width).unwrap_or(80);
+        let entry_w = (term_w.saturating_sub(conf.list_width + 4) as usize).max(10);
+        let (vis_lines, _, _) = self.model.entry_buffer.visual_layout(entry_w);
+        let dyn_h = (vis_lines.len() as u16).clamp(1, 8);
         conf.entry_height = self.entry_height.max(dyn_h);
         conf
     }
@@ -1202,5 +1237,51 @@ mod resize_tests {
             crate::keyconf::KeyConfig::default(),
         ).unwrap();
         assert_eq!(app.terminal_active, true);
+    }
+
+    #[test]
+    fn double_esc_clears_entry_buffer() {
+        let mut app = App::new(
+            crate::uiconf::UiConfig::default(),
+            crate::colorconf::Theme::default(),
+            crate::keyconf::KeyConfig::default(),
+        )
+        .unwrap();
+        app.model.focus = Focus::Entry;
+        app.model.entry_buffer.insert_str("Hello draft");
+
+        // First Esc: moves to History, keeps draft
+        app.handle_esc();
+        assert_eq!(app.model.focus, Focus::History);
+        assert_eq!(app.model.entry_buffer.text(), "Hello draft");
+
+        // Second Esc within 500ms: clears draft and returns to Entry
+        app.handle_esc();
+        assert_eq!(app.model.focus, Focus::Entry);
+        assert_eq!(app.model.entry_buffer.text(), "");
+    }
+
+    #[test]
+    fn single_esc_after_timeout_does_not_clear() {
+        let mut app = App::new(
+            crate::uiconf::UiConfig::default(),
+            crate::colorconf::Theme::default(),
+            crate::keyconf::KeyConfig::default(),
+        )
+        .unwrap();
+        app.model.focus = Focus::Entry;
+        app.model.entry_buffer.insert_str("Keep this draft");
+
+        // First Esc: moves to History
+        app.handle_esc();
+        assert_eq!(app.model.focus, Focus::History);
+
+        // Simulate 600ms passing
+        app.last_esc = Some(Instant::now() - Duration::from_millis(600));
+
+        // Second Esc after timeout: switches back to Entry, draft intact
+        app.handle_esc();
+        assert_eq!(app.model.focus, Focus::Entry);
+        assert_eq!(app.model.entry_buffer.text(), "Keep this draft");
     }
 }
