@@ -63,9 +63,21 @@ if [[ -n "${NCHAT_DIST_SKIP_IMAGE_BUILD:-}" && "${NCHAT_DIST_SKIP_IMAGE_BUILD}" 
   fi
   echo "$0: reusing existing image ${IMAGE} (build skipped)"
 else
-  docker build --platform "${PLATFORM}" -t "${IMAGE}" \
+  MAX_RETRIES=4
+  RETRY_DELAY=5
+  COUNT=0
+  until docker build --platform "${PLATFORM}" -t "${IMAGE}" \
     "${BUILD_ARGS[@]}" \
-    -f "${REPO_DIR}/utils/dist/${DOCKERFILE}" "${REPO_DIR}/utils/dist"
+    -f "${REPO_DIR}/utils/dist/${DOCKERFILE}" "${REPO_DIR}/utils/dist"; do
+    COUNT=$((COUNT + 1))
+    if [[ ${COUNT} -ge ${MAX_RETRIES} ]]; then
+      echo "$0: docker build failed after ${MAX_RETRIES} attempts" >&2
+      exit 1
+    fi
+    echo "$0: docker build failed (transient registry/network error), retrying in ${RETRY_DELAY}s (attempt $((COUNT + 1))/${MAX_RETRIES})..."
+    sleep "${RETRY_DELAY}"
+    RETRY_DELAY=$((RETRY_DELAY * 2))
+  done
 fi
 
 mkdir -p "${CACHE_DIR}/ccache-${TARGET}" "${CACHE_DIR}/go-${TARGET}" "${CACHE_DIR}/cargo-${TARGET}"
