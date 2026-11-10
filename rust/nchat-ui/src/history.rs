@@ -2,92 +2,20 @@ use crate::protocol::Message;
 use crate::render::time::format_list_time;
 use crate::text::{fit, width};
 use crate::uiconf::UiConfig;
-use unicode_width::UnicodeWidthChar;
+
+pub use crate::markdown::{FormattedLine, FormattedSpan};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FormattedMessage {
     pub id: String,
     pub header: String,
-    pub lines: Vec<String>,
+    pub lines: Vec<FormattedLine>,
     pub quote: Option<String>,
     pub image_path: Option<String>,
     pub image_rows: usize,
     pub block_w: usize,
     pub x0: usize,
     pub is_outgoing: bool,
-}
-
-pub fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
-    if max_width == 0 {
-        return Vec::new();
-    }
-    let mut lines = Vec::new();
-
-    for paragraph in text.split('\n') {
-        if paragraph.is_empty() {
-            lines.push(String::new());
-            continue;
-        }
-
-        let mut current_line = String::new();
-        let mut current_w = 0;
-
-        for word in paragraph.split(' ') {
-            let word_w = width(word);
-
-            if current_line.is_empty() {
-                if word_w <= max_width {
-                    current_line.push_str(word);
-                    current_w = word_w;
-                } else {
-                    // Split long word across lines
-                    for c in word.chars() {
-                        let cw = c.width().unwrap_or(0);
-                        if current_w + cw > max_width && current_w > 0 {
-                            lines.push(current_line);
-                            current_line = String::new();
-                            current_w = 0;
-                        }
-                        current_line.push(c);
-                        current_w += cw;
-                    }
-                }
-            } else if current_w + 1 + word_w <= max_width {
-                current_line.push(' ');
-                current_line.push_str(word);
-                current_w += 1 + word_w;
-            } else {
-                lines.push(current_line);
-                current_line = String::new();
-                current_w = 0;
-
-                if word_w <= max_width {
-                    current_line.push_str(word);
-                    current_w = word_w;
-                } else {
-                    for c in word.chars() {
-                        let cw = c.width().unwrap_or(0);
-                        if current_w + cw > max_width && current_w > 0 {
-                            lines.push(current_line);
-                            current_line = String::new();
-                            current_w = 0;
-                        }
-                        current_line.push(c);
-                        current_w += cw;
-                    }
-                }
-            }
-        }
-
-        if !current_line.is_empty() {
-            lines.push(current_line);
-        }
-    }
-
-    if lines.is_empty() {
-        lines.push(String::new());
-    }
-    lines
 }
 
 pub fn format_message(
@@ -166,7 +94,7 @@ pub fn format_message(
     let lines = if display_text.is_empty() {
         Vec::new()
     } else {
-        wrap_text(display_text, max_w)
+        crate::markdown::wrap_markdown(display_text, max_w)
     };
 
     let mut block_w = width(&header);
@@ -174,7 +102,7 @@ pub fn format_message(
         block_w = block_w.max(width(q));
     }
     for l in &lines {
-        block_w = block_w.max(width(l));
+        block_w = block_w.max(l.width);
     }
     if image_path.is_some() {
         block_w = block_w.max(24.min(max_w));
@@ -203,6 +131,24 @@ pub fn format_message(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_message_produces_formatted_spans_for_markdown() {
+        let msg = Message {
+            id: "m_md".into(), sender_id: "alice".into(), text: "Hello *world* and `code`".into(),
+            quoted_id: "".into(), quoted_text: "".into(), quoted_sender: "".into(),
+            file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
+            is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
+            is_deleted: false, is_pinned: false, has_mention: false,
+        };
+        let conf = UiConfig::default();
+        let fmt = format_message(&msg, "Alice", 40, false, &conf);
+        assert!(!fmt.lines.is_empty());
+        let spans = &fmt.lines[0].spans;
+        assert_eq!(spans[0].text, "Hello ");
+        assert_eq!(spans[1].text, "world");
+        assert!(spans[1].style.contains(crate::markdown::StyleFlags::BOLD));
+    }
 
     #[test]
     fn formats_outgoing_message_read_and_unread_indicators() {

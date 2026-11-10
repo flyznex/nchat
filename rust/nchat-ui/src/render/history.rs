@@ -1,6 +1,7 @@
 use crate::colorconf::Theme;
 use crate::history::format_message;
 use crate::imgcache::ImageCache;
+use crate::markdown::StyleFlags;
 use crate::model::UiModel;
 use crate::nav::Focus;
 use crate::uiconf::UiConfig;
@@ -187,19 +188,42 @@ pub fn render_history(
         }
 
         for l in fmt.lines {
-            let line_str = if is_selected {
-                pad_block(&l)
-            } else {
-                l
-            };
+            let mut spans = Vec::new();
             if fmt.x0 > 0 {
-                all_lines.push(Line::from(vec![
-                    Span::raw(" ".repeat(fmt.x0)),
-                    Span::styled(line_str, text_style),
-                ]));
-            } else {
-                all_lines.push(Line::from(Span::styled(line_str, text_style)));
+                spans.push(Span::raw(" ".repeat(fmt.x0)));
             }
+            for s in &l.spans {
+                let mut style = text_style;
+                if s.style.contains(StyleFlags::BOLD) {
+                    style = style.add_modifier(ratatui::style::Modifier::BOLD);
+                }
+                if s.style.contains(StyleFlags::ITALIC) {
+                    style = style.add_modifier(ratatui::style::Modifier::ITALIC);
+                }
+                if s.style.contains(StyleFlags::STRIKE) {
+                    style = style.add_modifier(ratatui::style::Modifier::CROSSED_OUT);
+                }
+                if s.style.contains(StyleFlags::UNDERLINE) || s.style.contains(StyleFlags::LINK) {
+                    style = style.add_modifier(ratatui::style::Modifier::UNDERLINED);
+                }
+                if s.style.contains(StyleFlags::SPOILER) {
+                    style = style.add_modifier(ratatui::style::Modifier::REVERSED);
+                }
+                if s.style.contains(StyleFlags::CODE) {
+                    style = style.add_modifier(ratatui::style::Modifier::REVERSED);
+                }
+                if s.style.contains(StyleFlags::CODE_BLOCK) {
+                    style = theme.history_text_quoted.add_modifier(ratatui::style::Modifier::DIM);
+                }
+                spans.push(Span::styled(s.text.clone(), style));
+            }
+            if is_selected {
+                let pad = fmt.block_w.saturating_sub(l.width);
+                if pad > 0 {
+                    spans.push(Span::styled(" ".repeat(pad), text_style));
+                }
+            }
+            all_lines.push(Line::from(spans));
         }
 
         let msg_end_line = all_lines.len();
