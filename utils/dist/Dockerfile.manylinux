@@ -20,7 +20,7 @@ SHELL ["/bin/bash", "-c"]
 
 # Prefix that holds every source-built static dependency.
 ENV DEPS=/opt/nchat-deps
-ENV PATH=${DEPS}/bin:/usr/local/go/bin:${PATH} \
+ENV PATH=${DEPS}/bin:/usr/local/go/bin:/usr/local/cargo/bin:${PATH} \
     PKG_CONFIG_PATH=${DEPS}/lib/pkgconfig:${DEPS}/lib64/pkgconfig:${DEPS}/share/pkgconfig \
     ACLOCAL_PATH=${DEPS}/share/aclocal \
     CPPFLAGS=-I${DEPS}/include \
@@ -30,8 +30,14 @@ ENV PATH=${DEPS}/bin:/usr/local/go/bin:${PATH} \
 # (gcc-toolset) and cmake ship in the base and are already on PATH.
 RUN dnf install -y epel-release && \
     dnf install -y ninja-build gperf patch diffutils which xz bzip2 file-libs \
-      perl-IPC-Cmd perl-Data-Dumper && \
+      perl-IPC-Cmd perl-Data-Dumper clang protobuf-compiler && \
     dnf clean all
+
+# Rust toolchain for libsignal-ffi and rust components
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain stable && \
+    chmod -R a+w /usr/local/cargo /usr/local/rustup
 
 # Go from the official (glibc-linked) tarball, for the whatsmeow c-archive.
 ARG GO_VERSION=1.26.3

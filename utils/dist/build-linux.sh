@@ -68,7 +68,7 @@ else
     -f "${REPO_DIR}/utils/dist/${DOCKERFILE}" "${REPO_DIR}/utils/dist"
 fi
 
-mkdir -p "${CACHE_DIR}/ccache-${TARGET}" "${CACHE_DIR}/go-${TARGET}"
+mkdir -p "${CACHE_DIR}/ccache-${TARGET}" "${CACHE_DIR}/go-${TARGET}" "${CACHE_DIR}/cargo-${TARGET}"
 
 # Forward the CI signal so the in-container CMake auto-detects build origin
 # "github" (CMakeLists checks DEFINED ENV{GITHUB_ACTIONS}); docker run does not
@@ -86,11 +86,13 @@ docker run --rm --platform "${PLATFORM}" \
   -e CCACHE_DIR=/cache/ccache \
   -e GOCACHE=/cache/go/build \
   -e GOMODCACHE=/cache/go/mod \
+  -e CARGO_HOME=/cache/cargo \
   -e JOBS="${JOBS:-}" \
   "${RUN_ENV[@]}" \
   -v "${REPO_DIR}:/src" \
   -v "${CACHE_DIR}/ccache-${TARGET}:/cache/ccache" \
   -v "${CACHE_DIR}/go-${TARGET}:/cache/go" \
+  -v "${CACHE_DIR}/cargo-${TARGET}:/cache/cargo" \
   "${IMAGE}" /src/utils/dist/build-in-container.sh "${LIBC}"
 
 echo "artifact: dist/nchat-${TARGET}/bin/nchat"

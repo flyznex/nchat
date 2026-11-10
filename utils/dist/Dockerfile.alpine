@@ -10,6 +10,7 @@ FROM alpine:3.24
 
 RUN apk add --no-cache \
     bash build-base ccache cmake git gperf linux-headers patch pkgconf samurai \
+    cargo rust clang protoc \
     ncurses-dev ncurses-static \
     sqlite-dev sqlite-static \
     openssl-dev openssl-libs-static \
