@@ -10,6 +10,7 @@ pub mod history;
 pub mod imgcache;
 pub mod keyconf;
 pub mod layout;
+pub mod markdown;
 pub mod model;
 pub mod nav;
 pub mod notify;
