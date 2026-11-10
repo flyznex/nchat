@@ -171,8 +171,8 @@ impl EntryBuffer {
         }
         let col = cur_idx - cur_line_start;
         let mut next_nl = None;
-        for i in cur_idx..chars.len() {
-            if chars[i] == '\n' {
+        for (i, &c) in chars.iter().enumerate().skip(cur_idx) {
+            if c == '\n' {
                 next_nl = Some(i);
                 break;
             }
@@ -180,8 +180,8 @@ impl EntryBuffer {
         if let Some(nl) = next_nl {
             let next_line_start = nl + 1;
             let mut next_line_end = chars.len();
-            for i in next_line_start..chars.len() {
-                if chars[i] == '\n' {
+            for (i, &c) in chars.iter().enumerate().skip(next_line_start) {
+                if c == '\n' {
                     next_line_end = i;
                     break;
                 }

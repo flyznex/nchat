@@ -56,18 +56,26 @@ pub fn wrap_markdown(text: &str, max_width: usize) -> Vec<FormattedLine> {
     let mut rest = text;
 
     while let Some(fence_start) = rest.find("```") {
-        if fence_start > 0 {
-            lines.extend(wrap_plain_text(&rest[..fence_start], max_width));
+        match extract_code_block(&rest[fence_start..]) {
+            Some((code_lines, remainder)) => {
+                if fence_start > 0 {
+                    lines.extend(wrap_plain_text(&rest[..fence_start], max_width));
+                }
+                for code_line in code_lines {
+                    let width = line_width(&code_line);
+                    lines.push(FormattedLine {
+                        spans: vec![FormattedSpan { text: code_line, style: StyleFlags::CODE_BLOCK }],
+                        width,
+                    });
+                }
+                rest = remainder;
+            }
+            // No closing fence anywhere in the rest of the text: the "```"
+            // is not a real code fence. Stop looking and let the final
+            // wrap_plain_text below render the remaining text (backticks
+            // included) verbatim, instead of silently dropping it.
+            None => break,
         }
-        let (code_lines, remainder) = extract_code_block(&rest[fence_start..]);
-        for code_line in code_lines {
-            let width = line_width(&code_line);
-            lines.push(FormattedLine {
-                spans: vec![FormattedSpan { text: code_line, style: StyleFlags::CODE_BLOCK }],
-                width,
-            });
-        }
-        rest = remainder;
     }
     lines.extend(wrap_plain_text(rest, max_width));
 
@@ -75,26 +83,38 @@ pub fn wrap_markdown(text: &str, max_width: usize) -> Vec<FormattedLine> {
 }
 
 /// Splits off one fenced code block starting at `s` (which must begin with
-/// "```"). Returns the verbatim content lines (indentation and newlines
-/// preserved, fence lines dropped) plus whatever text follows the block.
-fn extract_code_block(s: &str) -> (Vec<String>, &str) {
-    let after_open = match s.find('\n') {
-        Some(idx) => &s[idx + 1..],
-        None => return (Vec::new(), ""),
-    };
-    match after_open.find("```") {
-        Some(close_pos) => {
-            let content = after_open[..close_pos].strip_suffix('\n').unwrap_or(&after_open[..close_pos]);
-            let lines = content.split('\n').map(|l| l.to_string()).collect();
-            let after_close = &after_open[close_pos + 3..];
-            let remainder = match after_close.find('\n') {
-                Some(idx) => &after_close[idx + 1..],
-                None => "",
-            };
-            (lines, remainder)
-        }
-        None => (after_open.split('\n').map(|l| l.to_string()).collect(), ""),
+/// "```"). Returns `Some((lines, remainder))` with the verbatim content
+/// lines (indentation preserved, fence markers dropped) plus whatever text
+/// follows the block, or `None` if there is no matching closing "```"
+/// anywhere in `s` (so the caller should treat the text as plain instead of
+/// a code block).
+fn extract_code_block(s: &str) -> Option<(Vec<String>, &str)> {
+    let body = &s[3..];
+    let nl_pos = body.find('\n');
+    let same_line_end = nl_pos.unwrap_or(body.len());
+
+    // Inline fence: a closing "```" appears before any newline, e.g.
+    // "```one line code``` after".
+    if let Some(close_rel) = body[..same_line_end].find("```") {
+        let content = &body[..close_rel];
+        let remainder = &body[close_rel + 3..];
+        return Some((vec![content.to_string()], remainder));
     }
+
+    // Block fence: skip the rest of the opening line (language tag, if any),
+    // then look for the closing fence.
+    let after_open = &body[nl_pos? + 1..];
+    let close_pos = after_open.find("```")?;
+    let content = after_open[..close_pos].strip_suffix('\n').unwrap_or(&after_open[..close_pos]);
+    let lines = content.split('\n').map(|l| l.to_string()).collect();
+    let after_close = &after_open[close_pos + 3..];
+    // Preserve any trailing text on the closing fence's line instead of
+    // dropping it when there's no further newline.
+    let remainder = match after_close.find('\n') {
+        Some(idx) => &after_close[idx + 1..],
+        None => after_close,
+    };
+    Some((lines, remainder))
 }
 
 /// Parses and word-wraps plain (non-code-block) text, one source line at a
@@ -379,6 +399,26 @@ fn word_wrap_spans(spans: &[FormattedSpan], max_width: usize) -> Vec<FormattedLi
         let word = &atoms[start..idx];
         let word_width: usize = word.iter().map(|(c, _)| char_width(*c)).sum();
 
+        if word_width > max_width {
+            // The word itself is longer than a whole line (e.g. a long URL):
+            // split it character-by-character so no line exceeds max_width,
+            // same as the old wrap_text behavior.
+            if current_width > 0 {
+                lines.push(finalize_line(std::mem::take(&mut current)));
+                current_width = 0;
+            }
+            for &(c, style) in word {
+                let w = char_width(c);
+                if current_width > 0 && current_width + w > max_width {
+                    lines.push(finalize_line(std::mem::take(&mut current)));
+                    current_width = 0;
+                }
+                current.push((c, style));
+                current_width += w;
+            }
+            continue;
+        }
+
         if current_width > 0 && current_width + word_width > max_width {
             lines.push(finalize_line(std::mem::take(&mut current)));
             current_width = 0;
@@ -527,5 +567,32 @@ mod tests {
         assert!(spans[0].style.contains(StyleFlags::BOLD));
         assert_eq!(spans[2].text, "italic");
         assert!(spans[2].style.contains(StyleFlags::ITALIC));
+    }
+
+    #[test]
+    fn inline_single_line_code_fence_does_not_drop_surrounding_text() {
+        let lines = wrap_markdown("before ```one line code``` after", 80);
+        let all_text: String = lines.iter().flat_map(|l| l.spans.iter()).map(|s| s.text.clone()).collect();
+        assert!(all_text.contains("one line code"), "lost code content: {all_text:?}");
+        assert!(all_text.contains("after"), "lost trailing text: {all_text:?}");
+    }
+
+    #[test]
+    fn single_line_code_fence_does_not_produce_empty_output() {
+        let lines = wrap_markdown("```rust code```", 80);
+        assert!(!lines.is_empty());
+        assert!(lines.iter().any(|l| !l.spans.is_empty() && !l.spans[0].text.is_empty()));
+    }
+
+    #[test]
+    fn long_unbreakable_url_is_split_across_lines() {
+        let lines = wrap_markdown(
+            "https://example.com/very_long_url_that_exceeds_max_width_should_be_broken_across_lines",
+            20,
+        );
+        assert!(lines.len() > 1);
+        for line in &lines {
+            assert!(line.width <= 20, "line too wide: {} ({})", line.width, line.spans.iter().map(|s| s.text.clone()).collect::<String>());
+        }
     }
 }

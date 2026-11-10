@@ -395,7 +395,8 @@ impl App {
                                     && k.code == crossterm::event::KeyCode::Char('v')
                                 {
                                     if let Some(text) = crate::clipboard::get_text() {
-                                        self.model.entry_buffer.insert_str(&text);
+                                        let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
+                                        self.model.entry_buffer.insert_str(&normalized);
                                         self.model.dirty = true;
                                     }
                                     continue;

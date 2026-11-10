@@ -206,16 +206,24 @@ pub fn render_history(
                 if s.style.contains(StyleFlags::UNDERLINE) || s.style.contains(StyleFlags::LINK) {
                     style = style.add_modifier(ratatui::style::Modifier::UNDERLINED);
                 }
-                if s.style.contains(StyleFlags::SPOILER) {
-                    style = style.add_modifier(ratatui::style::Modifier::REVERSED);
-                }
                 if s.style.contains(StyleFlags::CODE) {
                     style = style.add_modifier(ratatui::style::Modifier::REVERSED);
                 }
                 if s.style.contains(StyleFlags::CODE_BLOCK) {
                     style = theme.history_text_quoted.add_modifier(ratatui::style::Modifier::DIM);
                 }
-                spans.push(Span::styled(s.text.clone(), style));
+                let text = if s.style.contains(StyleFlags::SPOILER) && is_selected {
+                    // Revealed by selecting the message: show the real text, dimmed/reversed.
+                    style = style.add_modifier(ratatui::style::Modifier::DIM | ratatui::style::Modifier::REVERSED);
+                    s.text.clone()
+                } else if s.style.contains(StyleFlags::SPOILER) {
+                    // Hidden until the message is selected.
+                    style = style.add_modifier(ratatui::style::Modifier::REVERSED);
+                    "[Spoiler]".to_string()
+                } else {
+                    s.text.clone()
+                };
+                spans.push(Span::styled(text, style));
             }
             if is_selected {
                 let pad = fmt.block_w.saturating_sub(l.width);
