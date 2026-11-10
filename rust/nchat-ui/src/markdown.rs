@@ -136,9 +136,16 @@ fn parse_inline(input: &str, base: StyleFlags) -> Vec<FormattedSpan> {
     while i < n {
         let c = chars[i];
 
-        if c == '\\' && i + 1 < n {
-            buf.push(chars[i + 1]);
-            i += 2;
+        if c == '\\' {
+            // Only the markdown markup chars are escapable (matches mdstyle.cpp:62);
+            // anything else (e.g. `C:\new\name`, `\d+`) keeps the backslash literal.
+            if i + 1 < n && is_escapable(chars[i + 1]) {
+                buf.push(chars[i + 1]);
+                i += 2;
+            } else {
+                buf.push(c);
+                i += 1;
+            }
             continue;
         }
 
@@ -156,54 +163,64 @@ fn parse_inline(input: &str, base: StyleFlags) -> Vec<FormattedSpan> {
 
         match c {
             '*' => {
-                if let Some(end) = find_single(&chars, i + 1, '*') {
-                    flush_buf!();
-                    let inner: String = chars[i + 1..end].iter().collect();
-                    spans.extend(parse_inline(&inner, base | StyleFlags::BOLD));
-                    i = end + 1;
-                    continue;
+                if is_valid_opener(&chars, i, 1) {
+                    if let Some(end) = find_single(&chars, i + 1, '*') {
+                        flush_buf!();
+                        let inner: String = chars[i + 1..end].iter().collect();
+                        spans.extend(parse_inline(&inner, base | StyleFlags::BOLD));
+                        i = end + 1;
+                        continue;
+                    }
                 }
             }
             '_' => {
                 if i + 1 < n && chars[i + 1] == '_' {
-                    if let Some(end) = find_double(&chars, i + 2, '_') {
+                    if is_valid_opener(&chars, i, 2) {
+                        if let Some(end) = find_double(&chars, i + 2, '_') {
+                            flush_buf!();
+                            let inner: String = chars[i + 2..end].iter().collect();
+                            spans.extend(parse_inline(&inner, base | StyleFlags::UNDERLINE));
+                            i = end + 2;
+                            continue;
+                        }
+                    }
+                } else if is_valid_opener(&chars, i, 1) {
+                    if let Some(end) = find_single(&chars, i + 1, '_') {
                         flush_buf!();
-                        let inner: String = chars[i + 2..end].iter().collect();
-                        spans.extend(parse_inline(&inner, base | StyleFlags::UNDERLINE));
-                        i = end + 2;
+                        let inner: String = chars[i + 1..end].iter().collect();
+                        spans.extend(parse_inline(&inner, base | StyleFlags::ITALIC));
+                        i = end + 1;
                         continue;
                     }
-                } else if let Some(end) = find_single(&chars, i + 1, '_') {
-                    flush_buf!();
-                    let inner: String = chars[i + 1..end].iter().collect();
-                    spans.extend(parse_inline(&inner, base | StyleFlags::ITALIC));
-                    i = end + 1;
-                    continue;
                 }
             }
             '~' => {
-                if let Some(end) = find_single(&chars, i + 1, '~') {
-                    flush_buf!();
-                    let inner: String = chars[i + 1..end].iter().collect();
-                    spans.extend(parse_inline(&inner, base | StyleFlags::STRIKE));
-                    i = end + 1;
-                    continue;
+                if is_valid_opener(&chars, i, 1) {
+                    if let Some(end) = find_single(&chars, i + 1, '~') {
+                        flush_buf!();
+                        let inner: String = chars[i + 1..end].iter().collect();
+                        spans.extend(parse_inline(&inner, base | StyleFlags::STRIKE));
+                        i = end + 1;
+                        continue;
+                    }
                 }
             }
             '`' => {
-                if let Some(end) = find_single(&chars, i + 1, '`') {
-                    flush_buf!();
-                    // Code spans are verbatim: no nested markdown parsing inside.
-                    spans.push(FormattedSpan {
-                        text: chars[i + 1..end].iter().collect(),
-                        style: base | StyleFlags::CODE,
-                    });
-                    i = end + 1;
-                    continue;
+                if is_valid_opener(&chars, i, 1) {
+                    if let Some(end) = find_single(&chars, i + 1, '`') {
+                        flush_buf!();
+                        // Code spans are verbatim: no nested markdown parsing inside.
+                        spans.push(FormattedSpan {
+                            text: chars[i + 1..end].iter().collect(),
+                            style: base | StyleFlags::CODE,
+                        });
+                        i = end + 1;
+                        continue;
+                    }
                 }
             }
             '|' => {
-                if i + 1 < n && chars[i + 1] == '|' {
+                if i + 1 < n && chars[i + 1] == '|' && is_valid_opener(&chars, i, 2) {
                     if let Some(end) = find_double(&chars, i + 2, '|') {
                         flush_buf!();
                         let inner: String = chars[i + 2..end].iter().collect();
@@ -237,15 +254,48 @@ fn parse_inline(input: &str, base: StyleFlags) -> Vec<FormattedSpan> {
     spans
 }
 
-/// Finds the next unescaped occurrence of `delim` at or after `start`.
+/// Markup chars that `\` is allowed to escape (matches mdstyle.cpp:62). A
+/// backslash before anything else (e.g. `C:\new\name`, `\d+`) stays literal.
+const ESCAPABLE: [char; 8] = ['*', '_', '~', '`', '[', ']', '|', '\\'];
+
+fn is_escapable(c: char) -> bool {
+    ESCAPABLE.contains(&c)
+}
+
+/// Word-boundary guard for a delimiter opening at `open` (spanning
+/// `delim_len` chars, e.g. 2 for `__`/`||`): must not be followed by
+/// whitespace, and must not be preceded by an alphanumeric char — so
+/// `5*3=15` and `my_file_name.txt` don't get treated as markup
+/// (matches mdstyle.cpp FindClose's opener check).
+fn is_valid_opener(chars: &[char], open: usize, delim_len: usize) -> bool {
+    let n = chars.len();
+    let after = open + delim_len;
+    if after >= n || chars[after].is_whitespace() {
+        return false;
+    }
+    if open > 0 && chars[open - 1].is_alphanumeric() {
+        return false;
+    }
+    true
+}
+
+/// Finds the next unescaped occurrence of `delim` at or after `start` that is
+/// a valid closer: not immediately after the opener, not preceded by
+/// whitespace, and not followed by an alphanumeric char (matches mdstyle.cpp
+/// FindClose's closer check). `start` is not itself examined as a closer.
 fn find_single(chars: &[char], start: usize, delim: char) -> Option<usize> {
+    let n = chars.len();
     let mut i = start;
-    while i < chars.len() {
-        if chars[i] == '\\' {
+    while i < n {
+        if chars[i] == '\\' && i + 1 < n && is_escapable(chars[i + 1]) {
             i += 2;
             continue;
         }
-        if chars[i] == delim {
+        if chars[i] == delim
+            && i > start
+            && !chars[i - 1].is_whitespace()
+            && (i + 1 >= n || !chars[i + 1].is_alphanumeric())
+        {
             return Some(i);
         }
         i += 1;
@@ -253,15 +303,21 @@ fn find_single(chars: &[char], start: usize, delim: char) -> Option<usize> {
     None
 }
 
-/// Finds the next unescaped occurrence of `delim` repeated twice.
+/// Same as `find_single`, but the closing delimiter is `delim` repeated twice.
 fn find_double(chars: &[char], start: usize, delim: char) -> Option<usize> {
+    let n = chars.len();
     let mut i = start;
-    while i + 1 < chars.len() {
-        if chars[i] == '\\' {
+    while i + 1 < n {
+        if chars[i] == '\\' && i + 1 < n && is_escapable(chars[i + 1]) {
             i += 2;
             continue;
         }
-        if chars[i] == delim && chars[i + 1] == delim {
+        if chars[i] == delim
+            && chars[i + 1] == delim
+            && i > start
+            && !chars[i - 1].is_whitespace()
+            && (i + 2 >= n || !chars[i + 2].is_alphanumeric())
+        {
             return Some(i);
         }
         i += 1;
@@ -434,5 +490,42 @@ mod tests {
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].spans[0].text, "first line");
         assert_eq!(lines[1].spans[0].text, "second line");
+    }
+
+    #[test]
+    fn asterisk_between_digits_is_not_bold() {
+        let lines = wrap_markdown("5*3=15 and 2*6=12", 80);
+        assert_eq!(lines[0].spans.len(), 1);
+        assert_eq!(lines[0].spans[0].text, "5*3=15 and 2*6=12");
+        assert_eq!(lines[0].spans[0].style, StyleFlags::NONE);
+    }
+
+    #[test]
+    fn underscore_in_filename_is_not_italic() {
+        let lines = wrap_markdown("my_file_name.txt here", 80);
+        assert_eq!(lines[0].spans.len(), 1);
+        assert_eq!(lines[0].spans[0].text, "my_file_name.txt here");
+        assert_eq!(lines[0].spans[0].style, StyleFlags::NONE);
+    }
+
+    #[test]
+    fn backslash_before_non_markup_char_stays_literal() {
+        let lines = wrap_markdown(r"C:\new\name", 80);
+        assert_eq!(lines[0].spans.len(), 1);
+        assert_eq!(lines[0].spans[0].text, r"C:\new\name");
+        assert_eq!(lines[0].spans[0].style, StyleFlags::NONE);
+
+        let lines = wrap_markdown(r"\d+ is a regex", 80);
+        assert_eq!(lines[0].spans[0].text, r"\d+ is a regex");
+    }
+
+    #[test]
+    fn valid_markup_still_parses_with_boundary_guards() {
+        let lines = wrap_markdown("*bold* and _italic_", 80);
+        let spans = &lines[0].spans;
+        assert_eq!(spans[0].text, "bold");
+        assert!(spans[0].style.contains(StyleFlags::BOLD));
+        assert_eq!(spans[2].text, "italic");
+        assert!(spans[2].style.contains(StyleFlags::ITALIC));
     }
 }
