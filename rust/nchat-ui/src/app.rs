@@ -28,6 +28,7 @@ impl TerminalGuard {
         let mut out = stdout();
         out.execute(EnterAlternateScreen)?;
         let _ = out.execute(crossterm::event::EnableFocusChange);
+        let _ = out.execute(crossterm::event::EnableBracketedPaste);
         if mouse_enabled {
             out.execute(event::EnableMouseCapture)?;
         }
@@ -37,6 +38,7 @@ impl TerminalGuard {
         std::panic::set_hook(Box::new(move |info| {
             let _ = disable_raw_mode();
             let _ = stdout().execute(crossterm::event::DisableFocusChange);
+            let _ = stdout().execute(crossterm::event::DisableBracketedPaste);
             let _ = stdout().execute(LeaveAlternateScreen);
             let _ = stdout().execute(event::DisableMouseCapture);
             orig_hook(info);
@@ -50,6 +52,7 @@ impl Drop for TerminalGuard {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
         let _ = stdout().execute(crossterm::event::DisableFocusChange);
+        let _ = stdout().execute(crossterm::event::DisableBracketedPaste);
         let _ = stdout().execute(LeaveAlternateScreen);
         if self.mouse_enabled {
             let _ = stdout().execute(event::DisableMouseCapture);
@@ -481,6 +484,16 @@ impl App {
                                         self.model.dirty = true;
                                         continue;
                                     }
+                                    crossterm::event::KeyCode::Up => {
+                                        self.model.entry_buffer.move_cursor_up();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
+                                    crossterm::event::KeyCode::Down => {
+                                        self.model.entry_buffer.move_cursor_down();
+                                        self.model.dirty = true;
+                                        continue;
+                                    }
                                     crossterm::event::KeyCode::Char(c) if !k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL) => {
                                         self.model.entry_buffer.insert_char(c);
                                         self.model.dirty = true;
@@ -687,6 +700,13 @@ impl App {
                             }
                         }
                     }
+                    CEvent::Paste(s) => {
+                        if self.model.focus == Focus::Entry {
+                            let normalized = s.replace("\r\n", "\n").replace('\r', "\n");
+                            self.model.entry_buffer.insert_str(&normalized);
+                            self.model.dirty = true;
+                        }
+                    }
                     CEvent::Resize(_, _) => {
                         self.model.dirty = true;
                     }
@@ -696,7 +716,6 @@ impl App {
                     CEvent::FocusLost => {
                         self.terminal_active = false;
                     }
-                    _ => {}
                 }
             }
 
@@ -1016,7 +1035,8 @@ impl App {
     fn effective_conf(&self) -> UiConfig {
         let mut conf = self.conf.clone();
         conf.list_width = self.list_width;
-        conf.entry_height = self.entry_height;
+        let dyn_h = self.model.entry_buffer.required_height(8);
+        conf.entry_height = self.entry_height.max(dyn_h);
         conf
     }
 

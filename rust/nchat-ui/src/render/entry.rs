@@ -54,8 +54,9 @@ pub fn render_entry(
     f.render_widget(Paragraph::new(text_lines), inner);
 
     if is_focused {
-        let cx = inner.x + (model.entry_buffer.cursor_idx() as u16).min(inner.width.saturating_sub(1));
-        let cy = inner.y;
+        let (row, col) = model.entry_buffer.cursor_coords();
+        let cx = inner.x + (col as u16).min(inner.width.saturating_sub(1));
+        let cy = inner.y + (row as u16).min(inner.height.saturating_sub(1));
         f.set_cursor_position((cx, cy));
     }
 }
