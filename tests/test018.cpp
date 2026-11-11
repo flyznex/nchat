@@ -161,6 +161,28 @@ static void TestMessageStatus()
     R"j({"type":"message_status","profile":"P","chat_id":"c1","msg_id":"m1","is_read":true,"is_delivered":false})j"));
 }
 
+static void TestMessageInlineButtons()
+{
+  ChatMessage m = MakeMessage();
+  InlineButton btn1;
+  btn1.text = "Play";
+  btn1.type = "web_app";
+  btn1.url = "https://example.com/app";
+  InlineButton btn2;
+  btn2.text = "Docs";
+  btn2.type = "url";
+  btn2.url = "https://example.com/docs";
+  m.inlineButtons.push_back(btn1);
+  m.inlineButtons.push_back(btn2);
+
+  std::shared_ptr<NewMessagesNotify> n = std::make_shared<NewMessagesNotify>("P");
+  n->chatId = "c1";
+  n->chatMessages.push_back(m);
+
+  std::string json = EventToJson(n);
+  unittest::ExpectTrue(json.find(R"("buttons":[{"text":"Play","type":"web_app","url":"https://example.com/app"},{"text":"Docs","type":"url","url":"https://example.com/docs"}])") != std::string::npos);
+}
+
 int main()
 {
   int rv = 0;
@@ -178,6 +200,7 @@ int main()
     TestChatFolders();
     TestUpdateChatFolder();
     TestMessageStatus();
+    TestMessageInlineButtons();
   }
   catch (const std::exception& ex)
   {

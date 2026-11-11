@@ -200,6 +200,13 @@ struct Reactions
   }
 };
 
+struct InlineButton
+{
+  std::string text;
+  std::string type; // "web_app" or "url"
+  std::string url;
+};
+
 struct ChatMessage
 {
   std::string id;
@@ -221,6 +228,7 @@ struct ChatMessage
   bool isDeleted = false;
   bool isPinned = false;
   bool hasMention = false; // only required for tgchat, not db cached
+  std::vector<InlineButton> inlineButtons;
 };
 
 enum DownloadFileAction

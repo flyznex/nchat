@@ -51,6 +51,22 @@ void PutMessage(JsonWriter& p_W, const ChatMessage& p_Msg)
   PutBool(p_W, "is_deleted", p_Msg.isDeleted);
   PutBool(p_W, "is_pinned", p_Msg.isPinned);
   PutBool(p_W, "has_mention", p_Msg.hasMention);
+
+  if (!p_Msg.inlineButtons.empty())
+  {
+    p_W.Key("buttons");
+    p_W.StartArray();
+    for (const auto& btn : p_Msg.inlineButtons)
+    {
+      p_W.StartObject();
+      PutStr(p_W, "text", btn.text);
+      PutStr(p_W, "type", btn.type);
+      PutStr(p_W, "url", btn.url);
+      p_W.EndObject();
+    }
+    p_W.EndArray();
+  }
+
   p_W.EndObject();
 }
 }
