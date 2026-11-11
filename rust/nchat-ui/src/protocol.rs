@@ -137,6 +137,13 @@ pub enum Request {
         msg_id: String,
         option_ids: Vec<i32>,
     },
+    #[serde(rename = "open_web_app")]
+    OpenWebApp {
+        profile: String,
+        chat_id: String,
+        bot_user_id: String,
+        url: String,
+    },
 }
 
 impl Request {
@@ -404,5 +411,37 @@ mod tests {
         assert_eq!(msg.buttons[0].text, "Play");
         assert_eq!(msg.buttons[0].r#type, "web_app");
         assert_eq!(msg.buttons[0].url, "https://example.com");
+    }
+
+    #[test]
+    fn deserializes_message_with_inline_buttons() {
+        let json = r#"{"type":"messages","profile":"P","success":true,"chat_id":"c1","from_msg_id":"","cached":false,"sequence":true,"messages":[{"id":"m1","sender_id":"u1","text":"Test app","quoted_id":"","quoted_text":"","quoted_sender":"","file_info":"","link_preview":"","time_sent":100,"is_outgoing":false,"is_read":true,"is_delivered":false,"is_edited":false,"is_deleted":false,"is_pinned":false,"has_mention":false,"buttons":[{"text":"Launch App","type":"web_app","url":"https://app.example.com"},{"text":"Website","type":"url","url":"https://example.com"}]}]}"#;
+        let event: Event = serde_json::from_str(json).unwrap();
+        match event {
+            Event::Messages { messages, .. } => {
+                assert_eq!(messages.len(), 1);
+                let btns = &messages[0].buttons;
+                assert_eq!(btns.len(), 2);
+                assert_eq!(btns[0].text, "Launch App");
+                assert_eq!(btns[0].r#type, "web_app");
+                assert_eq!(btns[0].url, "https://app.example.com");
+                assert_eq!(btns[1].text, "Website");
+                assert_eq!(btns[1].r#type, "url");
+            }
+            _ => panic!("unexpected event"),
+        }
+    }
+
+    #[test]
+    fn serializes_open_web_app_request() {
+        let req = Request::OpenWebApp {
+            profile: "P".into(),
+            chat_id: "c1".into(),
+            bot_user_id: "u1".into(),
+            url: "https://app.example.com".into(),
+        };
+        let json = req.to_json();
+        assert!(json.contains(r#""type":"open_web_app""#));
+        assert!(json.contains(r#""url":"https://app.example.com""#));
     }
 }
