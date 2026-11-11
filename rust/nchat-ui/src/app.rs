@@ -392,6 +392,11 @@ impl App {
                                 continue;
                             }
 
+                            // Mention Dialog: key.conf "select_mention" (default Ctrl-2 / Alt-2)
+                            if self.try_open_mention_dialog(k, norm) {
+                                continue;
+                            }
+
                             if self.model.focus == Focus::Entry && !self.nav.has_pending() {
                                 let is_paste = (k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
                                     && k.code == crossterm::event::KeyCode::Char('v'))
@@ -1078,6 +1083,30 @@ impl App {
         None
     }
 
+    /// Opens the mention picker when Ctrl-2 / Alt-2 / key.conf "select_mention"
+    /// is pressed while the entry box is focused. Returns true if handled.
+    fn try_open_mention_dialog(&mut self, k: crossterm::event::KeyEvent, norm: crate::keyconf::Key) -> bool {
+        if self.model.focus != Focus::Entry {
+            return false;
+        }
+
+        let is_mention = (k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+            && k.code == crossterm::event::KeyCode::Char('2'))
+            || (k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                && k.code == crossterm::event::KeyCode::Char('2'))
+            || self.keys.matches("select_mention", norm);
+
+        if is_mention {
+            if let Some((prof, cid)) = &self.model.selected_id {
+                let members = self.model.chat_members(prof, cid);
+                self.active_dialog = Some(Box::new(crate::dialog::mention::MentionDialog::new(members)));
+                self.model.dirty = true;
+                return true;
+            }
+        }
+        false
+    }
+
     fn open_selected_or_latest_link(&self) {
         let (prof, cid) = match &self.model.selected_id {
             Some(pair) => pair,
@@ -1301,6 +1330,29 @@ mod resize_tests {
             crate::keyconf::KeyConfig::default(),
         ).unwrap();
         assert_eq!(app.terminal_active, true);
+    }
+
+    #[test]
+    fn ctrl_2_opens_mention_dialog_in_entry_focus() {
+        let mut app = App::new(
+            crate::uiconf::UiConfig::default(),
+            crate::colorconf::Theme::default(),
+            crate::keyconf::KeyConfig::default(),
+        )
+        .unwrap();
+        app.model.focus = Focus::Entry;
+        app.model.selected_id = Some(("P".into(), "c1".into()));
+
+        let k = crossterm::event::KeyEvent::new(
+            crossterm::event::KeyCode::Char('2'),
+            crossterm::event::KeyModifiers::CONTROL,
+        );
+        let norm = crate::keyconf::normalize_crossterm_key(k).unwrap();
+
+        assert!(app.active_dialog.is_none());
+        let handled = app.try_open_mention_dialog(k, norm);
+        assert!(handled);
+        assert!(app.active_dialog.is_some());
     }
 
     #[test]
