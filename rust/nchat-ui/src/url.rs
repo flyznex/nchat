@@ -41,10 +41,21 @@ pub fn extract_urls(text: &str) -> Vec<String> {
     urls
 }
 
+/// Escapes single quotes for shell by replacing ' with '\''
+fn escape_single_quote(s: &str) -> String {
+    s.replace("'", "'\\''")
+}
+
 /// Opens a URL using the configured command (with `%1` replacement) or the platform default.
 pub fn open_url(url: &str, custom_cmd: &str) -> std::io::Result<()> {
     if !custom_cmd.is_empty() {
-        let cmd_str = custom_cmd.replace("%1", url);
+        // If the command template uses single-quoted %1, escape any single quotes in the URL
+        let escaped_url = if custom_cmd.contains("'%1'") {
+            escape_single_quote(url)
+        } else {
+            url.to_string()
+        };
+        let cmd_str = custom_cmd.replace("%1", &escaped_url);
         Command::new("sh")
             .arg("-c")
             .arg(&cmd_str)
@@ -103,5 +114,23 @@ mod tests {
     fn handles_text_without_urls() {
         let text = "Hello world, no link here!";
         assert!(extract_urls(text).is_empty());
+    }
+
+    #[test]
+    fn escapes_single_quotes_in_url() {
+        // Test the escape_single_quote function
+        assert_eq!(escape_single_quote("simple"), "simple");
+        assert_eq!(escape_single_quote("test'url"), "test'\\''url");
+        assert_eq!(escape_single_quote("multiple'test'urls"), "multiple'\\''test'\\''urls");
+
+        // Test that a URL with single quotes gets properly escaped in shell command
+        let url_with_quote = "https://example.com/test?param='value'";
+        let custom_cmd = "open '%1'";
+        let escaped = if custom_cmd.contains("'%1'") {
+            escape_single_quote(url_with_quote)
+        } else {
+            url_with_quote.to_string()
+        };
+        assert_eq!(escaped, "https://example.com/test?param='\\''value'\\''");
     }
 }

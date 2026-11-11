@@ -2056,9 +2056,9 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
               LOG_DEBUG("WebApp authenticated URL: %s", info->url_->url_.c_str());
               // Open in browser
               #if defined(__APPLE__)
-              std::string cmd = "open '" + info->url_->url_ + "' &";
+              std::string cmd = "open '" + StrUtil::EscapeSingleQuote(info->url_->url_) + "' &";
               #else
-              std::string cmd = "xdg-open '" + info->url_->url_ + "' >/dev/null 2>&1 &";
+              std::string cmd = "xdg-open '" + StrUtil::EscapeSingleQuote(info->url_->url_) + "' >/dev/null 2>&1 &";
               #endif
               system(cmd.c_str());
             }
@@ -2068,9 +2068,9 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             auto err = td::move_tl_object_as<td::td_api::error>(object);
             LOG_WARNING("openWebApp failed: %s, falling back to raw url", err->message_.c_str());
             #if defined(__APPLE__)
-            std::string cmd = "open '" + req->url + "' &";
+            std::string cmd = "open '" + StrUtil::EscapeSingleQuote(req->url) + "' &";
             #else
-            std::string cmd = "xdg-open '" + req->url + "' >/dev/null 2>&1 &";
+            std::string cmd = "xdg-open '" + StrUtil::EscapeSingleQuote(req->url) + "' >/dev/null 2>&1 &";
             #endif
             system(cmd.c_str());
           }
