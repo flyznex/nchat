@@ -872,6 +872,7 @@ mod tests {
             is_deleted: false,
             is_pinned: false,
             has_mention: false,
+            buttons: Vec::new(),
         }
     }
 
@@ -1054,6 +1055,7 @@ mod tests {
             is_deleted: false,
             is_pinned: false,
             has_mention: false,
+            buttons: Vec::new(),
         };
         m.apply_event(&Event::Messages {
             profile: "P1".into(),
@@ -1116,6 +1118,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 100,
             is_outgoing: false, is_read: true, is_delivered: false, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         let msg2 = Message {
             id: "m2".into(), sender_id: "u1".into(), text: "second".into(),
@@ -1123,6 +1126,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 200,
             is_outgoing: true, is_read: false, is_delivered: true, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
 
         m.apply_event(&Event::Messages {
@@ -1245,6 +1249,7 @@ mod tests {
             is_deleted: false,
             is_pinned: false,
             has_mention: false,
+            buttons: Vec::new(),
         };
         m.apply_event(&Event::Sent {
             profile: "P1".into(),
@@ -1271,6 +1276,7 @@ mod tests {
             is_deleted: false,
             is_pinned: false,
             has_mention: false,
+            buttons: Vec::new(),
         };
         m.apply_event(&Event::Messages {
             profile: "P1".into(),
@@ -1392,6 +1398,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1000,
             is_outgoing: false, is_read: true, is_delivered: false, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         m.apply_event(&Event::Messages {
             profile: prof.into(),
@@ -1424,6 +1431,7 @@ mod tests {
                 file_info: "".into(), link_preview: "".into(), time_sent: 500 + i as i64,
                 is_outgoing: false, is_read: true, is_delivered: false, is_edited: false,
                 is_deleted: false, is_pinned: false, has_mention: false,
+                buttons: Vec::new(),
             });
         }
         m.apply_event(&Event::Messages {

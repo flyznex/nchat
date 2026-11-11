@@ -140,6 +140,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
             is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         let conf = UiConfig::default();
         let fmt = format_message(&msg, "Alice", 40, false, &conf);
@@ -158,6 +159,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
             is_outgoing: true, is_read: false, is_delivered: true, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         let conf = UiConfig::default();
         let unread_fmt = format_message(&msg, "Me", 40, true, &conf);
@@ -177,6 +179,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
             is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         let conf = UiConfig::default();
         let fmt = format_message(&msg, "Alice", 40, true, &conf);
@@ -193,6 +196,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
             is_outgoing: true, is_read: true, is_delivered: true, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         let conf = UiConfig::default();
         let fmt = format_message(&msg, "Me", 40, true, &conf);
@@ -211,6 +215,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
             is_outgoing: true, is_read: false, is_delivered: true, is_edited: true,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         let conf = UiConfig::default();
         let fmt = format_message(&msg, "Me", 40, true, &conf);

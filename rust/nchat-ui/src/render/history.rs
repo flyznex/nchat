@@ -360,6 +360,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
             is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         model.apply_event(&crate::protocol::Event::Messages {
             profile: "P1".into(), success: true, chat_id: "c1".into(),
@@ -402,6 +403,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
             is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         model.apply_event(&crate::protocol::Event::Messages {
             profile: "P1".into(), success: true, chat_id: "c1".into(),
@@ -441,6 +443,7 @@ mod tests {
             file_info: "".into(), link_preview: "".into(), time_sent: 1700000000000,
             is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         model.apply_event(&crate::protocol::Event::Messages {
             profile: "P1".into(), success: true, chat_id: "c1".into(),

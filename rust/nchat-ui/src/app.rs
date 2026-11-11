@@ -1216,6 +1216,7 @@ mod resize_tests {
                 is_deleted: false,
                 is_pinned: false,
                 has_mention: false,
+                buttons: Vec::new(),
             }],
         });
 

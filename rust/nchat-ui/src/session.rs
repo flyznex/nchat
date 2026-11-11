@@ -74,6 +74,7 @@ mod tests {
             file_info: String::new(), link_preview: String::new(), time_sent: 5,
             is_outgoing: false, is_read: false, is_delivered: false, is_edited: false,
             is_deleted: false, is_pinned: false, has_mention: false,
+            buttons: Vec::new(),
         };
         let e = Event::Messages {
             profile: "P".into(), success: true, chat_id: "c1".into(), from_msg_id: String::new(),
