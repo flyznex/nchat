@@ -91,11 +91,68 @@ pub fn format_message(
         (None, 0, msg.text.as_str())
     };
 
-    let lines = if display_text.is_empty() {
+    let mut lines = if display_text.is_empty() {
         Vec::new()
     } else {
         crate::markdown::wrap_markdown(display_text, max_w)
     };
+
+    // Append inline buttons if present
+    if !msg.buttons.is_empty() {
+        let mut cur_spans = Vec::new();
+        let mut cur_line_width = 0;
+
+        for (idx, btn) in msg.buttons.iter().enumerate() {
+            let num_label = if idx < 9 {
+                format!("[{}] ", idx + 1)
+            } else {
+                "[•] ".to_string()
+            };
+            let btn_w = unicode_width::UnicodeWidthStr::width(num_label.as_str())
+                + unicode_width::UnicodeWidthStr::width(btn.text.as_str());
+
+            // Add separator if not first button and adding this button would exceed width
+            if !cur_spans.is_empty() && cur_line_width + btn_w + 3 > max_w {
+                let line_width = cur_line_width;
+                lines.push(FormattedLine {
+                    spans: cur_spans,
+                    width: line_width,
+                });
+                cur_spans = Vec::new();
+                cur_line_width = 0;
+            }
+
+            // Add spacing between buttons
+            if !cur_spans.is_empty() {
+                cur_spans.push(FormattedSpan {
+                    text: "   ".to_string(),
+                    style: crate::markdown::StyleFlags::NONE,
+                });
+                cur_line_width += 3;
+            }
+
+            // Add button number (bold)
+            cur_spans.push(FormattedSpan {
+                text: num_label.clone(),
+                style: crate::markdown::StyleFlags::BOLD,
+            });
+            cur_line_width += unicode_width::UnicodeWidthStr::width(num_label.as_str());
+
+            // Add button text (underline)
+            cur_spans.push(FormattedSpan {
+                text: btn.text.clone(),
+                style: crate::markdown::StyleFlags::UNDERLINE,
+            });
+            cur_line_width += unicode_width::UnicodeWidthStr::width(btn.text.as_str());
+        }
+
+        if !cur_spans.is_empty() {
+            lines.push(FormattedLine {
+                spans: cur_spans,
+                width: cur_line_width,
+            });
+        }
+    }
 
     let mut block_w = width(&header);
     if let Some(q) = &quote {
@@ -222,5 +279,56 @@ mod tests {
         assert!(fmt.lines.len() > 1);
         assert!(fmt.block_w <= 30); // 75% of 40 = 30
         assert!(fmt.header.contains("✎")); // edited indicator
+    }
+
+    #[test]
+    fn formats_message_with_inline_buttons_with_numbering() {
+        let msg = Message {
+            id: "m1".into(),
+            sender_id: "bot".into(),
+            text: "Please click button:".into(),
+            quoted_id: "".into(),
+            quoted_text: "".into(),
+            quoted_sender: "".into(),
+            file_info: "".into(),
+            link_preview: "".into(),
+            time_sent: 100,
+            is_outgoing: false,
+            is_read: true,
+            is_delivered: false,
+            is_edited: false,
+            is_deleted: false,
+            is_pinned: false,
+            has_mention: false,
+            buttons: vec![
+                crate::protocol::InlineButton {
+                    text: "Launch App".into(),
+                    r#type: "web_app".into(),
+                    url: "https://example.com/app".into(),
+                },
+                crate::protocol::InlineButton {
+                    text: "Website".into(),
+                    r#type: "url".into(),
+                    url: "https://example.com".into(),
+                },
+            ],
+        };
+        let conf = UiConfig::default();
+        let formatted = format_message(&msg, "Bot", 60, false, &conf);
+        let all_text = formatted
+            .lines
+            .iter()
+            .map(|l| {
+                l.spans
+                    .iter()
+                    .map(|s| s.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join("")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(all_text.contains("[1] Launch App"));
+        assert!(all_text.contains("[2] Website"));
     }
 }
