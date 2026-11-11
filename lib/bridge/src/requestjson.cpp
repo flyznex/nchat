@@ -180,6 +180,14 @@ bool RequestFromJson(const std::string& p_Json, ParsedRequest& p_Out, std::strin
     }
     p_Out.request = r;
   }
+  else if (type == "open_web_app")
+  {
+    std::shared_ptr<OpenWebAppRequest> r = std::make_shared<OpenWebAppRequest>();
+    if (!GetStr(doc, "chat_id", r->chatId)) return Missing("chat_id", p_Error);
+    if (!GetStr(doc, "bot_user_id", r->botUserId)) return Missing("bot_user_id", p_Error);
+    if (!GetStr(doc, "url", r->url)) return Missing("url", p_Error);
+    p_Out.request = r;
+  }
   else
   {
     p_Error = "unknown request type: " + type;

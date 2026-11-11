@@ -115,6 +115,21 @@ static void TestSetPollAnswer()
   unittest::ExpectEqual(int32_t, r->optionIds[1], (int32_t)2);
 }
 
+static void TestOpenWebApp()
+{
+  std::string json = R"j({"type":"open_web_app","profile":"P","chat_id":"c1","bot_user_id":"u1","url":"https://app.com"})j";
+  ParsedRequest out;
+  std::string err;
+  unittest::ExpectTrue(RequestFromJson(json, out, err));
+  unittest::ExpectEqual(std::string, out.profileId, "P");
+  unittest::ExpectTrue(out.request != nullptr);
+  unittest::ExpectEqual(int, out.request->GetMessageType(), OpenWebAppRequestType);
+  auto req = std::static_pointer_cast<OpenWebAppRequest>(out.request);
+  unittest::ExpectEqual(std::string, req->chatId, "c1");
+  unittest::ExpectEqual(std::string, req->botUserId, "u1");
+  unittest::ExpectEqual(std::string, req->url, "https://app.com");
+}
+
 static void TestErrors()
 {
   ParsedRequest p;
@@ -141,6 +156,7 @@ int main()
     TestGetMessages();
     TestSendMessage();
     TestSetPollAnswer();
+    TestOpenWebApp();
     TestErrors();
   }
   catch (const std::exception& ex)

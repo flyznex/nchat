@@ -104,6 +104,7 @@ enum MessageType
   SendStickerRequestType,
   FindChatRequestType,
   SetPollAnswerRequestType,
+  OpenWebAppRequestType,
   // Service messages
   ServiceMessageType,
   NewContactsNotifyType,
@@ -458,6 +459,15 @@ public:
   std::string chatId;
   std::string msgId;
   std::vector<int32_t> optionIds;
+};
+
+class OpenWebAppRequest : public RequestMessage
+{
+public:
+  virtual MessageType GetMessageType() const { return OpenWebAppRequestType; }
+  std::string chatId;
+  std::string botUserId;
+  std::string url;
 };
 
 class GetUnreadReactionsRequest : public RequestMessage

@@ -2027,6 +2027,57 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
       }
       break;
 
+    case OpenWebAppRequestType:
+      {
+        LOG_DEBUG("Open web app");
+        std::shared_ptr<OpenWebAppRequest> req =
+          std::static_pointer_cast<OpenWebAppRequest>(p_RequestMessage);
+
+        int64_t chatId = ParseChatId(req->chatId).chatId;
+        int64_t botUserId = StrUtil::NumFromHex<int64_t>(req->botUserId);
+        if (botUserId == 0) botUserId = chatId;
+
+        auto openWebApp = td::td_api::make_object<td::td_api::openWebApp>();
+        openWebApp->chat_id_ = chatId;
+        openWebApp->bot_user_id_ = botUserId;
+        openWebApp->url_ = req->url;
+        auto params = td::td_api::make_object<td::td_api::webAppOpenParameters>();
+        params->application_name_ = "nchat";
+        openWebApp->parameters_ = std::move(params);
+
+        SendQuery(std::move(openWebApp),
+                  [this, req](Object object)
+        {
+          if (object && object->get_id() == td::td_api::webAppInfo::ID)
+          {
+            auto info = td::move_tl_object_as<td::td_api::webAppInfo>(object);
+            if (info && info->url_)
+            {
+              LOG_DEBUG("WebApp authenticated URL: %s", info->url_->url_.c_str());
+              // Open in browser
+              #if defined(__APPLE__)
+              std::string cmd = "open '" + info->url_->url_ + "' &";
+              #else
+              std::string cmd = "xdg-open '" + info->url_->url_ + "' >/dev/null 2>&1 &";
+              #endif
+              system(cmd.c_str());
+            }
+          }
+          else if (object && object->get_id() == td::td_api::error::ID)
+          {
+            auto err = td::move_tl_object_as<td::td_api::error>(object);
+            LOG_WARNING("openWebApp failed: %s, falling back to raw url", err->message_.c_str());
+            #if defined(__APPLE__)
+            std::string cmd = "open '" + req->url + "' &";
+            #else
+            std::string cmd = "xdg-open '" + req->url + "' >/dev/null 2>&1 &";
+            #endif
+            system(cmd.c_str());
+          }
+        });
+      }
+      break;
+
     default:
       LOG_DEBUG("unknown request message %d", p_RequestMessage->GetMessageType());
       break;
@@ -4324,6 +4375,34 @@ void TgChat::Impl::TdMessageConvert(td::td_api::message& p_TdMessage, ChatMessag
   if (p_TdMessage.interaction_info_)
   {
     GetMsgReactions(p_TdMessage.interaction_info_, p_ChatMessage.reactions);
+  }
+
+  if (p_TdMessage.reply_markup_ && p_TdMessage.reply_markup_->get_id() == td::td_api::replyMarkupInlineKeyboard::ID)
+  {
+    const auto& markup = static_cast<const td::td_api::replyMarkupInlineKeyboard&>(*p_TdMessage.reply_markup_);
+    for (const auto& row : markup.rows_)
+    {
+      for (const auto& btn : row)
+      {
+        if (!btn || !btn->type_) continue;
+        InlineButton b;
+        b.text = btn->text_;
+        if (btn->type_->get_id() == td::td_api::inlineKeyboardButtonTypeWebApp::ID)
+        {
+          const auto& webApp = static_cast<const td::td_api::inlineKeyboardButtonTypeWebApp&>(*btn->type_);
+          b.type = "web_app";
+          b.url = webApp.url_;
+          p_ChatMessage.inlineButtons.push_back(b);
+        }
+        else if (btn->type_->get_id() == td::td_api::inlineKeyboardButtonTypeUrl::ID)
+        {
+          const auto& urlBtn = static_cast<const td::td_api::inlineKeyboardButtonTypeUrl&>(*btn->type_);
+          b.type = "url";
+          b.url = urlBtn.url_;
+          p_ChatMessage.inlineButtons.push_back(b);
+        }
+      }
+    }
   }
 }
 
