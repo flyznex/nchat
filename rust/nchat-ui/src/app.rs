@@ -610,6 +610,35 @@ impl App {
                                 }
                             }
 
+                            if self.model.focus == Focus::History
+                                && !k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                                && !k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                            {
+                                if let crossterm::event::KeyCode::Char(c) = k.code {
+                                    if ('1'..='9').contains(&c) {
+                                        if let Some(msg) = self.model.selected_message() {
+                                            let idx = (c as usize) - ('1' as usize);
+                                            if let Some(btn) = msg.buttons.get(idx) {
+                                                if btn.r#type == "web_app" {
+                                                    let (prof, cid) = self.model.selected_id.clone().unwrap_or_default();
+                                                    let req = crate::protocol::Request::OpenWebApp {
+                                                        profile: prof,
+                                                        chat_id: cid,
+                                                        bot_user_id: msg.sender_id.clone(),
+                                                        url: btn.url.clone(),
+                                                    };
+                                                    let _ = core.send(&req.to_json());
+                                                } else {
+                                                    let _ = crate::url::open_url(&btn.url, &self.conf.link_open_command);
+                                                }
+                                                self.model.dirty = true;
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             match self.nav.resolve(norm, self.model.focus) {
                                 NavResolveResult::Matched(act) => self.handle_action(act, core),
                                 NavResolveResult::Pending => {}
@@ -1034,6 +1063,11 @@ impl App {
             if urls.is_empty() && !msg.link_preview.is_empty() {
                 urls = crate::url::extract_urls(&msg.link_preview);
             }
+            for btn in &msg.buttons {
+                if !btn.url.is_empty() && !urls.contains(&btn.url) {
+                    urls.push(btn.url.clone());
+                }
+            }
 
             let link_cmd = self.conf.link_open_command.clone();
             for u in urls {
@@ -1284,5 +1318,74 @@ mod resize_tests {
         app.handle_esc();
         assert_eq!(app.model.focus, Focus::Entry);
         assert_eq!(app.model.entry_buffer.text(), "Keep this draft");
+    }
+
+    #[test]
+    fn open_selected_or_latest_link_includes_inline_button_urls() {
+        let mut app = App::new(
+            crate::uiconf::UiConfig::default(),
+            crate::colorconf::Theme::default(),
+            crate::keyconf::KeyConfig::default(),
+        )
+        .unwrap();
+
+        let out_file = std::env::temp_dir().join(format!("test_open_button_link_{}.txt", std::process::id()));
+        let _ = std::fs::remove_file(&out_file);
+        app.conf.link_open_command = format!("echo '%1' > {}", out_file.display());
+
+        let prof = "P";
+        let cid = "c1";
+        app.model.apply_event(&crate::protocol::Event::Chats {
+            profile: prof.into(),
+            success: true,
+            chats: vec![crate::protocol::Chat {
+                id: cid.into(),
+                is_unread: false,
+                is_unread_mention: false,
+                is_muted: false,
+                is_pinned: false,
+                is_archived: false,
+                last_message_time: 0,
+            }],
+        });
+        app.model.apply_event(&crate::protocol::Event::Messages {
+            profile: prof.into(),
+            success: true,
+            chat_id: cid.into(),
+            from_msg_id: "".into(),
+            cached: false,
+            sequence: true,
+            messages: vec![crate::protocol::Message {
+                id: "m1".into(),
+                sender_id: "bot".into(),
+                text: "Welcome to bot".into(),
+                quoted_id: "".into(),
+                quoted_text: "".into(),
+                quoted_sender: "".into(),
+                file_info: "".into(),
+                link_preview: "".into(),
+                time_sent: 100,
+                is_outgoing: false,
+                is_read: true,
+                is_delivered: false,
+                is_edited: false,
+                is_deleted: false,
+                is_pinned: false,
+                has_mention: false,
+                buttons: vec![crate::protocol::InlineButton {
+                    text: "Docs".into(),
+                    r#type: "url".into(),
+                    url: "https://example.com/docs".into(),
+                }],
+            }],
+        });
+
+        app.model.selected_id = Some((prof.into(), cid.into()));
+        app.open_selected_or_latest_link();
+
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        let content = std::fs::read_to_string(&out_file).unwrap_or_default();
+        let _ = std::fs::remove_file(&out_file);
+        assert_eq!(content.trim(), "https://example.com/docs");
     }
 }
