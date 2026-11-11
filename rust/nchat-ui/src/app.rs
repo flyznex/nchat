@@ -393,9 +393,38 @@ impl App {
                             }
 
                             if self.model.focus == Focus::Entry && !self.nav.has_pending() {
-                                if k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
-                                    && k.code == crossterm::event::KeyCode::Char('v')
-                                {
+                                let is_paste = (k.modifiers.contains(crossterm::event::KeyModifiers::CONTROL)
+                                    && k.code == crossterm::event::KeyCode::Char('v'))
+                                    || (k.modifiers.contains(crossterm::event::KeyModifiers::ALT)
+                                        && k.code == crossterm::event::KeyCode::Char('v'));
+
+                                if is_paste {
+                                    // First check if clipboard contains an image
+                                    if crate::clipboard::has_image() {
+                                        if let Some(img_path) = crate::clipboard::save_image_to_temp() {
+                                            if let Some((prof, cid)) = &self.model.selected_id {
+                                                let quoted_id = if self.model.reply_message_active {
+                                                    self.model.reply_message_id.clone().unwrap_or_default()
+                                                } else {
+                                                    String::new()
+                                                };
+                                                let req = crate::protocol::Request::SendMessage {
+                                                    profile: prof.clone(),
+                                                    chat_id: cid.clone(),
+                                                    text: self.model.entry_buffer.text().trim().to_string(),
+                                                    quoted_id,
+                                                    file_path: img_path,
+                                                };
+                                                let _ = core.send(&req.to_json());
+                                                self.model.entry_buffer.clear();
+                                                self.model.cancel_compose_mode();
+                                                self.model.dirty = true;
+                                                continue;
+                                            }
+                                        }
+                                    }
+
+                                    // Fallback to text paste
                                     if let Some(text) = crate::clipboard::get_text() {
                                         let normalized = text.replace("\r\n", "\n").replace('\r', "\n");
                                         self.model.entry_buffer.insert_str(&normalized);

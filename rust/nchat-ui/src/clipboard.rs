@@ -83,4 +83,9 @@ mod tests {
         let _ = get_text();
         let _ = has_image();
     }
+
+    #[test]
+    fn test_has_image_does_not_panic() {
+        let _ = has_image();
+    }
 }
