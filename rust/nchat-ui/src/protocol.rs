@@ -38,6 +38,15 @@ pub struct Message {
     pub is_deleted: bool,
     pub is_pinned: bool,
     pub has_mention: bool,
+    #[serde(default)]
+    pub buttons: Vec<InlineButton>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InlineButton {
+    pub text: String,
+    pub r#type: String,
+    pub url: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -169,6 +178,7 @@ mod tests {
             is_deleted: false,
             is_pinned: false,
             has_mention: false,
+            buttons: Vec::new(),
         }
     }
 
@@ -381,5 +391,18 @@ mod tests {
         .unwrap();
         assert_eq!(p[0].id, "Dummy_1");
         assert!(!p[0].auto_get_chats && p[0].auto_get_contacts);
+    }
+
+    #[test]
+    fn deserializes_message_with_buttons() {
+        let json = r#"{"id":"m1","sender_id":"u1","text":"hi","quoted_id":"","quoted_text":"","quoted_sender":"","file_info":"","link_preview":"","time_sent":5,"is_outgoing":false,"is_read":true,"is_delivered":false,"is_edited":false,"is_deleted":false,"is_pinned":false,"has_mention":false,"buttons":[{"text":"Play","type":"web_app","url":"https://example.com"}]}"#;
+        let msg: Message = serde_json::from_str(json).unwrap();
+
+        assert_eq!(msg.id, "m1");
+        assert_eq!(msg.text, "hi");
+        assert_eq!(msg.buttons.len(), 1);
+        assert_eq!(msg.buttons[0].text, "Play");
+        assert_eq!(msg.buttons[0].r#type, "web_app");
+        assert_eq!(msg.buttons[0].url, "https://example.com");
     }
 }
