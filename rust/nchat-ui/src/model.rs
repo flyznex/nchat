@@ -279,6 +279,13 @@ impl UiModel {
                             }
                         }
                     }
+
+                    // If all incoming messages in the chat are read, clear chat unread flag
+                    if *is_read && entry.iter().all(|m| m.is_outgoing || m.is_read) {
+                        if let Some(c) = self.chats.iter_mut().find(|c| &c.profile_id == profile && &c.chat_id == chat_id) {
+                            c.is_unread = false;
+                        }
+                    }
                 }
                 self.dirty = true;
             }
@@ -625,11 +632,11 @@ impl UiModel {
                     }
                 }
             }
-            if !reqs.is_empty() {
-                if let Some(c) = self.chats.iter_mut().find(|c| &c.profile_id == prof && &c.chat_id == cid) {
+            if let Some(c) = self.chats.iter_mut().find(|c| &c.profile_id == prof && &c.chat_id == cid) {
+                if c.is_unread {
                     c.is_unread = false;
+                    self.dirty = true;
                 }
-                self.dirty = true;
             }
         }
         reqs
@@ -957,6 +964,66 @@ mod tests {
         let msgs = &model.messages[&("P".to_string(), "c1".to_string())];
         assert!(msgs[0].is_read, "msg1 (10485760) <= watermark (104857600) should be marked read");
         assert!(msgs[1].is_read, "msg2 (104857600) should be marked read");
+    }
+
+    #[test]
+    fn selected_chat_clears_unread_even_if_no_unread_messages() {
+        let mut m = UiModel::new();
+        m.chats.push(ListChat {
+            profile_id: "P1".into(),
+            chat_id: "c1".into(),
+            name: "Group 1".into(),
+            group: "P1".into(),
+            is_unread: true,
+            is_muted: false,
+            is_pinned: false,
+            last_message_time: 100,
+            preview: String::new(),
+            folders: HashSet::new(),
+        });
+
+        // Chat has messages, but all are already read (e.g. read on another device or prior tick)
+        let mut msg = sample_message("m1", 100);
+        msg.is_read = true;
+        msg.is_delivered = true;
+        m.messages.insert(("P1".into(), "c1".into()), vec![msg]);
+
+        m.selected_id = Some(("P1".into(), "c1".into()));
+        let reqs = m.take_pending_reads();
+        assert!(reqs.is_empty(), "no unread messages to send mark_read for");
+
+        let chat = m.chats.iter().find(|c| c.chat_id == "c1").unwrap();
+        assert!(!chat.is_unread, "selected chat must be marked read even if reqs was empty");
+    }
+
+    #[test]
+    fn message_status_clears_chat_unread_when_all_read() {
+        let mut m = UiModel::new();
+        m.chats.push(ListChat {
+            profile_id: "P1".into(),
+            chat_id: "c1".into(),
+            name: "Group 1".into(),
+            group: "P1".into(),
+            is_unread: true,
+            is_muted: false,
+            is_pinned: false,
+            last_message_time: 100,
+            preview: String::new(),
+            folders: HashSet::new(),
+        });
+
+        m.messages.insert(("P1".into(), "c1".into()), vec![sample_message("m1", 100)]);
+
+        m.apply_event(&Event::MessageStatus {
+            profile: "P1".into(),
+            chat_id: "c1".into(),
+            msg_id: "m1".into(),
+            is_read: true,
+            is_delivered: true,
+        });
+
+        let chat = m.chats.iter().find(|c| c.chat_id == "c1").unwrap();
+        assert!(!chat.is_unread, "chat should no longer be marked unread after all messages are read");
     }
 
     #[test]
