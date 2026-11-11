@@ -461,6 +461,24 @@ impl UiModel {
             .unwrap_or(&[])
     }
 
+    pub fn chat_members(&self, profile: &str, chat_id: &str) -> Vec<String> {
+        let mut set = HashSet::new();
+        let key = (profile.to_string(), chat_id.to_string());
+        if let Some(msgs) = self.messages.get(&key) {
+            for m in msgs {
+                if !m.sender_id.is_empty() {
+                    let name = self.contact_name(profile, &m.sender_id);
+                    if !name.is_empty() && name != "You" && name != "Saved Messages" {
+                        set.insert(name);
+                    }
+                }
+            }
+        }
+        let mut list: Vec<String> = set.into_iter().collect();
+        list.sort();
+        list
+    }
+
     pub fn current_messages(&self) -> &[Message] {
         if let Some((prof, cid)) = &self.selected_id {
             self.messages(prof, cid)
@@ -1024,6 +1042,45 @@ mod tests {
 
         let chat = m.chats.iter().find(|c| c.chat_id == "c1").unwrap();
         assert!(!chat.is_unread, "chat should no longer be marked unread after all messages are read");
+    }
+
+    #[test]
+    fn extracts_chat_members_from_messages_and_contacts() {
+        let mut m = UiModel::new();
+        m.contacts.insert(("P1".into(), "u1".into()), Contact {
+            id: "u1".into(),
+            name: "Alice Smith".into(),
+            phone: "".into(),
+            is_self: false,
+            is_alias: false,
+        });
+        m.contacts.insert(("P1".into(), "u2".into()), Contact {
+            id: "u2".into(),
+            name: "Bob Jones".into(),
+            phone: "".into(),
+            is_self: false,
+            is_alias: false,
+        });
+
+        m.messages.insert(("P1".into(), "c1".into()), vec![
+            Message {
+                id: "m1".into(), sender_id: "u1".into(), text: "hi".into(),
+                quoted_id: "".into(), quoted_text: "".into(), quoted_sender: "".into(),
+                file_info: "".into(), link_preview: "".into(), time_sent: 10,
+                is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
+                is_deleted: false, is_pinned: false, has_mention: false, buttons: Vec::new(),
+            },
+            Message {
+                id: "m2".into(), sender_id: "u2".into(), text: "hello".into(),
+                quoted_id: "".into(), quoted_text: "".into(), quoted_sender: "".into(),
+                file_info: "".into(), link_preview: "".into(), time_sent: 20,
+                is_outgoing: false, is_read: true, is_delivered: true, is_edited: false,
+                is_deleted: false, is_pinned: false, has_mention: false, buttons: Vec::new(),
+            },
+        ]);
+
+        let members = m.chat_members("P1", "c1");
+        assert_eq!(members, vec!["Alice Smith", "Bob Jones"]);
     }
 
     #[test]
