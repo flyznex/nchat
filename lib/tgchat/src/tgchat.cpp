@@ -1233,6 +1233,15 @@ void TgChat::Impl::PerformRequest(std::shared_ptr<RequestMessage> p_RequestMessa
             LOG_TRACE("Marked reactions read");
           });
         }
+
+        // Clear all unread mentions for this chat when marking read
+        auto read_all_chat_mentions = td::td_api::make_object<td::td_api::readAllChatMentions>();
+        read_all_chat_mentions->chat_id_ = chatId;
+        SendQuery(std::move(read_all_chat_mentions), [](Object object)
+        {
+          if (object->get_id() == td::td_api::error::ID) return;
+          LOG_TRACE("Marked all chat mentions read");
+        });
       }
       break;
 
